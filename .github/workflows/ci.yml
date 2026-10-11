@@ -67,6 +67,20 @@ jobs:
   unit-and-domain-tests:
     name: Unit & Domain Tests
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: ledger_ae_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -77,6 +91,10 @@ jobs:
           node-version: 20
           cache: 'npm'
 
+      - name: Setup Postgres non-superuser role
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -d ledger_ae_test -c "CREATE ROLE ledger_app WITH LOGIN PASSWORD 'ledger_app_secure_pass'; GRANT ALL PRIVILEGES ON DATABASE ledger_ae_test TO ledger_app; GRANT ALL PRIVILEGES ON SCHEMA public TO ledger_app;"
+
       - name: Install Dependencies
         run: npm ci
 
@@ -85,6 +103,9 @@ jobs:
 
       - name: Run Monorepo Test Suite
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://ledger_app:ledger_app_secure_pass@localhost:5432/ledger_ae_test
+          DATABASE_URL: postgresql://ledger_app:ledger_app_secure_pass@localhost:5432/ledger_ae_test
 
   playwright-e2e:
     name: Playwright E2E Tests
@@ -150,6 +171,20 @@ jobs:
   clean-checkout-verification:
     name: Clean Checkout Verification
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: ledger_ae_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Fresh Clean Checkout
         uses: actions/checkout@v4
@@ -165,6 +200,10 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Postgres non-superuser role
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -d ledger_ae_test -c "CREATE ROLE ledger_app WITH LOGIN PASSWORD 'ledger_app_secure_pass'; GRANT ALL PRIVILEGES ON DATABASE ledger_ae_test TO ledger_app; GRANT ALL PRIVILEGES ON SCHEMA public TO ledger_app;"
+
       - name: Fresh Clean Install
         run: npm ci
 
@@ -179,8 +218,14 @@ jobs:
 
       - name: Monorepo Unit & Integration Test Suite
         run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://ledger_app:ledger_app_secure_pass@localhost:5432/ledger_ae_test
+          DATABASE_URL: postgresql://ledger_app:ledger_app_secure_pass@localhost:5432/ledger_ae_test
 
       - name: Next.js Production Build
         run: npm run build -w @ledger-ae/web
+        env:
+          JWT_SECRET: "01234567890123456789012345678901"
+          ENCRYPTION_KEY: "01234567890123456789012345678901"
 
 

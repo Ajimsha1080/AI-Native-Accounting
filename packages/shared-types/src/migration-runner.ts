@@ -129,7 +129,7 @@ export class TenantDatabaseSession {
       const isMemDb = (this.pool as any).isPgMem || (client as any).isPgMem;
       if (!isMemDb) {
         // Real PostgreSQL: Use standard dotted configuration variable with native RLS policies
-        await client.query('SET LOCAL app.current_tenant_id = $1', [tenantId]);
+        await client.query(`SELECT set_config('app.current_tenant_id', $1, true)`, [tenantId]);
       } else {
         // Test engine polyfill for session tenant context: wrap client.query to enforce tenant_id
         const origQuery = client.query.bind(client);

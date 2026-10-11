@@ -55,29 +55,29 @@ While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), version
 
 ---
 
-### 2.3. Route Handlers & In-Memory Data Arrays (Database Layer Disconnect)
-| File | In-Memory / Simulated Logic | Production Requirement |
+### 2.3. Route Handlers & In-Memory Data Arrays (Database Layer Wired - Phase C COMPLETE)
+| File | Remediation Implemented | Status |
 | :--- | :--- | :--- |
-| `apps/web/app/api/ledger/journals/route.ts` | `let JOURNAL_ENTRIES: JournalEntry[] = [...]`. Direct mutation on POST. | Connect to `LedgerRepository.postJournalEntry()` inside a transaction with `SET LOCAL app.current_tenant_id = $1`. |
-| `apps/web/app/api/ledger/accounts/route.ts` | `const ACCOUNTS: AccountItem[] = [...]`. In-memory array filtering. | Query `chart_of_accounts` table scoped to session `tenant_id` and `entity_id`. |
-| `apps/web/app/api/invoicing/route.ts` | `let INVOICES: InvoiceItem[] = [...]`, `resetInvoicesState()`. | Query `invoices`, `bills`, `invoice_lines`, and `bill_lines` tables via persistence repository. |
-| `apps/web/app/api/banking/reconciliation/route.ts` | `let STATEMENT_LINES`, `let LEDGER_LINES`, `let AI_SUGGESTIONS`, `resetReconciliationState()`. | Query `bank_statements`, `bank_statement_lines`, and real reconciliation records from PostgreSQL. |
-| `apps/web/app/api/close/route.ts` | `let CLOSE_STEPS`, `let AUDIT_LOGS`. | Query `accounting_periods`, `close_steps`, and immutable `audit_logs` table via SQL. |
-| `apps/web/app/api/dashboard/metrics/route.ts` | Mocked financial metrics based on string matching (`entityId.includes('mainland')`). | Execute real SQL aggregation queries across `journal_lines` for cash, AR ageing, and AP ageing. |
-| `apps/web/app/api/reports/route.ts` | Static `REPORT_DATA` object returning hardcoded financial statement numbers. | Compute Trial Balance, P&L, Balance Sheet, and Consolidation dynamically from posted ledger entries. |
-| `apps/web/app/api/tax/vat201/route.ts` | Static `VAT201_DATA` object with pre-populated boxes and hardcoded drill-down rows. | Compute VAT 201 return dynamically using `calculateVat201Return()` from posted ledger lines. |
-| `apps/web/app/api/ai/proposals/route.ts` | `let PROPOSALS: AiProposalItem[] = [...]`, `resetProposalsState()`. | Query and persist to `ai_proposals` table in PostgreSQL. |
-| `apps/web/app/api/test/reset-mock-state/route.ts` | Resets in-memory arrays in invoicing, banking, and proposals route handlers. | Delete test reset route or repurpose to reset isolated test database schema. |
+| `apps/web/app/api/ledger/journals/route.ts` | Removed in-memory `JOURNAL_ENTRIES` array. Fully wired to `LedgerRepository.postJournalEntry` and `listJournalEntries` with atomic `SELECT set_config('app.current_tenant_id', ...)` session scoping. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/ledger/accounts/route.ts` | Removed in-memory `ACCOUNTS` array. Wired to SQL aggregation on `chart_of_accounts` joined to `journal_lines` within tenant session context. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/invoicing/route.ts` | Removed in-memory `INVOICES` array and reset function. Wired directly to `invoices` table with RLS tenant context. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/banking/reconciliation/route.ts` | Removed in-memory `STATEMENT_LINES`, `LEDGER_LINES`, and `AI_SUGGESTIONS`. Wired to `bank_statement_lines`, `journal_lines`, and `ai_proposals` tables. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/close/route.ts` | Removed in-memory `CLOSE_STEPS` and `AUDIT_LOGS`. Wired to `accounting_periods` and immutable `audit_logs` table. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/dashboard/metrics/route.ts` | Removed hardcoded branch metrics. Executes real SQL aggregations across `journal_lines` for Cash, AR ageing, and AP ageing. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/reports/route.ts` | Removed static `REPORT_DATA` array. Dynamically aggregates Trial Balance, P&L, and Balance Sheet from posted ledger journal lines. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/tax/vat201/route.ts` | Removed static `VAT201_DATA` object. Dynamically calculates official VAT 201 return from real journal lines with box drill-down via `LedgerRepository.generateVat201FromLedger`. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/ai/proposals/route.ts` | Removed in-memory `PROPOSALS` array. Persists and queries proposals via `ai_proposals` table and logs telemetry to `ai_action_logs`. | **RESOLVED** (Phase C) |
+| `apps/web/app/api/test/reset-mock-state/route.ts` | Deleted obsolete route that reset in-memory arrays. | **DELETED** (Phase C) |
 
 ---
 
-### 2.4. Persistence & Database Testing (pg-mem vs Real PostgreSQL)
-| File | In-Memory / Simulated Logic | Production Requirement |
+### 2.4. Persistence & Database Testing (Real PostgreSQL - Phase C COMPLETE)
+| File | Remediation Implemented | Status |
 | :--- | :--- | :--- |
-| `packages/shared-types/src/rls.test.ts` | `MockPostgresSession` uses a JavaScript array (`TenantRecord[]`) to simulate RLS. | Run integration tests against real PostgreSQL using Testcontainers or live service container. |
-| `packages/shared-types/src/persistence.test.ts` | Uses `pg-mem` memory database to execute migrations and test RLS. | Execute against real PostgreSQL instance; verify `FORCE ROW LEVEL SECURITY` and non-superuser role. |
-| `packages/ledger-core/src/repository.test.ts` | Uses `pg-mem` with custom function stubs (`gen_random_uuid`, `length`). | Run `LedgerRepository` integration tests against real PostgreSQL; assert append-only triggers. |
-| Database Migrations `0001` to `0004` | Tables have `ENABLE ROW LEVEL SECURITY`, but lack `FORCE ROW LEVEL SECURITY`. | Add `FORCE ROW LEVEL SECURITY` to all tenant-scoped tables so table owners cannot bypass policies. |
+| `packages/shared-types/src/rls.test.ts` | Replaced JavaScript mock arrays with real PostgreSQL test suite executing against PostgreSQL 16. Connects as non-superuser `ledger_app` role; tests cross-tenant read/write isolation and append-only trigger enforcement. | **RESOLVED** (Phase C) |
+| `packages/ledger-core/src/repository.test.ts` | Replaced `pg-mem` with real PostgreSQL test suite testing `LedgerRepository.postJournalEntry`, listing, invariant enforcement, and VAT 201 return generation against PostgreSQL 16. | **RESOLVED** (Phase C) |
+| Database Migration `0006_force_rls_and_policies.sql` | Created migration adding `FORCE ROW LEVEL SECURITY` to all 28 tenant tables across migrations 0001 through 0005, guaranteeing non-superusers and table owners cannot bypass policies. | **RESOLVED** (Phase C) |
+| `.github/workflows/ci.yml` | Added dedicated PostgreSQL 16 service container with `ledger_app` non-superuser role to CI `unit-and-domain-tests` and `clean-checkout-verification` jobs. | **RESOLVED** (Phase C) |
 
 ---
 

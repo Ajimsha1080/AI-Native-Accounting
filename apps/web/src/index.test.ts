@@ -1,8 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { LanguageLocale } from '@ledger-ae/shared-types';
-import { getLocalizationConfig, translate } from './i18n.js';
-import { getJournalTableColumns, JournalRowViewModel } from './table.js';
+import { getLocalizationConfig, translate } from './i18n.ts';
+import { getJournalTableColumns, type JournalRowViewModel } from './table.ts';
 
 describe('Web UI: RTL, Arabic Localization & Dense Table Model', () => {
   test('Arabic configuration activates RTL and correct AED symbol', () => {

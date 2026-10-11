@@ -1,6 +1,6 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatMinorUnits } from './money';
+import { formatMinorUnits } from './money.ts';
 
 describe('Shared Zero-Float Money Formatter', () => {
   test('Formats standard positive AED fils into English notation', () => {
