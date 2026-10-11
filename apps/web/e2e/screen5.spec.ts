@@ -1,17 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAndAuthenticate } from './auth-helper';
 
 test.describe('Screen 5: VAT 201 Return View with Drill-down from Every Box to Source Entries', () => {
   test('Load VAT 201 return, inspect Boxes 1b & 9, open drill-down modal, and verify Arabic RTL', async ({ page }) => {
-    // 1. Authenticate to app
-    await page.goto('/en/login');
-    await page.fill('input[name="tenantSlug"]', 'al-noor-group');
-    await page.fill('input[name="email"]', 'accountant@alnoor.ae');
-    await page.fill('input[name="password"]', 'Password@123');
-    await page.click('button[type="submit"]');
-
-    await page.locator('input[placeholder="123456"]').fill('123456');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/en/app/dashboard');
+    // 1. Authenticate to app using real RFC 6238 TOTP
+    await loginAndAuthenticate(page);
 
     // 2. Navigate to VAT 201 Return
     await page.goto('/en/app/tax/vat201');

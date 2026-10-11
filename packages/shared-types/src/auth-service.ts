@@ -373,7 +373,8 @@ export class AuthenticationService {
     const client = await pool.connect();
     try {
       if (!(pool as any).isPgMem && !(client as any).isPgMem) {
-        await client.query('SET LOCAL app.current_tenant_id = $1', [params.tenantId]);
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [params.tenantId]);
       }
       const res = await client.query(
         `INSERT INTO sessions (
@@ -392,7 +393,15 @@ export class AuthenticationService {
           params.expiresAt
         ]
       );
+      if (!(pool as any).isPgMem && !(client as any).isPgMem) {
+        await client.query('COMMIT');
+      }
       return res.rows[0].id;
+    } catch (err) {
+      if (!(pool as any).isPgMem && !(client as any).isPgMem) {
+        await client.query('ROLLBACK');
+      }
+      throw err;
     } finally {
       client.release();
     }
@@ -410,7 +419,8 @@ export class AuthenticationService {
     const client = await pool.connect();
     try {
       if (!(pool as any).isPgMem && !(client as any).isPgMem) {
-        await client.query('SET LOCAL app.current_tenant_id = $1', [tenantId]);
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
       }
       const res = await client.query(
         `SELECT id, tenant_id, entity_id, user_id, session_token_hash, role,
@@ -419,6 +429,9 @@ export class AuthenticationService {
          WHERE session_token_hash = $1 AND tenant_id = $2`,
         [tokenHash, tenantId]
       );
+      if (!(pool as any).isPgMem && !(client as any).isPgMem) {
+        await client.query('COMMIT');
+      }
 
       if (res.rows.length === 0) {
         return { isValid: false };
@@ -468,7 +481,8 @@ export class AuthenticationService {
     const client = await pool.connect();
     try {
       if (!(pool as any).isPgMem && !(client as any).isPgMem) {
-        await client.query('SET LOCAL app.current_tenant_id = $1', [tenantId]);
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
       }
       const res = await client.query(
         `UPDATE sessions
@@ -476,7 +490,15 @@ export class AuthenticationService {
          WHERE (session_token_hash = $2 OR id::text = $3) AND tenant_id = $4`,
         [reason, tokenHash, sessionTokenOrId, tenantId]
       );
+      if (!(pool as any).isPgMem && !(client as any).isPgMem) {
+        await client.query('COMMIT');
+      }
       return (res.rowCount ?? 0) > 0;
+    } catch (err) {
+      if (!(pool as any).isPgMem && !(client as any).isPgMem) {
+        await client.query('ROLLBACK');
+      }
+      throw err;
     } finally {
       client.release();
     }
@@ -498,7 +520,7 @@ export class AuthenticationService {
     try {
       await client.query('BEGIN');
       if (!(pool as any).isPgMem && !(client as any).isPgMem) {
-        await client.query('SET LOCAL app.current_tenant_id = $1', [params.tenantId]);
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [params.tenantId]);
       }
 
       const oldHash = this.hashSessionToken(params.oldSessionToken);

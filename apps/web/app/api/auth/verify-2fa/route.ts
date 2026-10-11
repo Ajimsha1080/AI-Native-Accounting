@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     let isRecoveryCodeValid = false;
 
     try {
-      await client.query('SET LOCAL app.current_tenant_id = $1', [tempPayload.tenantId]);
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tempPayload.tenantId]);
       const userRes = await client.query(
         `SELECT id, tenant_id, email, full_name_en, role, is_active,
                 totp_secret_encrypted
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
       );
 
       if (userRes.rows.length === 0 || !userRes.rows[0].is_active) {
+        await client.query('COMMIT');
         return NextResponse.json(
           { error: 'User account not found or deactivated.' },
           { status: 401 }
@@ -49,13 +51,14 @@ export async function POST(request: Request) {
       userRow = userRes.rows[0];
 
       // 2. Real TOTP verification: Decrypt user's encrypted secret and verify with RFC 6238
-      if (userRow.totp_secret_encrypted) {
+      const cleanCode = typeof code === 'string' ? code.trim() : '';
+      if (userRow.totp_secret_encrypted && cleanCode.length === 6 && /^\d+$/.test(cleanCode)) {
         try {
           const decryptedSecret = AuthenticationService.decryptSecret(
             userRow.totp_secret_encrypted,
             encryptionKey
           );
-          isTotpValid = AuthenticationService.verifyTotp(code, decryptedSecret);
+          isTotpValid = AuthenticationService.verifyTotp(cleanCode, decryptedSecret);
         } catch (decryptErr) {
           console.error('[2FA Decrypt Error]', decryptErr);
         }
@@ -75,6 +78,11 @@ export async function POST(request: Request) {
           isRecoveryCodeValid = true;
         }
       }
+
+      await client.query('COMMIT');
+    } catch (dbErr) {
+      await client.query('ROLLBACK');
+      throw dbErr;
     } finally {
       client.release();
     }

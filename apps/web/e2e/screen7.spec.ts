@@ -1,21 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAndAuthenticate } from './auth-helper';
 
 test.describe('Screen 7: AI Proposals Inbox (Approve/Reject, Source, Logic, and Cost)', () => {
-  test.beforeEach(async ({ request }) => {
-    await request.get('/api/test/reset-mock-state');
-  });
-
   test('Inspect proposals, verify statutory basis and token telemetry, approve proposal, and verify Arabic RTL', async ({ page }) => {
-    // 1. Authenticate to app
-    await page.goto('/en/login');
-    await page.fill('input[name="tenantSlug"]', 'al-noor-group');
-    await page.fill('input[name="email"]', 'accountant@alnoor.ae');
-    await page.fill('input[name="password"]', 'Password@123');
-    await page.click('button[type="submit"]');
-
-    await page.locator('input[placeholder="123456"]').fill('123456');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/en/app/dashboard');
+    // 1. Authenticate to app using real RFC 6238 TOTP
+    await loginAndAuthenticate(page);
 
     // 2. Navigate to AI Proposals Inbox
     await page.goto('/en/app/ai/proposals');

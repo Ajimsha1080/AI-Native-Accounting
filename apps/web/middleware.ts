@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
-import { AuthenticationService } from '@ledger-ae/shared-types';
 
 const intlMiddleware = createMiddleware({
   locales: ['en', 'ar'],
@@ -8,7 +7,42 @@ const intlMiddleware = createMiddleware({
   localePrefix: 'always'
 });
 
-export default function middleware(request: NextRequest) {
+/**
+ * Edge-compatible HMAC-SHA256 session token verification using Web Crypto API
+ */
+async function verifySessionTokenEdge(token: string, secret: string): Promise<boolean> {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 2) return false;
+    const [dataString, providedSignature] = parts;
+
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+
+    const signatureBuf = await crypto.subtle.sign('HMAC', key, enc.encode(dataString));
+    const expectedBase64Url = btoa(String.fromCharCode(...new Uint8Array(signatureBuf)))
+      .replace(/=/g, '')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_');
+
+    if (providedSignature !== expectedBase64Url) return false;
+
+    // Decode payload
+    const jsonStr = atob(dataString.replace(/-/g, '+').replace(/_/g, '/'));
+    const payload = JSON.parse(jsonStr);
+    return Boolean(payload && payload.expiresAt && Date.now() <= payload.expiresAt);
+  } catch {
+    return false;
+  }
+}
+
+export default async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // 1. First run next-intl middleware for locale routing
@@ -25,14 +59,7 @@ export default function middleware(request: NextRequest) {
 
     // Cryptographic validation of session cookie (fails closed if secret missing or token invalid)
     if (sessionCookie && jwtSecret && jwtSecret.length >= 32) {
-      try {
-        const payload = AuthenticationService.verifySessionToken(sessionCookie, jwtSecret);
-        if (payload && payload.expiresAt > Date.now()) {
-          isAuthenticated = true;
-        }
-      } catch {
-        isAuthenticated = false;
-      }
+      isAuthenticated = await verifySessionTokenEdge(sessionCookie, jwtSecret);
     }
 
     if (!isAuthenticated) {

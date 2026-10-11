@@ -1,21 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAndAuthenticate } from './auth-helper';
 
 test.describe('Screen 6: Bank Reconciliation (Statement vs Ledger, Match, AI Explanations and Confidence)', () => {
-  test.beforeEach(async ({ request }) => {
-    await request.get('/api/test/reset-mock-state');
-  });
-
   test('Inspect bank feed vs ledger, review AI match explanations, and accept match', async ({ page }) => {
-    // 1. Authenticate to app
-    await page.goto('/en/login');
-    await page.fill('input[name="tenantSlug"]', 'al-noor-group');
-    await page.fill('input[name="email"]', 'accountant@alnoor.ae');
-    await page.fill('input[name="password"]', 'Password@123');
-    await page.click('button[type="submit"]');
-
-    await page.locator('input[placeholder="123456"]').fill('123456');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/en/app/dashboard');
+    // 1. Authenticate to app using real RFC 6238 TOTP
+    await loginAndAuthenticate(page);
 
     // 2. Navigate to Bank Reconciliation
     await page.goto('/en/app/banking/reconciliation');

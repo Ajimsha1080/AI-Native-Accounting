@@ -101,7 +101,7 @@ function InvoicesView({ params }: { params: Promise<{ locale: string }> }) {
         alert(data.error || 'Failed to update approval');
         return;
       }
-      setSelectedInvoice(data.invoice);
+      setSelectedInvoice((prev) => (prev ? { ...prev, ...data.invoice } : data.invoice));
       fetchInvoices();
     } catch (err: any) {
       alert('Error updating approval: ' + err.message);

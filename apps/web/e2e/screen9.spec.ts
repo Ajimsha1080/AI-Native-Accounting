@@ -1,17 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAndAuthenticate } from './auth-helper';
 
 test.describe('Screen 9: Close Checklist, Audit Log Viewer, Settings & Roles', () => {
   test('Navigate to Close controls, inspect 12-step checklist, verify cryptographic audit trail, and check roles', async ({ page }) => {
-    // 1. Authenticate to app
-    await page.goto('/en/login');
-    await page.fill('input[name="tenantSlug"]', 'al-noor-group');
-    await page.fill('input[name="email"]', 'accountant@alnoor.ae');
-    await page.fill('input[name="password"]', 'Password@123');
-    await page.click('button[type="submit"]');
-
-    await page.locator('input[placeholder="123456"]').fill('123456');
-    await page.click('button[type="submit"]');
-    await page.waitForURL('**/en/app/dashboard');
+    // 1. Authenticate to app using real RFC 6238 TOTP
+    await loginAndAuthenticate(page);
 
     // 2. Navigate to Month-End Close & Controls
     await page.goto('/en/app/close');

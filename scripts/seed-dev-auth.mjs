@@ -51,22 +51,23 @@ async function seed() {
     await client.query('BEGIN');
 
     // 1. Create or get tenant
+    const targetTenantId = '00000000-0000-0000-0000-000000000001';
+    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [targetTenantId]);
     const tenantRes = await client.query(
-      `INSERT INTO tenants (name_en, name_ar, slug, is_active)
-       VALUES ($1, 'مجموعة النور القابضة', $2, TRUE)
-       ON CONFLICT (slug) DO UPDATE SET name_en = $1
+      `INSERT INTO tenants (id, name, slug)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (slug) DO UPDATE SET name = $2
        RETURNING id`,
-      [tenantName, tenantSlug]
+      [targetTenantId, tenantName, tenantSlug]
     );
     const tenantId = tenantRes.rows[0].id;
-    await client.query('SET LOCAL app.current_tenant_id = $1', [tenantId]);
 
     // 2. Create primary legal entity
     const entityRes = await client.query(
       `INSERT INTO legal_entities (
         tenant_id, legal_name_en, legal_name_ar, trade_license_number,
-        tax_registration_number, jurisdiction_type, emirate, is_active
-      ) VALUES ($1, 'Al Noor Trading FZCO', 'شركة النور التجارية ش.ذ.م.م', 'TL-DXB-987654', '100123456789003', 'FREE_ZONE', 'DUBAI', TRUE)
+        trn, jurisdiction_type, address_emirate
+      ) VALUES ($1, 'Al Noor Trading FZCO', 'شركة النور التجارية ش.ذ.م.م', 'TL-DXB-987654', '100123456789003', 'FREE_ZONE', 'DUBAI')
       ON CONFLICT DO NOTHING
       RETURNING id`,
       [tenantId]
@@ -77,7 +78,7 @@ async function seed() {
 
     // 4. Generate & Encrypt TOTP Secret
     const rawTotpSecret = AuthenticationService.generateTotpSecret();
-    const encryptedTotp = AuthenticationService.encryptSecret(rawTotpSecret, totpKey as string);
+    const encryptedTotp = AuthenticationService.encryptSecret(rawTotpSecret, totpKey);
 
     // 5. Upsert User
     const userRes = await client.query(

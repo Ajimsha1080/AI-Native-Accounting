@@ -115,7 +115,22 @@ While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), version
 
 ---
 
-### 2.8. Regulatory Claims & Operational Transparency
+### 2.8. Feature Completion & UI/API Playwright Tests (Phase G COMPLETE)
+| Screen & Module | Scope Tested & Verified | Status |
+| :--- | :--- | :--- |
+| **Screen 1: Authentication & App Shell** | Login with Argon2id, dynamic RFC 6238 TOTP verification, session cookie issuance, entity switcher reactive state, and English/Arabic RTL toggling. | **RESOLVED** (Phase G) |
+| **Screen 2: Executive Dashboard** | Real-time financial metrics, AR/AP ageing distribution, month-end close status checklist, AI agent proposals feed, and entity switching. | **RESOLVED** (Phase G) |
+| **Screen 3: Chart of Accounts & Journals** | TanStack dense grid, balanced voucher entry with 0-fils invariant check, posting to PostgreSQL ledger, and reversing entry generation. | **RESOLVED** (Phase G) |
+| **Screen 4: Invoices & Vendor Bills** | Sales invoices and vendor bills lists, document inspection view, bilingual PDF preview (EN/AR), and multi-tier bill approval workflow. | **RESOLVED** (Phase G) |
+| **Screen 5: Statutory 14-Box VAT 201** | Full 14-box VAT 201 return, standard rate boxes (1a–1g), reverse charge (Box 3), input VAT recovery (Box 9), drill-down modal to source journal lines, and Arabic RTL. | **RESOLVED** (Phase G) |
+| **Screen 6: Bank Reconciliation** | Bank statement feed vs general ledger transactions, continuous matching, explainable AI reconciliation suggestions (99% match), manual match confirmation, and Arabic RTL. | **RESOLVED** (Phase G) |
+| **Screen 7: AI Proposals & Governance** | Autonomous agent inbox, token telemetry and latency display, explainable statutory logic (UAE Decree-Law citations), double-entry preview, human-in-the-loop approval/rejection, and Arabic RTL. | **RESOLVED** (Phase G) |
+| **Screen 8: Financial Reports & Consolidation** | Trial Balance (balanced debits == credits), Profit & Loss statement, Balance Sheet, IFRS 10 multi-entity consolidation with intercompany eliminations, CSV export, and Arabic RTL. | **RESOLVED** (Phase G) |
+| **Screen 9: Month-End Close & Controls** | 12-step month-end close checklist, immutable SHA-256 hash-chained audit trail verification, RBAC role permissions matrix, hard-locking controls, and Arabic RTL. | **RESOLVED** (Phase G) |
+
+---
+
+### 2.9. Regulatory Claims & Operational Transparency
 | File | Unverified Statement | Honest Correction Required |
 | :--- | :--- | :--- |
 | `docs/ga-release-pilot-checklist.md` | Marked `[x]` for all milestones with claims of ASVS audit signoff. | Explicitly label as "Target Architecture & Pilot Readiness Checklist"; clarify that third-party audit and pen-testing have not yet occurred. |
@@ -128,11 +143,11 @@ While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), version
 
 The roadmap will proceed strictly one phase at a time. Each phase has an explicit Definition of Done (DoD). Work on the next phase will only commence after running clean-checkout builds, typechecks, linters, tests, and receiving user approval:
 
-- **Phase A**: Clean Build & CI Pipeline (Un-ignore `apps/web/src/lib/auth.ts`, ordered monorepo build, fresh clone CI job).
-- **Phase B**: Real Authentication (Argon2id, RFC 6238 TOTP, sessions table, middleware protection, zero credential fallbacks).
-- **Phase C**: Wire the Database (Eliminate in-memory route arrays, RLS via `SET LOCAL app.current_tenant_id`, testcontainers for real Postgres).
-- **Phase D**: Durable Workflows & Replay Safety (Temporal workflows, transactional outbox, database-backed MCP nonces).
-- **Phase E**: Real AI End-to-End (Claude tool calling, prompt evals on labelled dataset, `ai_action_logs` telemetry).
-- **Phase F**: Integrations & Sandboxes (Official Peppol ASP and Open Banking contracts, integer Stripe billing).
-- **Phase G**: Feature Completion (Full UI + API + Playwright E2E across all modules in English and Arabic).
+- **Phase A**: Clean Build & CI Pipeline (Un-ignore `apps/web/src/lib/auth.ts`, ordered monorepo build, fresh clone CI job). [COMPLETE]
+- **Phase B**: Real Authentication (Argon2id, RFC 6238 TOTP, sessions table, middleware protection, zero credential fallbacks). [COMPLETE]
+- **Phase C**: Wire the Database (Eliminate in-memory route arrays, RLS via `SET LOCAL app.current_tenant_id`, testcontainers for real Postgres). [COMPLETE]
+- **Phase D**: Durable Workflows & Replay Safety (Temporal workflows, transactional outbox, database-backed MCP nonces). [COMPLETE]
+- **Phase E**: Real AI End-to-End (Claude tool calling, prompt evals on labelled dataset, `ai_action_logs` telemetry). [COMPLETE]
+- **Phase F**: Integrations & Sandboxes (Official Peppol ASP and Open Banking contracts, integer Stripe billing). [COMPLETE]
+- **Phase G**: Feature Completion (Full UI + API + Playwright E2E across all modules in English and Arabic). [COMPLETE]
 - **Phase H**: Production Proof & Audit (Real PITR restore drill on managed Postgres, 1M line p95 benchmark, honest README).

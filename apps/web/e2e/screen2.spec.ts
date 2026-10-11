@@ -1,17 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAndAuthenticate } from './auth-helper';
 
 test.describe('Screen 2: Dashboard Real-time Metrics, Ageing, Close Status & AI Proposals', () => {
   test('Dashboard loads metrics dynamically, updates on entity switch, and displays integer minor units', async ({ page }) => {
-    // 1. Authenticate through Screen 1 Login & 2FA
-    await page.goto('/en/login');
-    await page.fill('input[name="tenantSlug"]', 'al-noor-group');
-    await page.fill('input[name="email"]', 'accountant@alnoor.ae');
-    await page.fill('input[name="password"]', 'Password@123');
-    await page.click('button[type="submit"]');
-
-    // 2FA code
-    await page.locator('input[placeholder="123456"]').fill('123456');
-    await page.click('button[type="submit"]');
+    // 1. Authenticate through Screen 1 Login & 2FA using real RFC 6238 TOTP
+    await loginAndAuthenticate(page);
 
     // 2. Land on Screen 2 Dashboard
     await page.waitForURL('**/en/app/dashboard');

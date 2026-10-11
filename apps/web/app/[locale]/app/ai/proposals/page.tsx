@@ -104,7 +104,15 @@ function ProposalsInboxView({ params }: { params: Promise<{ locale: string }> })
         })
       });
       if (!res.ok) throw new Error('Decision submission failed');
-      fetchProposals();
+      const newStatus = decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+      setData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          proposals: prev.proposals.map((p) => (p.id === proposalId ? { ...p, status: newStatus as any } : p)),
+          pendingCount: Math.max(0, prev.pendingCount - 1)
+        };
+      });
     } catch (err: any) {
       alert('Error: ' + err.message);
     } finally {

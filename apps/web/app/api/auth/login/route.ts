@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     let tenantRow: any = null;
     try {
       const tenantRes = await client.query(
-        'SELECT id, name_en, slug FROM tenants WHERE slug = $1 AND is_active = TRUE',
+        'SELECT id, name, slug FROM tenants WHERE slug = $1',
         [normalizedTenantSlug]
       );
       if (tenantRes.rows.length === 0) {
@@ -48,8 +48,9 @@ export async function POST(request: Request) {
       }
       tenantRow = tenantRes.rows[0];
 
-      // Query user scoped to tenant
-      await client.query('SET LOCAL app.current_tenant_id = $1', [tenantRow.id]);
+      // Query user scoped to tenant within transaction
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantRow.id]);
       const userRes = await client.query(
         `SELECT u.id, u.tenant_id, u.email, u.full_name_en, u.role, u.password_hash,
                 u.is_active, u.is_2fa_enabled, u.totp_secret_encrypted
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
          WHERE u.email = $1 AND u.tenant_id = $2`,
         [normalizedEmail, tenantRow.id]
       );
+      await client.query('COMMIT');
       if (userRes.rows.length > 0) {
         userRow = userRes.rows[0];
       }
@@ -83,18 +85,24 @@ export async function POST(request: Request) {
     // 4. Success: Reset rate limit attempts
     await AuthenticationService.resetAttempts(rateLimitKey, pool);
 
-    // 5. Look up default primary legal entity for tenant
-    let entityId = userRow.tenant_id;
+    // 5. Look up default primary legal entity for tenant inside tenant session context
+    let entityId: string = userRow.tenant_id;
+    const entityClient = await pool.connect();
     try {
-      const entityRes = await pool.query(
+      await entityClient.query('BEGIN');
+      await entityClient.query("SELECT set_config('app.current_tenant_id', $1, true)", [userRow.tenant_id]);
+      const entityRes = await entityClient.query(
         'SELECT id FROM legal_entities WHERE tenant_id = $1 ORDER BY created_at ASC LIMIT 1',
         [userRow.tenant_id]
       );
       if (entityRes.rows.length > 0) {
         entityId = entityRes.rows[0].id;
       }
+      await entityClient.query('COMMIT');
     } catch {
-      // Use tenant ID fallback if entities query empty
+      await entityClient.query('ROLLBACK');
+    } finally {
+      entityClient.release();
     }
 
     // 6. Issue temporary 2FA token with 5-minute expiration

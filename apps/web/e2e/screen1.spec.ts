@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { generateSync } from 'otplib';
+import { TEST_TOTP_SECRET } from './auth-helper';
 
 test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL', () => {
   test('Login, 2FA challenge, Dashboard redirection and entity context switching', async ({ page }) => {
@@ -20,7 +22,8 @@ test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL',
     // 4. Enter valid 6-digit TOTP code
     const totpInput = page.locator('input[placeholder="123456"]');
     await expect(totpInput).toBeVisible();
-    await totpInput.fill('123456');
+    const totpCode = generateSync({ secret: TEST_TOTP_SECRET });
+    await totpInput.fill(totpCode);
 
     // Submit 2FA
     await page.click('button[type="submit"]');
