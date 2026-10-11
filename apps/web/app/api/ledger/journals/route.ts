@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface JournalLine {
   accountId: string;
@@ -57,14 +59,14 @@ let JOURNAL_ENTRIES: JournalEntry[] = [
   }
 ];
 
-export async function GET() {
+export const GET = withAuth(Permission.LEDGER_READ)(async (_req, _ctx) => {
   return NextResponse.json({
     journals: JOURNAL_ENTRIES,
     total: JOURNAL_ENTRIES.length
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth(Permission.LEDGER_POST)(async (request, _ctx) => {
   try {
     const body = await request.json();
     const { action, journal } = body;
@@ -166,4 +168,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: 'Server error processing journal: ' + err.message }, { status: 500 });
   }
-}
+});

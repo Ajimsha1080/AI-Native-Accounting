@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface AccountItem {
   id: string;
@@ -30,7 +32,7 @@ const ACCOUNTS: AccountItem[] = [
   { id: 'acc-5200', code: '5200', nameEn: 'Office Rent & Commercial Leases (IFRS 16)', nameAr: 'إيجار المكاتب وعقود التأجير', category: 'EXPENSE', balanceMinorUnits: '110000000', isActive: true, currency: 'AED' }
 ];
 
-export async function GET(request: Request) {
+export const GET = withAuth(Permission.LEDGER_READ)(async (request: NextRequest, _ctx) => {
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('q')?.toLowerCase();
 
@@ -48,4 +50,4 @@ export async function GET(request: Request) {
     accounts: filtered,
     total: filtered.length
   });
-}
+});

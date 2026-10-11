@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface AiProposalItem {
   id: string;
@@ -103,7 +105,7 @@ let PROPOSALS: AiProposalItem[] = [
   }
 ];
 
-export async function GET() {
+export const GET = withAuth(Permission.LEDGER_READ)(async (_req: NextRequest, _ctx) => {
   const pendingCount = PROPOSALS.filter((p) => p.status === 'PENDING_REVIEW').length;
   const totalTokensConsumed = PROPOSALS.reduce((acc, p) => acc + p.costMetrics.totalTokens, 0);
 
@@ -113,9 +115,9 @@ export async function GET() {
     totalTokensConsumed,
     totalProposals: PROPOSALS.length
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth(Permission.LEDGER_POST)(async (request: NextRequest, _ctx) => {
   try {
     const body = await request.json();
     const { proposalId, decision, rationale } = body;
@@ -137,4 +139,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: 'Server error: ' + err.message }, { status: 500 });
   }
-}
+});

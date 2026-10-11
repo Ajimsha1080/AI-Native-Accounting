@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface CloseStepItem {
   id: number;
@@ -118,7 +120,7 @@ const ROLES: RolePermissionItem[] = [
   }
 ];
 
-export async function GET(request: Request) {
+export const GET = withAuth(Permission.LEDGER_READ)(async (_req: NextRequest, _ctx) => {
   return NextResponse.json({
     period: 'FY 2026 - P01',
     steps: CLOSE_STEPS,
@@ -126,9 +128,9 @@ export async function GET(request: Request) {
     roles: ROLES,
     isHardLocked: false
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth(Permission.LEDGER_LOCK)(async (request: NextRequest, _ctx) => {
   try {
     const body = await request.json();
     const { action, stepId } = body;
@@ -164,4 +166,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: 'Server error: ' + err.message }, { status: 500 });
   }
-}
+});

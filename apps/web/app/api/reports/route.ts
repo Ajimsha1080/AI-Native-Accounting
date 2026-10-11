@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface ReportLine {
   accountCode: string;
@@ -130,12 +132,12 @@ const REPORT_DATA: FinancialReportData = {
   }
 };
 
-export async function GET(request: Request) {
+export const GET = withAuth(Permission.LEDGER_READ)(async (request: NextRequest, _ctx) => {
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type') || 'TRIAL_BALANCE';
+  const type = (searchParams.get('type') || 'TRIAL_BALANCE') as 'TRIAL_BALANCE' | 'PNL' | 'BALANCE_SHEET' | 'CONSOLIDATION';
 
   return NextResponse.json({
     ...REPORT_DATA,
     reportType: type
   });
-}
+});

@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface InvoiceItem {
   id: string;
@@ -148,7 +150,7 @@ let INVOICES: InvoiceItem[] = [
   }
 ];
 
-export async function GET(request: Request) {
+export const GET = withAuth(Permission.LEDGER_READ)(async (request: NextRequest, _ctx) => {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
   const id = searchParams.get('id');
@@ -165,9 +167,9 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ invoices: list, total: list.length });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth(Permission.INVOICE_APPROVE)(async (request: NextRequest, _ctx) => {
   try {
     const body = await request.json();
     const { action, invoiceId, decision } = body;
@@ -192,4 +194,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: 'Server error: ' + err.message }, { status: 500 });
   }
-}
+});

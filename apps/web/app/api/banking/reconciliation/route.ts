@@ -1,4 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { Permission } from '@ledger-ae/shared-types';
 
 export interface BankStatementLine {
   id: string;
@@ -116,7 +118,7 @@ let AI_SUGGESTIONS: AiMatchSuggestion[] = [
   }
 ];
 
-export async function GET() {
+export const GET = withAuth(Permission.BANK_RECONCILE)(async (_req: NextRequest, _ctx) => {
   const bankBalanceMinorUnits = STATEMENT_LINES.reduce((acc, l) => acc + BigInt(l.amountMinorUnits), 1240000000n);
   const ledgerBalanceMinorUnits = LEDGER_LINES.reduce((acc, l) => acc + BigInt(l.amountMinorUnits), 1240000000n);
   const differenceMinorUnits = bankBalanceMinorUnits - ledgerBalanceMinorUnits;
@@ -132,9 +134,9 @@ export async function GET() {
     ledgerTransactions: LEDGER_LINES,
     suggestions: AI_SUGGESTIONS
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withAuth(Permission.BANK_RECONCILE)(async (request: NextRequest, _ctx) => {
   try {
     const body = await request.json();
     const { action, statementLineId, ledgerLineId } = body;
@@ -183,4 +185,4 @@ export async function POST(request: Request) {
   } catch (err: any) {
     return NextResponse.json({ error: 'Server error: ' + err.message }, { status: 500 });
   }
-}
+});
