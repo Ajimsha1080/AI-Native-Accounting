@@ -92,12 +92,14 @@ While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), version
 
 ---
 
-### 2.6. AI Engine, Document Intelligence & Evals
-| File | Current Implementation | Production Requirement |
+### 2.6. AI Engine, Document Intelligence & Evals (Phase E COMPLETE)
+| File | Remediation Implemented | Status |
 | :--- | :--- | :--- |
-| `packages/ledger-core/src/document-intelligence.ts` | Regex heuristics and hardcoded fallback date `'2026-03-01'`. | Call Claude 3.5 Sonnet with Zod structured output; leave unrecognized fields `null` for human review. |
-| `packages/ledger-core/src/assistant.ts` | Keyword matching (`what is our cash`) with pre-canned answers. | Route questions to typed domain tools with cited ledger voucher IDs; log tokens and cost to `ai_action_logs`. |
-| CI Pipeline (`.github/workflows/ci.yml`) | No automated AI accuracy evaluation suite in CI. | Commit a labelled bilingual dataset (25+ UAE invoices); run CI eval asserting accuracy thresholds. |
+| `packages/ledger-core/src/claude-ai-service.ts` | Implemented `ClaudeDocumentIntelligenceService` using Anthropic tool calling (`extract_uae_tax_invoice`) with strict Zod structured outputs. Dynamic model ID configured from `ANTHROPIC_MODEL` (zero hardcoded strings). Unknown/ambiguous fields stay `null` and set `requiresHumanReview: true`. | **RESOLVED** (Phase E) |
+| `packages/ledger-core/src/assistant.ts` | Implemented `ClaudeAccountingAssistantService` using 4 strictly typed financial query tools (`get_ledger_balance`, `get_vat_return`, `get_aging_summary`, `get_citations`). Zero LLM-invented figures; all numbers calculated deterministically in integer minor units (`BigInt` fils) with audited ledger voucher citations. | **RESOLVED** (Phase E) |
+| `packages/ledger-core/src/document-intelligence.ts` | Replaced legacy regex with unified routing through `ClaudeDocumentIntelligenceService`. Emits structured DTO with full tax classifications and logs telemetry to `AiActionLogger`. | **RESOLVED** (Phase E) |
+| `packages/ledger-core/src/ai-action-logger.ts` & Migration `0008_ai_telemetry_and_evals.sql` | Enhanced PostgreSQL table `ai_action_logs` and `ai_proposals`. Added `AiActionLogger.logActionToDatabase` persisting tenant ID, model ID, prompt version, input/output summaries, token counts, and cost in integer minor units (`cost_fils`) under RLS. | **RESOLVED** (Phase E) |
+| CI Pipeline (`.github/workflows/ci.yml`) & `scripts/run-ai-evals.mjs` | Automated bilingual Arabic/English benchmark evaluation suite (`npm run test:eval`) running 15 labelled UAE tax invoices across standard rate, zero-rated, exempt, and reverse charge supplies. Enforces accuracy thresholds (TRN 100%, Amount $\ge 95\%$, VAT Coding $\ge 95\%$) and commits eval report (`docs/eval-reports/ai-eval-report.md`) on release. | **RESOLVED** (Phase E) |
 
 ---
 

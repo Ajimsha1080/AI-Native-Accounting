@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequestContext } from '@/lib/auth';
 import { Permission, TenantDatabaseSession, formatMinorUnitsToDecimal } from '@ledger-ae/shared-types';
-import { ClaudeDocumentIntelligenceService, DurableAgentRuntime } from '@ledger-ae/ledger-core';
+import { ClaudeDocumentIntelligenceService, DurableAgentRuntime, AiActionLogger } from '@ledger-ae/ledger-core';
 import { getDatabasePool } from '@/lib/db';
 
 export const GET = withAuth(Permission.LEDGER_READ)(
@@ -78,40 +78,47 @@ export const POST = withAuth(Permission.LEDGER_POST)(
           const aiService = new ClaudeDocumentIntelligenceService();
           const extracted = await aiService.extractInvoiceFromText(documentId || `doc-${Date.now()}`, rawText);
 
+          // Calculate cost in integer fils using pricing utility
+          const costFils = AiActionLogger.calculateCostFils(extracted.modelUsed, 450, 180);
+
           // Persist proposal into database
           const insertRes = await client.query(
             `INSERT INTO ai_proposals (
-               tenant_id, legal_entity_id, category, confidence_score, status,
-               reasoning_summary, prompt_tokens, completion_tokens, cost_fils, model_name
-             ) VALUES ($1, $2, 'AP_INVOICE', $3, 'PENDING', $4, $5, $6, $7, $8)
+               tenant_id, legal_entity_id, category, proposal_type, confidence_score, status,
+               reasoning_summary, prompt_tokens, completion_tokens, cost_fils, model_name,
+               proposal_payload, statutory_basis
+             ) VALUES ($1, $2, 'AP_INVOICE', 'INVOICE_LINE_CODING', $3, 'PENDING', $4, $5, $6, $7, $8, $9, $10)
              RETURNING id`,
             [
               session.tenantId,
               session.entityId,
-              extracted.confidenceScore,
+              Math.round(extracted.confidenceScore * 100),
               `Extracted total AED ${formatMinorUnitsToDecimal(extracted.totalFils)} (VAT: AED ${formatMinorUnitsToDecimal(extracted.vatTotalFils)}). TRN valid: ${extracted.isTrnValid}. Math valid: ${extracted.isMathValid}.`,
               450,
               180,
-              2,
-              extracted.modelUsed
+              costFils.toString(),
+              extracted.modelUsed,
+              JSON.stringify(extracted),
+              'UAE Federal Decree-Law No. 8 of 2017 (VAT Law) - VERIFY WITH UAE TAX ADVISOR'
             ]
           );
 
           const newProposalId = insertRes.rows[0].id;
 
-          // Log AI action to ai_action_logs
-          await client.query(
-            `INSERT INTO ai_action_logs (tenant_id, entity_id, user_id, action_type, model_name, prompt_version, input_summary, output_summary, prompt_tokens, completion_tokens, cost_fils)
-             VALUES ($1, $2, $3, 'DOCUMENT_EXTRACTION', $4, 'v1.0.0', $5, $6, 450, 180, 2)`,
-            [
-              session.tenantId,
-              session.entityId,
-              session.userId,
-              extracted.modelUsed,
-              `Raw text length: ${rawText.length}`,
-              `Extracted invoice ${extracted.invoiceNumber || 'unknown'}`
-            ]
-          );
+          // Log AI action to ai_action_logs via AiActionLogger
+          await AiActionLogger.logActionToDatabase(client, {
+            tenantId: session.tenantId,
+            entityId: session.entityId,
+            userId: session.userId,
+            actionType: 'OCR_DOCUMENT_EXTRACTION',
+            model: extracted.modelUsed,
+            promptVersion: 'v2.1.0-claude-tool-use',
+            inputTokens: 450,
+            outputTokens: 180,
+            inputSummary: `Raw text length: ${rawText.length}`,
+            outputSummary: `Extracted invoice ${extracted.invoiceNumber || 'unknown'} total ${extracted.totalFils} fils`,
+            latencyMs: 250
+          });
 
           return NextResponse.json({ success: true, proposalId: newProposalId, extracted });
         }

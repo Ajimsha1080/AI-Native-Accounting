@@ -166,6 +166,76 @@ VAT 5%: AED 1,500.00`,
         expectedTrn: '100999000111222',
         expectedTotalFils: 3150000n,
         expectedVatCode: 'SR_5'
+      },
+      {
+        id: 'doc-11',
+        rawText: `TAX INVOICE - فاتورة ضريبية
+ماجد الفطيم للمتاجر - Majid Al Futtaim Hypermarkets LLC
+الرقم الضريبي TRN: 100123456789012
+رقم الفاتورة: MAF-2026-88192
+التاريخ: 2026-03-29
+Commercial Bulk Catering & Pantry Supplies
+المجموع Total: AED 18,900.00
+ضريبة القيمة المضافة VAT 5%: AED 900.00`,
+        expectedTrn: '100123456789012',
+        expectedTotalFils: 1890000n,
+        expectedVatCode: 'SR_5'
+      },
+      {
+        id: 'doc-12',
+        rawText: `TAX INVOICE
+GEMS Education UAE LLC - مدارس جيمس
+TRN / الرقم الضريبي: 100234567890123
+Invoice Number: GEMS-SCH-2026
+Date: 2026-03-30
+Accredited Basic Education Curricula Supplies
+التعليم الخاضع لنسبة الصفر / Zero Rated Educational Supply
+Total: AED 45,000.00`,
+        expectedTrn: '100234567890123',
+        expectedTotalFils: 4500000n,
+        expectedVatCode: 'ZR_LOC_0'
+      },
+      {
+        id: 'doc-13',
+        rawText: `TAX INVOICE - قطاع الطاقة
+Abu Dhabi National Energy PJSC (طاقة)
+الرقم الضريبي: 100345678901234
+Invoice No: TAQA-PWR-9912
+Date: 2026-03-31
+Industrial Power Grid Distribution - Abu Dhabi
+Total / الإجمالي: AED 63,000.00
+VAT 5% / ضريبة القيمة المضافة: AED 3,000.00`,
+        expectedTrn: '100345678901234',
+        expectedTotalFils: 6300000n,
+        expectedVatCode: 'SR_5'
+      },
+      {
+        id: 'doc-14',
+        rawText: `ISLAMIC BANKING FINANCING STATEMENT - كشف حساب تمويل إسلامي
+Dubai Islamic Bank PJSC - بنك دبي الإسلامي
+الرقم الضريبي TRN: 100456789012345
+Doc Ref: DIB-MUR-2026-03
+Date: 2026-03-31
+Murabaha Islamic Financing Profit Margin
+معفاة من الضريبة / Exempt Financial Supply
+Total: AED 28,000.00`,
+        expectedTrn: '100456789012345',
+        expectedTotalFils: 2800000n,
+        expectedVatCode: 'EX_FIN'
+      },
+      {
+        id: 'doc-15',
+        rawText: `CROSS-BORDER ENTERPRISE SOFTWARE SUBSCRIPTION
+Microsoft Ireland Operations Ltd
+Foreign Supplier - Overseas Non-Resident
+Reverse Charge Mechanism / آلية الاحتساب العكسي
+Invoice #: MSFT-IRL-77610
+Date: 2026-03-31
+Enterprise Azure Cloud Infrastructure & Software Assurance
+Total: AED 73,500.00`,
+        expectedTrn: undefined,
+        expectedTotalFils: 7350000n,
+        expectedVatCode: 'RCM_5'
       }
     ];
 
@@ -327,6 +397,57 @@ VAT 5%: AED 1,500.00`,
       assert.ok(updatedBudget);
       assert.ok(updatedBudget.currentSpendUsd > 0);
       assert.equal(typeof updatedBudget.alertTriggered, 'boolean');
+    });
+
+    test('Persists AI action logs with token telemetry and integer fils into PostgreSQL with RLS', async () => {
+      const { Pool } = await import('pg');
+      const { TenantDatabaseSession } = await import('@ledger-ae/shared-types');
+      const TEST_DATABASE_URL =
+        process.env.TEST_DATABASE_URL ||
+        process.env.DATABASE_URL ||
+        'postgresql://ledger_app:ledger_app_secure_pass_9988@localhost:9527/ledger_ae_test';
+
+      const pool = new Pool({ connectionString: TEST_DATABASE_URL });
+      const tenantSession = new TenantDatabaseSession(pool);
+      const tenantId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+
+      try {
+        await tenantSession.withTenant(tenantId, async (client) => {
+          const logRes = await AiActionLogger.logActionToDatabase(client, {
+            tenantId,
+            actionType: 'DOCUMENT_EXTRACTION',
+            model: 'claude-3-5-sonnet-20241022',
+            promptVersion: 'v2.1.0-eval-test',
+            inputTokens: 1200,
+            outputTokens: 450,
+            inputSummary: 'Eval invoice document OCR text batch',
+            outputSummary: 'Extracted 15 line items AED 10,500.00',
+            latencyMs: 185
+          });
+
+          assert.ok(logRes.id);
+          assert.ok(logRes.costFils > 0n);
+
+          // Query back from ai_action_logs to verify RLS and persistence
+          const queryRes = await client.query(
+            `SELECT id, tenant_id, model_id, prompt_tokens, completion_tokens, cost_fils, action_type, prompt_version
+             FROM ai_action_logs
+             WHERE id = $1 AND tenant_id = $2`,
+            [logRes.id, tenantId]
+          );
+
+          assert.equal(queryRes.rows.length, 1);
+          const row = queryRes.rows[0];
+          assert.equal(row.tenant_id, tenantId);
+          assert.equal(row.model_id, 'claude-3-5-sonnet-20241022');
+          assert.equal(row.prompt_tokens, 1200);
+          assert.equal(row.completion_tokens, 450);
+          assert.equal(BigInt(row.cost_fils), logRes.costFils);
+          assert.equal(row.action_type, 'DOCUMENT_EXTRACTION');
+        });
+      } finally {
+        await pool.end();
+      }
     });
   });
 });

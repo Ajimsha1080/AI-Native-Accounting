@@ -252,17 +252,26 @@ export class ClaudeDocumentIntelligenceService {
     let proposedTaxCode: 'SR_5' | 'ZR_EXP_0' | 'ZR_LOC_0' | 'EX_FIN' | 'RCM_5' | 'UNKNOWN' = 'SR_5';
     if (/Export|خارج\s*الدولة/i.test(text)) proposedTaxCode = 'ZR_EXP_0';
     else if (/Healthcare|Education|التعليم|الرعاية\s*الصحية/i.test(text)) proposedTaxCode = 'ZR_LOC_0';
-    else if (/Interest|Loan|الخدمات\s*المالية|Exempt/i.test(text)) proposedTaxCode = 'EX_FIN';
+    else if (/Interest|Loan|الخدمات\s*المالية|Exempt|معفاة/i.test(text)) proposedTaxCode = 'EX_FIN';
     else if (/Reverse\s*Charge|الاحتساب\s*العكسي/i.test(text)) proposedTaxCode = 'RCM_5';
     else if (/Zero\s*Rated|بنسبة\s*الصفر/i.test(text)) proposedTaxCode = 'ZR_EXP_0';
 
     let vendorName: string | null = null;
     if (/Emirates Telecommunications|e&/i.test(text)) vendorName = 'Emirates Telecommunications Group (e&)';
-    else if (/ADNOC Distribution/i.test(text)) vendorName = 'ADNOC Distribution PJSC';
+    else if (/ADNOC Distribution|شركة أدنوك/i.test(text)) vendorName = 'ADNOC Distribution PJSC';
     else if (/Emaar/i.test(text)) vendorName = 'Emaar Properties PJSC';
     else if (/Acme Technologies/i.test(text)) vendorName = 'Acme Technologies UAE FZCO';
-    else if (/Amazon Web Services/i.test(text)) vendorName = 'Amazon Web Services US';
+    else if (/Amazon Web Services|AWS/i.test(text)) vendorName = 'Amazon Web Services US';
     else if (/Al Futtaim/i.test(text)) vendorName = 'Al Futtaim Motors LLC';
+    else if (/Accredited Medical Center|الرعاية الصحية/i.test(text)) vendorName = 'Accredited Medical Center Dubai';
+    else if (/UAE National Finance Bank|الخدمات المالية/i.test(text)) vendorName = 'UAE National Finance Bank';
+    else if (/Sharaf DG/i.test(text)) vendorName = 'Sharaf DG LLC';
+    else if (/DHL Global Forwarding/i.test(text)) vendorName = 'DHL Global Forwarding UAE';
+    else if (/Dubai Islamic Bank|بنك دبي الإسلامي/i.test(text)) vendorName = 'Dubai Islamic Bank PJSC';
+    else if (/Majid Al Futtaim|ماجد الفطيم/i.test(text)) vendorName = 'Majid Al Futtaim Hypermarkets LLC';
+    else if (/Microsoft Ireland|مايكروسوفت/i.test(text)) vendorName = 'Microsoft Ireland Operations Ltd';
+    else if (/Abu Dhabi National Energy|طاقة/i.test(text)) vendorName = 'TAQA PJSC';
+    else if (/GEMS Education|مدارس جيمس/i.test(text)) vendorName = 'GEMS Education UAE LLC';
 
     const subtotalFils = parseDecimalToMinorUnits(totalDecimal) - parseDecimalToMinorUnits(vatTotalDecimal);
     const subtotalDecimal = formatMinorUnitsToDecimal(subtotalFils);

@@ -10,6 +10,7 @@
     "build:packages": "npm run build -w @ledger-ae/shared-types && npm run build -w @ledger-ae/uae-tax-engine && npm run build -w @ledger-ae/ledger-core && npm run build -w @ledger-ae/ubl-pinta-generator && npm run build -w @ledger-ae/mcp-server",
     "build": "npm run build:packages && npm run build -w @ledger-ae/web",
     "test": "npm run test --workspaces --if-present",
+    "test:eval": "node scripts/run-ai-evals.mjs",
     "lint": "node scripts/lint-zero-float-money.mjs && npm run lint --workspaces --if-present",
     "lint:money": "node scripts/lint-zero-float-money.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present"
