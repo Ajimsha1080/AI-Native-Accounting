@@ -23,8 +23,15 @@ export class PintAeAspClient implements EInvoicingAspClient {
   private fetchImpl: typeof fetch;
 
   constructor(config: PintAeAspConfig = {}) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const apiKey = config.apiKey || process.env.EINVOICE_ASP_API_KEY;
+
+    if (isProduction && (!apiKey || apiKey === 'asp_sandbox_default_key' || apiKey.startsWith('asp_placeholder'))) {
+      throw new Error('FATAL: EINVOICE_ASP_API_KEY is required and must be configured with live credentials in production (fail closed).');
+    }
+
     this.baseUrl = config.baseUrl || process.env.EINVOICE_ASP_URL || 'https://sandbox.pint-ae.peppol.ae/v1';
-    this.apiKey = config.apiKey || process.env.EINVOICE_ASP_API_KEY || 'asp_sandbox_default_key';
+    this.apiKey = apiKey || 'asp_sandbox_default_key';
     this.fetchImpl = config.customFetch || globalThis.fetch;
   }
 

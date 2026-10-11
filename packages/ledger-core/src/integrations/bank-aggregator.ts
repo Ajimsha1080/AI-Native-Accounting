@@ -25,8 +25,15 @@ export class LeanOpenFinanceClient implements BankAggregatorClient {
   private fetchImpl: typeof fetch;
 
   constructor(config: LeanAggregatorConfig = {}) {
+    const isProduction = process.env.NODE_ENV === 'production';
+    const appToken = config.appToken || process.env.LEAN_APP_TOKEN;
+
+    if (isProduction && (!appToken || appToken === 'lean_sandbox_app_token' || appToken.startsWith('lean_placeholder'))) {
+      throw new Error('FATAL: LEAN_APP_TOKEN is required and must be configured with live credentials in production (fail closed).');
+    }
+
     this.baseUrl = config.baseUrl || process.env.LEAN_BASE_URL || 'https://sandbox.leantech.me/v1';
-    this.appToken = config.appToken || process.env.LEAN_APP_TOKEN || 'lean_sandbox_app_token';
+    this.appToken = appToken || 'lean_sandbox_app_token';
     this.webhookSecret = config.webhookSecret || process.env.LEAN_WEBHOOK_SECRET || 'lean_sandbox_wh_secret';
     this.fetchImpl = config.customFetch || globalThis.fetch;
   }

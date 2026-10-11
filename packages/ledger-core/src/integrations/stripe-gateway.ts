@@ -24,15 +24,31 @@ export class StripePaymentClient implements PaymentGatewayClient {
   private webhookSecret: string;
 
   constructor(config: StripeGatewayConfig = {}) {
-    const key = config.apiKey || process.env.STRIPE_SECRET_KEY || 'sk_test_mock_stripe_key_default';
+    const isProduction = process.env.NODE_ENV === 'production';
+    const key = config.apiKey || process.env.STRIPE_SECRET_KEY;
+
+    if (isProduction && (!key || key.startsWith('sk_test_') || key === 'sk_test_mock_stripe_key_default')) {
+      throw new Error('FATAL: STRIPE_SECRET_KEY is required and must be a live secret key in production (fail closed).');
+    }
+
+    const effectiveKey = key || 'sk_test_mock_stripe_key_default';
     this.webhookSecret = config.webhookSecret || process.env.STRIPE_WEBHOOK_SECRET || 'whsec_test_mock_stripe_secret';
-    this.stripe = config.stripeInstance || new Stripe(key, { apiVersion: '2026-02-25.acacia' as any });
+    this.stripe = config.stripeInstance || new Stripe(effectiveKey, { apiVersion: '2026-02-25.acacia' as any });
   }
 
   async createPaymentIntent(params: CreatePaymentIntentParams): Promise<PaymentIntentResult> {
     // Stripe accepts integer amounts in minor units (fils for AED, cents for USD)
-    // Safe conversion of BigInt to integer without floating-point math
+    // Strictly validate that amountFils is within safe integer bounds without floating point operations
+    if (params.amountFils < 0n) {
+      throw new Error('Payment intent amount cannot be negative.');
+    }
+    if (params.amountFils > BigInt(Number.MAX_SAFE_INTEGER)) {
+      throw new Error('Payment amount exceeds maximum integer precision limit.');
+    }
     const amountMinorUnits = Number(params.amountFils);
+    if (!Number.isSafeInteger(amountMinorUnits)) {
+      throw new Error('Payment amount must be a safe integer.');
+    }
 
     const intent = await this.stripe.paymentIntents.create({
       amount: amountMinorUnits,
@@ -68,9 +84,23 @@ export class StripePaymentClient implements PaymentGatewayClient {
   }
 
   async refundPayment(intentId: string, amountFils?: bigint): Promise<PaymentRefundResult> {
+    let refundAmount: number | undefined;
+    if (amountFils !== undefined) {
+      if (amountFils < 0n) {
+        throw new Error('Refund amount cannot be negative.');
+      }
+      if (amountFils > BigInt(Number.MAX_SAFE_INTEGER)) {
+        throw new Error('Refund amount exceeds maximum integer precision limit.');
+      }
+      refundAmount = Number(amountFils);
+      if (!Number.isSafeInteger(refundAmount)) {
+        throw new Error('Refund amount must be a safe integer.');
+      }
+    }
+
     const refund = await this.stripe.refunds.create({
       payment_intent: intentId,
-      amount: amountFils !== undefined ? Number(amountFils) : undefined
+      amount: refundAmount
     });
 
     return {

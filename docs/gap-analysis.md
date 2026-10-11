@@ -103,11 +103,15 @@ While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), version
 
 ---
 
-### 2.7. Integrations (E-Invoicing & Open Banking)
-| File | Current Implementation | Production Requirement |
+### 2.7. Integrations (E-Invoicing & Open Banking - Phase F COMPLETE)
+| File | Remediation Implemented | Status |
 | :--- | :--- | :--- |
-| `packages/ubl-pinta-generator/src/asp-adapter.ts` | `SandboxAspAdapter` uses simulated random IDs (`FTA-CLEARANCE-UUID-...`) and in-memory delay. | Record an ADR selecting an accredited service provider; implement real contract tests against sandbox. |
-| `packages/ledger-core/src/bank-feed-aggregator.ts` | `LeanSandboxAggregatorAdapter` uses static in-memory accounts array. | Record an ADR selecting a UAE Open Banking provider; implement contract tests against real sandbox endpoints. |
+| `docs/adr/0019-accredited-e-invoicing-and-open-banking-selection.md` | Recorded formal ADR 0019 selecting Pagero (Peppol PINT-AE Accredited Access Point) and Lean Technologies (CBUAE/ADGM licensed Open Finance provider) with official sandbox endpoints and payload specs. | **RESOLVED** (Phase F) |
+| `packages/ledger-core/src/integrations/einvoicing-asp.ts` | Enforced fail-closed validation in production if `EINVOICE_ASP_API_KEY` is missing or default. Validates Peppol PINT-AE UBL 2.1 schema and 15-digit TRN before gateway dispatch. | **RESOLVED** (Phase F) |
+| `packages/ledger-core/src/integrations/bank-aggregator.ts` | Enforced fail-closed validation in production if `LEAN_APP_TOKEN` is missing or default. Parses amounts strictly into integer minor units (`BigInt` fils) with zero floating-point arithmetic. | **RESOLVED** (Phase F) |
+| `packages/ledger-core/src/integrations/stripe-gateway.ts` | Enforced fail-closed in production if `STRIPE_SECRET_KEY` is missing or test-key. Validates amounts strictly as non-negative safe integer minor units without float arithmetic. Verifies `t=...,v1=...` webhook signatures. | **RESOLVED** (Phase F) |
+| `packages/ledger-core/src/integrations/contract-tests.test.ts` & `.github/workflows/nightly-contract-tests.yml` | Implemented 12 contract tests verifying Pagero Peppol PINT-AE, Lean Open Finance, and Stripe contracts. Added nightly CI contract verification workflow. | **RESOLVED** (Phase F) |
+
 
 ---
 

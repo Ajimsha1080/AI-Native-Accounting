@@ -1,0 +1,43 @@
+name: Nightly Sandbox Contract Tests
+
+on:
+  schedule:
+    # Run nightly at 01:00 UTC
+    - cron: '0 1 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nightly-contract-verification:
+    name: Provider Sandbox Contract Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Packages
+        run: npm run build:packages
+
+      - name: Run Provider Contract Test Suite
+        run: npm run test:contract
+        env:
+          NODE_ENV: test
+          EINVOICE_ASP_URL: https://sandbox.pint-ae.peppol.ae/v1
+          EINVOICE_ASP_API_KEY: asp_sandbox_default_key
+          LEAN_BASE_URL: https://sandbox.leantech.me/v1
+          LEAN_APP_TOKEN: lean_sandbox_app_token
+          LEAN_WEBHOOK_SECRET: lean_sandbox_wh_secret
+          STRIPE_SECRET_KEY: sk_test_mock_stripe_key_default
+          STRIPE_WEBHOOK_SECRET: whsec_test_mock_stripe_secret

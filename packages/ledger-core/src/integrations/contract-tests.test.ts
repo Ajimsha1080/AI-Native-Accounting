@@ -306,5 +306,60 @@ describe('Phase 7: Integrations Behind Interfaces with Contract Tests', () => {
       const expiredHeader = `t=${expiredTimestamp},v1=${expiredV1}`;
       assert.equal(client.verifyWebhookSignature(payload, expiredHeader), false);
     });
+
+    test('Stripe client strictly rejects negative amounts and unsafe floats/numbers', async () => {
+      const mockStripe: any = { paymentIntents: { create: async () => ({}) } };
+      const client = new StripePaymentClient({ stripeInstance: mockStripe });
+
+      await assert.rejects(
+        async () => {
+          await client.createPaymentIntent({
+            tenantId: TENANT_ID,
+            amountFils: -500n,
+            currency: 'AED'
+          });
+        },
+        /Payment intent amount cannot be negative/
+      );
+
+      await assert.rejects(
+        async () => {
+          await client.refundPayment('pi_test', -100n);
+        },
+        /Refund amount cannot be negative/
+      );
+    });
+
+    test('Fails closed in production if live credentials are missing or default', () => {
+      const prevEnv = process.env.NODE_ENV;
+      const prevKey = process.env.STRIPE_SECRET_KEY;
+      try {
+        process.env.NODE_ENV = 'production';
+        delete process.env.STRIPE_SECRET_KEY;
+
+        // Stripe must throw
+        assert.throws(() => {
+          new StripePaymentClient({ apiKey: 'sk_test_mock_stripe_key_default' });
+        }, /FATAL: STRIPE_SECRET_KEY is required and must be a live secret key in production/);
+
+        // Peppol ASP must throw
+        assert.throws(() => {
+          new PintAeAspClient({ apiKey: 'asp_sandbox_default_key' });
+        }, /FATAL: EINVOICE_ASP_API_KEY is required/);
+
+        // Lean must throw
+        assert.throws(() => {
+          new LeanOpenFinanceClient({ appToken: 'lean_sandbox_app_token' });
+        }, /FATAL: LEAN_APP_TOKEN is required/);
+      } finally {
+        process.env.NODE_ENV = prevEnv;
+        if (prevKey !== undefined) {
+          process.env.STRIPE_SECRET_KEY = prevKey;
+        } else {
+          delete process.env.STRIPE_SECRET_KEY;
+        }
+      }
+    });
   });
 });
+
