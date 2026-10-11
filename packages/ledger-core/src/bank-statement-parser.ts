@@ -1,4 +1,4 @@
-import { UUID } from '@ledger-ae/shared-types';
+import { UUID, parseDecimalToMinorUnits } from '@ledger-ae/shared-types';
 
 export enum StatementFormat {
   CSV = 'CSV',
@@ -44,8 +44,8 @@ export class BankStatementParser {
       if (parts.length < 5) continue;
 
       const [date, description, reference, inflowStr, outflowStr] = parts;
-      const inflowFils = inflowStr ? BigInt(Math.round(parseFloat(inflowStr) * 100)) : 0n;
-      const outflowFils = outflowStr ? BigInt(Math.round(parseFloat(outflowStr) * 100)) : 0n;
+      const inflowFils = inflowStr ? parseDecimalToMinorUnits(inflowStr) : 0n;
+      const outflowFils = outflowStr ? parseDecimalToMinorUnits(outflowStr) : 0n;
 
       if (inflowFils > 0n) {
         result.push({
@@ -154,7 +154,7 @@ export class BankStatementParser {
           }
 
           const amtStr = m61[5].replace(',', '.');
-          amountFils = BigInt(Math.round(parseFloat(amtStr) * 100));
+          amountFils = parseDecimalToMinorUnits(amtStr);
 
           const rawRef = m61[7] ? m61[7].trim() : '';
           const subRefMatch = rawRef.match(/\/\/([^\r\n]+)/);
@@ -167,7 +167,7 @@ export class BankStatementParser {
           // Fallback simple extraction
           const amtMatch = tagContent.match(/([0-9]+[,\.][0-9]{2})/);
           if (amtMatch) {
-            amountFils = BigInt(Math.round(parseFloat(amtMatch[1].replace(',', '.')) * 100));
+            amountFils = parseDecimalToMinorUnits(amtMatch[1].replace(',', '.'));
           }
         }
 
@@ -239,8 +239,7 @@ export class BankStatementParser {
       // Amount and Currency: <Amt Ccy="AED">75000.00</Amt>
       const amtMatch = block.match(/<Amt\s+Ccy="([^"]+)">([^<]+)<\/Amt>/);
       const currency = amtMatch ? amtMatch[1] : defaultCurrency;
-      const amountVal = amtMatch ? parseFloat(amtMatch[2]) : 0;
-      const amountFils = BigInt(Math.round(amountVal * 100));
+      const amountFils = amtMatch ? parseDecimalToMinorUnits(amtMatch[2]) : 0n;
 
       // Direction: <CdtDbtInd>CRDT</CdtDbtInd> (or DBIT)
       const dirMatch = block.match(/<CdtDbtInd>([^<]+)<\/CdtDbtInd>/);

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import { StateContainer } from '@/components/StateContainer';
-import { formatMinorUnits } from '@/lib/money';
+import { formatMinorUnits, formatMinorUnitsToDecimal } from '@/lib/money';
 import {
   FileSpreadsheet,
   Download,
@@ -102,7 +102,7 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
     let csv = 'Account Code,Account Name,Category,Debit (AED),Credit (AED)\n';
     if (activeTab === 'TB') {
       data.trialBalance.lines.forEach((l) => {
-        csv += `"${l.accountCode}","${l.nameEn}","${l.category}","${(Number(l.debitMinorUnits)/100).toFixed(2)}","${(Number(l.creditMinorUnits)/100).toFixed(2)}"\n`;
+        csv += `"${l.accountCode}","${l.nameEn}","${l.category}","${formatMinorUnitsToDecimal(l.debitMinorUnits)}","${formatMinorUnitsToDecimal(l.creditMinorUnits)}"\n`;
       });
     }
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });

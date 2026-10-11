@@ -3,6 +3,26 @@
  * Never uses floating-point arithmetic.
  */
 
+/**
+ * Formats BigInt or string minor units into exact decimal string (e.g. 10050n fils -> "100.50").
+ */
+export function formatMinorUnitsToDecimal(amount: bigint | string | number, decimals: number = 2): string {
+  const bigAmount = typeof amount === 'bigint' ? amount : BigInt(amount);
+  const isNegative = bigAmount < 0n;
+  const absAmount = isNegative ? -bigAmount : bigAmount;
+
+  if (decimals === 0) {
+    return `${isNegative ? '-' : ''}${absAmount.toString()}`;
+  }
+
+  const factor = 10n ** BigInt(decimals);
+  const whole = absAmount / factor;
+  const fraction = absAmount % factor;
+  const paddedFraction = fraction.toString().padStart(decimals, '0');
+
+  return `${isNegative ? '-' : ''}${whole.toString()}.${paddedFraction}`;
+}
+
 export interface MoneyFormatOptions {
   currency?: string;
   locale?: 'en' | 'ar';

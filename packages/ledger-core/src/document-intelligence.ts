@@ -1,4 +1,4 @@
-import { UUID } from '@ledger-ae/shared-types';
+import { UUID, parseDecimalToMinorUnits } from '@ledger-ae/shared-types';
 import { isValidUaeTrn } from '../../uae-tax-engine/dist/trn-validator.js';
 import { AiActionLogger } from './ai-action-logger.js';
 
@@ -99,7 +99,7 @@ export class DocumentIntelligenceService {
     let totalFils = 0n;
     if (totalMatch) {
       const cleanNum = totalMatch[1].replace(/,/g, '');
-      totalFils = BigInt(Math.round(parseFloat(cleanNum) * 100));
+      totalFils = parseDecimalToMinorUnits(cleanNum);
     }
 
     // 6. Extract or Calculate VAT & Subtotal
@@ -111,7 +111,7 @@ export class DocumentIntelligenceService {
 
     if (vatMatch) {
       const cleanVat = vatMatch[1].replace(/,/g, '');
-      vatTotalFils = BigInt(Math.round(parseFloat(cleanVat) * 100));
+      vatTotalFils = parseDecimalToMinorUnits(cleanVat);
       subtotalFils = totalFils - vatTotalFils;
     } else if (/Zero\s*Rated|0%|بنسبة\s*الصفر/i.test(rawText)) {
       vatTotalFils = 0n;

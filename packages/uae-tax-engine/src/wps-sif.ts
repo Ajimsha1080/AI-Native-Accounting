@@ -1,4 +1,4 @@
-import { formatMoney } from '@ledger-ae/ledger-core';
+import { parseDecimalToMinorUnits, formatMinorUnitsToDecimal } from '@ledger-ae/shared-types';
 
 export interface WpsEmployeeRecord {
   personnelId: string;       // 14-digit Labour Card / Employee ID
@@ -41,8 +41,8 @@ export function generateWpsSifFile(
     const salaryThisEmp = emp.fixedSalaryFils + emp.variableSalaryFils;
     totalSalariesFils += salaryThisEmp;
 
-    const fixedAed = formatMoney(emp.fixedSalaryFils, 'AED');
-    const variableAed = formatMoney(emp.variableSalaryFils, 'AED');
+    const fixedAed = formatMinorUnitsToDecimal(emp.fixedSalaryFils);
+    const variableAed = formatMinorUnitsToDecimal(emp.variableSalaryFils);
 
     lines.push(
       `EDR,${emp.personnelId},${header.payerBankRoutingCode},${emp.employeeIban},${header.salaryYearMonth}-01,${header.salaryYearMonth}-28,28,${fixedAed},${variableAed},${emp.leaveDaysCount}`
@@ -51,7 +51,7 @@ export function generateWpsSifFile(
 
   // Header line: SCR (Salary Control Record)
   // Format: SCR,EmployerID,RoutingCode,FileCreationDate,FileCreationTime,TotalSalary,Count,AED
-  const totalSalariesAed = formatMoney(totalSalariesFils, 'AED');
+  const totalSalariesAed = formatMinorUnitsToDecimal(totalSalariesFils);
   const cleanDate = header.fileCreationDate.replace(/-/g, '');
   const headerLine = `SCR,${header.employerId},${header.payerBankRoutingCode},${cleanDate},${header.fileCreationTime},${totalSalariesAed},${employees.length},AED`;
 
@@ -129,7 +129,7 @@ export function validateWpsSifContent(sifContent: string): WpsValidationResult {
     errors.push(`File creation time must be HHMM format. Found: "${fileTime}"`);
   }
 
-  const headerTotalAed = parseFloat(headerParts[5] ?? '0');
+  const headerTotalFils = parseDecimalToMinorUnits(headerParts[5] ?? '0');
   const headerCount = parseInt(headerParts[6] ?? '0', 10);
   const currency = headerParts[7] ?? '';
 
@@ -143,7 +143,7 @@ export function validateWpsSifContent(sifContent: string): WpsValidationResult {
     errors.push(`Header employee count (${headerCount}) does not match detail line count (${edrLines.length}).`);
   }
 
-  let totalEdrSalary = 0;
+  let totalEdrSalaryFils = 0n;
 
   for (let i = 0; i < edrLines.length; i++) {
     const lineIndex = i + 2;
@@ -170,23 +170,26 @@ export function validateWpsSifContent(sifContent: string): WpsValidationResult {
       errors.push(`Line ${lineIndex}: Invalid UAE IBAN format "${iban}". Must be 23 characters starting with 'AE'.`);
     }
 
-    const fixedSalary = parseFloat(parts[7] ?? '0');
-    const variableSalary = parseFloat(parts[8] ?? '0');
-    if (isNaN(fixedSalary) || fixedSalary < 0) {
+    let fixedFils = 0n;
+    let varFils = 0n;
+    try {
+      fixedFils = parseDecimalToMinorUnits(parts[7] ?? '0', { allowNegative: false });
+    } catch {
       errors.push(`Line ${lineIndex}: Invalid fixed salary "${parts[7]}"`);
     }
-    if (isNaN(variableSalary) || variableSalary < 0) {
+    try {
+      varFils = parseDecimalToMinorUnits(parts[8] ?? '0', { allowNegative: false });
+    } catch {
       errors.push(`Line ${lineIndex}: Invalid variable salary "${parts[8]}"`);
     }
 
-    totalEdrSalary += fixedSalary + variableSalary;
+    totalEdrSalaryFils += fixedFils + varFils;
   }
 
   // 3. Reconcile Totals
-  const diff = Math.abs(totalEdrSalary - headerTotalAed);
-  if (diff > 0.009) {
+  if (totalEdrSalaryFils !== headerTotalFils) {
     errors.push(
-      `Central Bank Reconciliation Error: Header total AED (${headerTotalAed.toFixed(2)}) differs from sum of EDR detail records (${totalEdrSalary.toFixed(2)}).`
+      `Central Bank Reconciliation Error: Header total AED (${formatMinorUnitsToDecimal(headerTotalFils)}) differs from sum of EDR detail records (${formatMinorUnitsToDecimal(totalEdrSalaryFils)}).`
     );
   }
 
@@ -194,7 +197,7 @@ export function validateWpsSifContent(sifContent: string): WpsValidationResult {
     isValid: errors.length === 0,
     errors,
     warnings,
-    reconciledTotalAed: totalEdrSalary.toFixed(2),
+    reconciledTotalAed: formatMinorUnitsToDecimal(totalEdrSalaryFils),
     employeeCount: edrLines.length,
     employerId,
     routingCode

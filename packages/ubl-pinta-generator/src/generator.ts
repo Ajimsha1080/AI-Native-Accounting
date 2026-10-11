@@ -1,4 +1,5 @@
 import { formatMoney } from '@ledger-ae/ledger-core';
+import { parseDecimalToMinorUnits } from '@ledger-ae/shared-types';
 
 export type InvoiceTypeCode = '380' | '381' | '383'; // 380 = Commercial Invoice, 381 = Credit Note, 383 = Debit Note
 
@@ -190,10 +191,10 @@ export function parseReceivedUblPintaXml(xml: string): ReceivedEInvoice {
   const currency = ccyMatch ? ccyMatch[1].trim() : 'AED';
 
   const payableMatch = xml.match(/<cbc:PayableAmount[^>]*>([^<]+)<\/cbc:PayableAmount>/);
-  const grandTotalFils = payableMatch ? BigInt(Math.round(parseFloat(payableMatch[1]) * 100)) : 0n;
+  const grandTotalFils = payableMatch ? parseDecimalToMinorUnits(payableMatch[1]) : 0n;
 
   const vatMatch = xml.match(/<cac:TaxTotal>[\s\S]*?<cbc:TaxAmount[^>]*>([^<]+)<\/cbc:TaxAmount>/);
-  const vatTotalFils = vatMatch ? BigInt(Math.round(parseFloat(vatMatch[1]) * 100)) : 0n;
+  const vatTotalFils = vatMatch ? parseDecimalToMinorUnits(vatMatch[1]) : 0n;
 
   const subtotalFils = grandTotalFils - vatTotalFils;
   const lineMatches = Array.from(xml.matchAll(/<cac:(InvoiceLine|CreditNoteLine)>/g));

@@ -1,4 +1,4 @@
-import { UUID } from '@ledger-ae/shared-types';
+import { UUID, formatMinorUnitsToDecimal } from '@ledger-ae/shared-types';
 
 export enum AnomalyType {
   DUPLICATE_BILL = 'DUPLICATE_BILL',
@@ -236,7 +236,7 @@ export class ContinuousAiMonitor {
             severity: percentChange >= 50 ? AnomalySeverity.HIGH : AnomalySeverity.MEDIUM,
             documentOrVoucherId: `ACCT-${comp.accountCode}`,
             accountCode: comp.accountCode,
-            descriptionEn: `Significant flux detected on Account ${comp.accountCode} (${comp.accountName}): Variance of ${percentChange}% (${diffFils > 0n ? '+' : ''}${Number(diffFils) / 100} AED).`,
+            descriptionEn: `Significant flux detected on Account ${comp.accountCode} (${comp.accountName}): Variance of ${percentChange}% (${diffFils > 0n ? '+' : ''}${formatMinorUnitsToDecimal(diffFils)} AED).`,
             descriptionAr: `تم اكتشاف تباين مالي كبير في الحساب ${comp.accountCode} (${comp.accountName}): نسبة التغير ${percentChange}%.`,
             actionableRecommendation: 'Generate AI flux explanation proposal and require Controller sign-off before closing.',
             confidenceScore: 0.95,
