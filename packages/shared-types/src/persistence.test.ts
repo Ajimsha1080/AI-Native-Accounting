@@ -38,8 +38,13 @@ describe('Phase 1: Persistence & Multi-Tenant RLS Integration Tests', () => {
 
     // 1. Initial Migration Run
     const appliedFirst = await runner.runMigrations({ migrationsDir });
-    assert.equal(appliedFirst.length, 3, 'Should apply 3 migrations on first run');
-    assert.deepEqual(appliedFirst, ['0001_core_ledger.sql', '0002_operations_schema.sql', '0003_rag_documents_and_guidance.sql']);
+    assert.equal(appliedFirst.length, 4, 'Should apply 4 migrations on first run');
+    assert.deepEqual(appliedFirst, [
+      '0001_core_ledger.sql',
+      '0002_operations_schema.sql',
+      '0003_rag_documents_and_guidance.sql',
+      '0004_workflow_runs_and_webhooks.sql'
+    ]);
 
     // 2. Idempotent Second Migration Run
     const appliedSecond = await runner.runMigrations({ migrationsDir });
