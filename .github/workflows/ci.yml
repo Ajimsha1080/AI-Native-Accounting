@@ -121,3 +121,29 @@ jobs:
           name: playwright-report
           path: apps/web/playwright-report/
           retention-days: 7
+
+  perf-and-dr-benchmarks:
+    name: Production DR & 1M Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Monorepo
+        run: npm run build
+
+      - name: Execute Automated Disaster Recovery (PITR) Drill
+        run: node scripts/dr/run-pitr-drill.mjs
+
+      - name: Execute 1,000,000 Lines Trial Balance Latency Benchmark
+        run: node --max-old-space-size=4096 scripts/perf/trial-balance-1m-benchmark.mjs
+
