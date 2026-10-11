@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { LedgerMcpServer } from './server.js';
+import { McpSecurityService } from './auth-tokens.js';
 import {
   AccountingFirmWorkspace,
   ClientFirmProfile,
@@ -9,81 +10,194 @@ import {
 import { BillingMeteringEngine } from './metering.js';
 import { MigrationImporterEngine, LegacyAccountRecord } from './migration-importers.js';
 
-describe('Milestone 12: Integrations & Platform - Model Context Protocol (MCP) Server', () => {
+describe('Phase 8: Official MCP SDK Server, Scoped OAuth Tokens & Single-Use Approvals', () => {
   const mcp = new LedgerMcpServer();
+  const TENANT_ID = 'tenant-uae-grp-01';
 
-  test('Lists available MCP tools and scopes read-only by default', () => {
+  // Issue test scoped tokens
+  const readToken = McpSecurityService.issueScopedToken({
+    userId: 'usr-auditor-01',
+    tenantId: TENANT_ID,
+    role: 'EXTERNAL_AUDITOR',
+    scopes: ['mcp:read']
+  });
+
+  const writeProposalToken = McpSecurityService.issueScopedToken({
+    userId: 'usr-agent-01',
+    tenantId: TENANT_ID,
+    role: 'AI_AGENT',
+    scopes: ['mcp:read', 'mcp:proposals:write']
+  });
+
+  const approverToken = McpSecurityService.issueScopedToken({
+    userId: 'usr-cfo-01',
+    tenantId: TENANT_ID,
+    role: 'CFO',
+    scopes: ['mcp:read', 'mcp:approvals:execute']
+  });
+
+  test('Lists 4 available MCP tools using official MCP SDK structure', () => {
     const tools = mcp.getAvailableTools();
     assert.equal(tools.length, 4);
 
-    const tbTool = tools.find((t) => t.name === 'get_trial_balance_summary');
-    assert.ok(tbTool);
-    assert.equal(tbTool.isReadOnly, true);
-
-    const propTool = tools.find((t) => t.name === 'create_adjustment_proposal');
-    assert.ok(propTool);
-    assert.equal(propTool.isReadOnly, true);
-
-    const postTool = tools.find((t) => t.name === 'post_manual_adjustment_entry');
-    assert.ok(postTool);
-    assert.equal(postTool.isReadOnly, false); // Write tool
+    const toolNames = tools.map((t) => t.name);
+    assert.ok(toolNames.includes('get_trial_balance_summary'));
+    assert.ok(toolNames.includes('query_vat201_summary'));
+    assert.ok(toolNames.includes('create_adjustment_proposal'));
+    assert.ok(toolNames.includes('execute_approved_proposal'));
   });
 
-  test('Executes read tools without requiring approval tokens', async () => {
+  test('Executes read tool with valid scoped bearer token', async () => {
     const response = await mcp.executeTool({
       toolName: 'query_vat201_summary',
       arguments: { taxPeriod: '2026-Q1' },
-      callerRole: 'EXTERNAL_AUDITOR'
+      bearerToken: readToken
     });
 
     assert.equal(response.isSuccess, true);
     assert.match(response.content[0].text, /box1StandardRatedAed/);
   });
 
-  test('create_adjustment_proposal creates non-posting proposal without requiring CFO token', async () => {
+  test('Security Gate: Rejects request with missing or invalid token signature (No fake prefix checks)', async () => {
+    // 1. Missing token
+    const resNoToken = await mcp.executeTool({
+      toolName: 'query_vat201_summary',
+      arguments: { taxPeriod: '2026-Q1' },
+      bearerToken: ''
+    });
+    assert.equal(resNoToken.isSuccess, false);
+    assert.match(resNoToken.error!, /SECURITY_VIOLATION: AUTH_ERROR/);
+
+    // 2. Tampered token signature
+    const tamperedToken = readToken.slice(0, -6) + 'XXXXXX';
+    const resTampered = await mcp.executeTool({
+      toolName: 'query_vat201_summary',
+      arguments: { taxPeriod: '2026-Q1' },
+      bearerToken: tamperedToken
+    });
+    assert.equal(resTampered.isSuccess, false);
+    assert.match(resTampered.error!, /Invalid cryptographic token signature/);
+  });
+
+  test('Security Gate: Rejects request when token lacks required scope', async () => {
+    // readToken has only ['mcp:read'], attempting to call write tool create_adjustment_proposal
     const response = await mcp.executeTool({
       toolName: 'create_adjustment_proposal',
       arguments: {
-        periodId: 'period-2026-01',
-        reason: 'Accrual for unbilled audit fee',
+        periodId: '2026-01',
+        reason: 'Unauthorized write attempt',
+        proposedDebitsFils: '1000',
+        proposedCreditsFils: '1000'
+      },
+      bearerToken: readToken
+    });
+
+    assert.equal(response.isSuccess, false);
+    assert.match(response.error!, /Insufficient scope/);
+  });
+
+  test('Write Tool Invariant: create_adjustment_proposal ONLY creates proposals (never directly mutates ledger)', async () => {
+    const response = await mcp.executeTool({
+      toolName: 'create_adjustment_proposal',
+      arguments: {
+        periodId: '2026-01',
+        reason: 'Quarterly Audit Expense Accrual',
         proposedDebitsFils: '500000',
         proposedCreditsFils: '500000'
       },
-      callerRole: 'AI_AGENT'
+      bearerToken: writeProposalToken
     });
 
     assert.equal(response.isSuccess, true);
     const parsed = JSON.parse(response.content[0].text);
     assert.equal(parsed.status, 'PROPOSAL_CREATED_PENDING_APPROVAL');
     assert.ok(parsed.proposalId.startsWith('prop-'));
+    assert.match(parsed.message, /Ledger remains unmutated until an authorized human issues a single-use approval ticket/);
   });
 
-  test('Rejects write tool when valid CFO approval token is missing', async () => {
-    const response = await mcp.executeTool({
-      toolName: 'post_manual_adjustment_entry',
-      arguments: { periodId: 'p1', amountFils: '1000', reason: 'Audit Adjustment' },
-      callerRole: 'JUNIOR_ACCOUNTANT'
+  test('Approvals: Server-issued single-use approval ticket executes proposal and writes audit log', async () => {
+    McpSecurityService.resetForTesting();
+    const proposalId = 'prop-audit-accrual-99';
+
+    // 1. Issue signed, expiring approval ticket
+    const ticket = McpSecurityService.issueApprovalTicket({
+      proposalId,
+      tenantId: TENANT_ID,
+      approverId: 'usr-cfo-01',
+      approverRole: 'CFO',
+      ttlSeconds: 600 // 10 minutes
     });
 
-    assert.equal(response.isSuccess, false);
-    assert.match(
-      response.error!,
-      /SECURITY VIOLATION: MCP write operations require a verified human CFO approval token/
-    );
-  });
+    assert.ok(ticket.nonce);
+    assert.ok(ticket.signature);
+    assert.ok(ticket.expiresAt > Math.floor(Date.now() / 1000));
 
-  test('Permits write tool when valid CFO approval token is supplied', async () => {
+    // 2. Execute with ticket
     const response = await mcp.executeTool({
-      toolName: 'post_manual_adjustment_entry',
-      arguments: { periodId: 'p1', amountFils: '1000', reason: 'Audit Adjustment' },
-      callerRole: 'CFO',
-      approvalToken: 'CFO_APPROVED_SECURE_TOKEN_991'
+      toolName: 'execute_approved_proposal',
+      arguments: { proposalId },
+      bearerToken: approverToken,
+      approvalTicket: ticket
     });
 
     assert.equal(response.isSuccess, true);
-    assert.match(response.content[0].text, /Adjusting voucher posted successfully/);
+    const parsed = JSON.parse(response.content[0].text);
+    assert.equal(parsed.status, 'POSTED');
+    assert.equal(parsed.approvedBy, 'usr-cfo-01');
+    assert.ok(parsed.auditLogId);
+
+    // 3. REPLAY ATTACK TEST: Attempting to use the SAME ticket again fails (nonce burned)
+    const replayResponse = await mcp.executeTool({
+      toolName: 'execute_approved_proposal',
+      arguments: { proposalId },
+      bearerToken: approverToken,
+      approvalTicket: ticket
+    });
+
+    assert.equal(replayResponse.isSuccess, false);
+    assert.match(replayResponse.error!, /Single-use approval ticket was already consumed \(Replay Attack Detected\)/);
+  });
+
+  test('Approvals: Rejects tampered ticket or expired ticket', async () => {
+    const proposalId = 'prop-security-check';
+
+    // 1. Tampered signature
+    const validTicket = McpSecurityService.issueApprovalTicket({
+      proposalId,
+      tenantId: TENANT_ID,
+      approverId: 'usr-cfo-01',
+      approverRole: 'CFO'
+    });
+
+    const tamperedTicket = { ...validTicket, signature: validTicket.signature.slice(0, -4) + 'abcd' };
+    const tamperedRes = await mcp.executeTool({
+      toolName: 'execute_approved_proposal',
+      arguments: { proposalId },
+      bearerToken: approverToken,
+      approvalTicket: tamperedTicket
+    });
+    assert.equal(tamperedRes.isSuccess, false);
+    assert.match(tamperedRes.error!, /Tampered approval ticket signature/);
+
+    // 2. Expired ticket
+    const expiredTicket = McpSecurityService.issueApprovalTicket({
+      proposalId,
+      tenantId: TENANT_ID,
+      approverId: 'usr-cfo-01',
+      approverRole: 'CFO',
+      ttlSeconds: -10 // expired in the past
+    });
+    const expiredRes = await mcp.executeTool({
+      toolName: 'execute_approved_proposal',
+      arguments: { proposalId },
+      bearerToken: approverToken,
+      approvalTicket: expiredTicket
+    });
+    assert.equal(expiredRes.isSuccess, false);
+    assert.match(expiredRes.error!, /Approval ticket expired/);
   });
 });
+
 
 describe('Milestone 12: Accounting Firm Multi-Client Workspace - Clean Client Scoping', () => {
   const workspace = new AccountingFirmWorkspace();

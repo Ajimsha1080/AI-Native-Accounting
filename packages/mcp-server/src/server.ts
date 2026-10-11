@@ -1,17 +1,21 @@
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  Tool
+} from '@modelcontextprotocol/sdk/types.js';
 import { formatMoney } from '@ledger-ae/ledger-core';
-
-export interface McpToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  isReadOnly: boolean;
-}
+import {
+  McpSecurityService,
+  ServerSignedApprovalTicket,
+  McpTokenPayload
+} from './auth-tokens.js';
 
 export interface McpCallToolRequest {
   toolName: string;
   arguments: Record<string, any>;
-  callerRole: string; // e.g. 'EXTERNAL_AUDITOR', 'VIEWER'
-  approvalToken?: string;
+  bearerToken: string; // Scoped OAuth / API Token (Replaced fake prefix string)
+  approvalTicket?: ServerSignedApprovalTicket; // Server-issued, signed, single-use, expiring ticket for approvals
 }
 
 export interface McpCallToolResponse {
@@ -21,78 +25,120 @@ export interface McpCallToolResponse {
 }
 
 /**
- * Model Context Protocol (MCP) Server for LedgerAE.
- * Exposes financial tools to approved AI clients (Claude Desktop, Antigravity, Cursor).
- * Security Principle: Read-only scoped by default. All write operations require explicit human approval token.
+ * Production Model Context Protocol (MCP) Server for LedgerAE.
+ * Built with the official MCP SDK (@modelcontextprotocol/sdk).
+ * 
+ * Strict Security Principles:
+ * 1. Scoped OAuth / Bearer Tokens on ALL requests (No fake prefix checks).
+ * 2. WRITE TOOLS ONLY CREATE PROPOSALS (Cannot mutate books directly).
+ * 3. Approvals are SERVER-ISSUED, SIGNED (HMAC-SHA256), SINGLE-USE (Burned Nonce), EXPIRING, and RECORDED IN AUDIT LOG.
  */
 export class LedgerMcpServer {
-  private tools: Map<string, McpToolDefinition> = new Map();
+  private mcpServer: Server;
+  private toolsList: Tool[] = [];
 
   constructor() {
-    this.registerTools();
+    this.mcpServer = new Server(
+      {
+        name: 'ledger-ae-mcp-server',
+        version: '1.0.0'
+      },
+      {
+        capabilities: {
+          tools: {}
+        }
+      }
+    );
+
+    this.setupMcpTools();
   }
 
-  private registerTools() {
-    this.tools.set('get_trial_balance_summary', {
-      name: 'get_trial_balance_summary',
-      description: 'Fetches trial balance totals in AED base currency for an accounting period.',
-      inputSchema: {
-        type: 'object',
-        properties: { periodId: { type: 'string' } },
-        required: ['periodId']
+  private setupMcpTools() {
+    this.toolsList = [
+      {
+        name: 'get_trial_balance_summary',
+        description: 'Fetches trial balance totals in AED base currency for an accounting period. Scoped to mcp:read.',
+        inputSchema: {
+          type: 'object',
+          properties: { periodId: { type: 'string' } },
+          required: ['periodId']
+        }
       },
-      isReadOnly: true
+      {
+        name: 'query_vat201_summary',
+        description: 'Returns box-by-box FTA VAT 201 totals and net tax liability. Scoped to mcp:read.',
+        inputSchema: {
+          type: 'object',
+          properties: { taxPeriod: { type: 'string' } },
+          required: ['taxPeriod']
+        }
+      },
+      {
+        name: 'create_adjustment_proposal',
+        description: 'Creates a non-posting journal entry proposal for human review. Does not directly mutate the books. Scoped to mcp:proposals:write.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            periodId: { type: 'string' },
+            reason: { type: 'string' },
+            proposedDebitsFils: { type: 'string' },
+            proposedCreditsFils: { type: 'string' }
+          },
+          required: ['periodId', 'reason', 'proposedDebitsFils', 'proposedCreditsFils']
+        }
+      },
+      {
+        name: 'execute_approved_proposal',
+        description: 'Executes a previously created proposal. Requires a server-issued, signed, single-use, expiring approval ticket. Scoped to mcp:approvals:execute.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            proposalId: { type: 'string' },
+            approvalTicket: { type: 'object' }
+          },
+          required: ['proposalId', 'approvalTicket']
+        }
+      }
+    ];
+
+    // Official MCP SDK Handlers
+    this.mcpServer.setRequestHandler(ListToolsRequestSchema, async () => {
+      return { tools: this.toolsList };
     });
 
-    this.tools.set('query_vat201_summary', {
-      name: 'query_vat201_summary',
-      description: 'Returns box-by-box FTA VAT 201 totals and net tax liability.',
-      inputSchema: {
-        type: 'object',
-        properties: { taxPeriod: { type: 'string' } },
-        required: ['taxPeriod']
-      },
-      isReadOnly: true
-    });
+    this.mcpServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const { name, arguments: args } = request.params;
+      const bearerToken = (args as any)?.bearerToken || '';
+      const approvalTicket = (args as any)?.approvalTicket;
 
-    this.tools.set('post_manual_adjustment_entry', {
-      name: 'post_manual_adjustment_entry',
-      description: 'Posts an adjusting journal voucher to the ledger. Strictly requires dual-control human approval token.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          periodId: { type: 'string' },
-          amountFils: { type: 'string' },
-          reason: { type: 'string' }
-        },
-        required: ['periodId', 'amountFils', 'reason']
-      },
-      isReadOnly: false // Write operation
-    });
+      const res = await this.executeTool({
+        toolName: name,
+        arguments: args || {},
+        bearerToken,
+        approvalTicket
+      });
 
-    this.tools.set('create_adjustment_proposal', {
-      name: 'create_adjustment_proposal',
-      description: 'Creates a non-posting journal entry proposal for human review. Does not directly mutate the books.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          periodId: { type: 'string' },
-          reason: { type: 'string' },
-          proposedDebitsFils: { type: 'string' },
-          proposedCreditsFils: { type: 'string' }
-        },
-        required: ['periodId', 'reason']
-      },
-      isReadOnly: true // Proposal only
+      if (!res.isSuccess) {
+        throw new Error(res.error || 'MCP execution failed');
+      }
+
+      return { content: res.content };
     });
   }
 
-  getAvailableTools(): McpToolDefinition[] {
-    return Array.from(this.tools.values());
+  getAvailableTools(): Tool[] {
+    return this.toolsList;
   }
 
+  getUnderlyingServer(): Server {
+    return this.mcpServer;
+  }
+
+  /**
+   * Executes an MCP tool with token scoping and approval ticket verification.
+   */
   async executeTool(req: McpCallToolRequest): Promise<McpCallToolResponse> {
-    const tool = this.tools.get(req.toolName);
+    const tool = this.toolsList.find((t) => t.name === req.toolName);
     if (!tool) {
       return {
         isSuccess: false,
@@ -101,18 +147,27 @@ export class LedgerMcpServer {
       };
     }
 
-    // Security Gate: Write operations require explicit approval token
-    if (!tool.isReadOnly) {
-      if (!req.approvalToken || !req.approvalToken.startsWith('CFO_APPROVED_')) {
-        return {
-          isSuccess: false,
-          content: [],
-          error: 'SECURITY VIOLATION: MCP write operations require a verified human CFO approval token (e.g. CFO_APPROVED_*).'
-        };
-      }
+    let tokenPayload: McpTokenPayload;
+
+    // 1. Authenticate & Verify Scoped Bearer Token
+    try {
+      const requiredScope =
+        req.toolName === 'create_adjustment_proposal'
+          ? 'mcp:proposals:write'
+          : req.toolName === 'execute_approved_proposal'
+          ? 'mcp:approvals:execute'
+          : 'mcp:read';
+
+      tokenPayload = McpSecurityService.verifyScopedToken(req.bearerToken, requiredScope);
+    } catch (err: any) {
+      return {
+        isSuccess: false,
+        content: [],
+        error: `SECURITY_VIOLATION: ${err.message}`
+      };
     }
 
-    // Handle Read Tools
+    // 2. Dispatch Tool Execution
     if (req.toolName === 'get_trial_balance_summary') {
       const mockTotalDebits = 50000000n; // AED 500,000.00
       return {
@@ -124,7 +179,8 @@ export class LedgerMcpServer {
               periodId: req.arguments.periodId,
               totalDebitsAed: formatMoney(mockTotalDebits, 'AED'),
               totalCreditsAed: formatMoney(mockTotalDebits, 'AED'),
-              status: 'BALANCED'
+              status: 'BALANCED',
+              queriedBy: tokenPayload.sub
             })
           }
         ]
@@ -142,13 +198,15 @@ export class LedgerMcpServer {
               box1StandardRatedAed: '50000.00',
               box1VatDueAed: '2500.00',
               box10RecoverableInputVatAed: '1000.00',
-              netPayableAed: '1500.00'
+              netPayableAed: '1500.00',
+              disclaimer: 'Calculated deterministically. VERIFY WITH UAE TAX ADVISOR.'
             })
           }
         ]
       };
     }
 
+    // WRITE TOOL RULE: Write tools ONLY create proposals, NEVER mutate the ledger directly
     if (req.toolName === 'create_adjustment_proposal') {
       const proposalId = `prop-${Date.now()}`;
       return {
@@ -161,23 +219,54 @@ export class LedgerMcpServer {
               status: 'PROPOSAL_CREATED_PENDING_APPROVAL',
               reason: req.arguments.reason,
               periodId: req.arguments.periodId,
-              message: 'Proposal registered successfully. Ledger remains unmutated until an authorized human approves.'
+              proposedDebitsFils: req.arguments.proposedDebitsFils,
+              proposedCreditsFils: req.arguments.proposedCreditsFils,
+              message: 'Proposal registered successfully. Ledger remains unmutated until an authorized human issues a single-use approval ticket.'
             })
           }
         ]
       };
     }
 
-    if (req.toolName === 'post_manual_adjustment_entry') {
-      return {
-        isSuccess: true,
-        content: [
-          {
-            type: 'text',
-            text: `Adjusting voucher posted successfully under CFO approval token "${req.approvalToken}". Voucher ID: JV-ADJ-2026-99.`
-          }
-        ]
-      };
+    // APPROVAL EXECUTION TOOL: Requires server-issued, signed, single-use, expiring ticket
+    if (req.toolName === 'execute_approved_proposal') {
+      if (!req.approvalTicket) {
+        return {
+          isSuccess: false,
+          content: [],
+          error: 'SECURITY_VIOLATION: Execution requires a server-issued approval ticket.'
+        };
+      }
+
+      try {
+        const verification = McpSecurityService.verifyAndConsumeApprovalTicket(
+          req.approvalTicket,
+          req.arguments.proposalId
+        );
+
+        return {
+          isSuccess: true,
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                status: 'POSTED',
+                proposalId: req.arguments.proposalId,
+                approvedBy: verification.approverId,
+                voucherNumber: 'JV-ADJ-2026-99',
+                auditLogId: verification.auditLogId,
+                message: `Adjusting voucher posted successfully under single-use approval ticket. Audit log registered: ${verification.auditLogId}.`
+              })
+            }
+          ]
+        };
+      } catch (err: any) {
+        return {
+          isSuccess: false,
+          content: [],
+          error: err.message
+        };
+      }
     }
 
     return {
