@@ -1,0 +1,145 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ledger-ae
+  labels:
+    app.kubernetes.io/part-of: ledger-ae
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-web
+  namespace: ledger-ae
+  labels:
+    app: ledger-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ledger-web
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: ledger-web
+    spec:
+      containers:
+        - name: web
+          image: ledger-ae/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: database-url
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: nextauth-secret
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"
+          readinessProbe:
+            httpGet:
+              path: /api/dashboard/metrics
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/dashboard/metrics
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ledger-web-svc
+  namespace: ledger-ae
+spec:
+  selector:
+    app: ledger-web
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ledger-web-ingress
+  namespace: ledger-ae
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+spec:
+  rules:
+    - host: app.ledgeraegroup.ae
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ledger-web-svc
+                port:
+                  number: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-temporal-worker
+  namespace: ledger-ae
+  labels:
+    app: ledger-temporal-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ledger-temporal-worker
+  template:
+    metadata:
+      labels:
+        app: ledger-temporal-worker
+    spec:
+      containers:
+        - name: worker
+          image: ledger-ae/worker:latest
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: TEMPORAL_ADDRESS
+              value: "temporal.ledger-ae.svc.cluster.local:7233"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: database-url
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2000m"
+              memory: "4Gi"

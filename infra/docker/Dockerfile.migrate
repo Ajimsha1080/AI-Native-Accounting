@@ -1,0 +1,18 @@
+# ==============================================================================
+# Production Dockerfile for Database Migration & Schema Runner
+# Runs PostgreSQL 16 idempotent migrations with RLS policy verification
+# ==============================================================================
+
+FROM node:22-alpine
+
+RUN apk add --no-cache postgresql-client libc6-compat
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/shared-types ./packages/shared-types
+
+RUN npm ci --omit=dev
+
+ENTRYPOINT ["sh", "-c", "echo 'Running LedgerAE PostgreSQL schema migration...' && PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -f packages/shared-types/src/schema.sql && echo 'Migration applied successfully.'"]

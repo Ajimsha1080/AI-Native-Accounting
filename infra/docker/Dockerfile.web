@@ -1,0 +1,65 @@
+# ==============================================================================
+# Multi-stage Production Dockerfile for LedgerAE Web Application
+# Framework: Next.js App Router (Turbopack standalone output)
+# Base: Node.js 22 Alpine (minimal attack surface, non-root user)
+# Security: OWASP ASVS Level 2, no development dependencies in final image
+# ==============================================================================
+
+# Stage 1: Dependencies cache
+FROM node:22-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# Copy root manifests and package manifests for cache layer
+COPY package.json package-lock.json ./
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/ledger-core/package.json ./packages/ledger-core/
+COPY packages/uae-tax-engine/package.json ./packages/uae-tax-engine/
+COPY packages/ubl-pinta-generator/package.json ./packages/ubl-pinta-generator/
+COPY packages/mcp-server/package.json ./packages/mcp-server/
+COPY apps/web/package.json ./apps/web/
+
+RUN npm ci --include=dev
+
+# Stage 2: Monorepo builder
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+# Set production env during build
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Compile shared libraries then build Next.js web application
+RUN npm run build
+
+# Stage 3: Minimal Production Runner
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Create non-root system user & group
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy public assets and standalone output
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next ./apps/web/.next
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=nextjs:nodejs /app/packages ./packages
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/package.json ./apps/web/package.json
+COPY --from=builder --chown=nextjs:nodejs /app/package.json ./package.json
+
+USER nextjs
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/dashboard/metrics || exit 1
+
+CMD ["npm", "run", "start", "-w", "@ledger-ae/web", "--", "-p", "3000"]

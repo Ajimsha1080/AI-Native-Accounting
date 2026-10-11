@@ -1,0 +1,43 @@
+# ==============================================================================
+# Multi-stage Production Dockerfile for LedgerAE Temporal Background Worker
+# Engine: Temporal SDK Workflows & Activities (Month-end close, E-invoicing retries)
+# Base: Node.js 22 Alpine (minimal footprint, non-root user)
+# ==============================================================================
+
+FROM node:22-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/ledger-core/package.json ./packages/ledger-core/
+COPY packages/uae-tax-engine/package.json ./packages/uae-tax-engine/
+COPY packages/ubl-pinta-generator/package.json ./packages/ubl-pinta-generator/
+COPY packages/mcp-server/package.json ./packages/mcp-server/
+COPY apps/web/package.json ./apps/web/
+
+RUN npm ci --include=dev
+
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV NODE_ENV=production
+RUN npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 workergroup && \
+    adduser --system --uid 1001 workeruser
+
+COPY --from=builder --chown=workeruser:workergroup /app/node_modules ./node_modules
+COPY --from=builder --chown=workeruser:workergroup /app/packages ./packages
+COPY --from=builder --chown=workeruser:workergroup /app/package.json ./package.json
+
+USER workeruser
+
+CMD ["node", "packages/ledger-core/dist/temporal/worker.js"]
