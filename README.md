@@ -41,13 +41,13 @@ Workspaces are compiled in strict topological dependency order:
 ```bash
 npm test
 ```
-**Current Test Coverage:** 138 unit and domain tests across 63 suites with 0 failures:
-- `@ledger-ae/ledger-core`: Invariant property tests, Banker's rounding, trial balance aggregation, IFRS 10 multi-entity consolidation, IFRS 15 rev-rec, IFRS 16 leases, IAS 16 fixed assets.
+**Current Test Coverage:** 188 unit, domain, and integration tests across 65 suites with 0 failures:
+- `@ledger-ae/ledger-core`: Invariant property tests, Banker's rounding, trial balance aggregation, IFRS 10 multi-entity consolidation, IFRS 15 rev-rec, IFRS 16 leases, IAS 16 fixed assets, ASVS Level 2 security hardening, DR restore drill.
 - `@ledger-ae/uae-tax-engine`: VAT 201 14-box return, TRN validation, Article 53 blocked entertainment, Corporate Tax calculations, QFZP de-minimis, SBR, CT201 export, Central Bank WPS SIF validation, EOSG gratuity.
+- `@ledger-ae/shared-types`: Schema validation, PostgreSQL RLS tenant isolation, SoD role matrices, fast-check property-based invertibility tests.
 - `@ledger-ae/mcp-server`: Scoped MCP tools, proposal gating, usage metering, Zoho/QBO/Tally migration parsers.
-- `@ledger-ae/ubl-pinta-generator`: OASIS UBL 2.1 PINT-AE 380/381 generation and parsing, sandbox ASP adapter.
-- `@ledger-ae/api`: REST endpoints, idempotency replay, HMAC SHA-256 webhooks, ASP clearance.
-- `@ledger-ae/web`: Bilingual Arabic RTL localization, AED currency formatting.
+- `@ledger-ae/ubl-pinta-generator`: OASIS UBL 2.1 PINT-AE 380/381 generation and parsing, sandbox ASP adapter, 10-year immutable archive.
+- `@ledger-ae/web`: Full 9-screen Playwright E2E suite passing in both English and Arabic RTL.
 
 ### Step 4: Run Next.js 9-Screen Web Application
 ```bash
