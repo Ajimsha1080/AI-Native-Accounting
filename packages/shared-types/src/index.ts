@@ -127,5 +127,6 @@ export interface LocalizationConfig {
 
 export * from './rbac.js';
 export * from './audit.js';
+export * from './migration-runner.js';
 
 
