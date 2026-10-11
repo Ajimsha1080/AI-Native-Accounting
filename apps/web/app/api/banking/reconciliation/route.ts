@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequestContext } from '@/lib/auth';
 import { Permission, TenantDatabaseSession } from '@ledger-ae/shared-types';
 import { getDatabasePool } from '@/lib/db';
+import { getTemporalClient } from '@/lib/temporal';
 
 export const GET = withAuth(Permission.BANK_RECONCILE)(
   async (_req: NextRequest, { session }: AuthenticatedRequestContext) => {
@@ -106,6 +107,22 @@ export const POST = withAuth(Permission.BANK_RECONCILE)(
           );
 
           return NextResponse.json({ success: true, stmt: stmtRes.rows[0] });
+        }
+
+        if (action === 'START_BANK_SYNC') {
+          const temporal = getTemporalClient();
+          const { bankAccountId, feedSource } = body;
+          const workflowId = await temporal.triggerBankFeedSync(session.tenantId, bankAccountId || 'default-operating-account', feedSource || 'LEAN_TECHNOLOGIES');
+
+          await client.query(
+            `INSERT INTO workflow_runs (
+              tenant_id, workflow_type, temporal_workflow_id, status, input_payload, started_at
+            ) VALUES ($1, 'BANK_FEED_SYNC', $2, 'RUNNING', $3, NOW())
+            ON CONFLICT (temporal_workflow_id) DO NOTHING`,
+            [session.tenantId, workflowId, JSON.stringify({ bankAccountId, feedSource, triggeredBy: session.userId })]
+          );
+
+          return NextResponse.json({ success: true, workflowId, status: 'RUNNING' });
         }
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

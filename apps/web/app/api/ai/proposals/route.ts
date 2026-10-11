@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequestContext } from '@/lib/auth';
 import { Permission, TenantDatabaseSession, formatMinorUnitsToDecimal } from '@ledger-ae/shared-types';
-import { ClaudeDocumentIntelligenceService } from '@ledger-ae/ledger-core';
+import { ClaudeDocumentIntelligenceService, DurableAgentRuntime } from '@ledger-ae/ledger-core';
 import { getDatabasePool } from '@/lib/db';
 
 export const GET = withAuth(Permission.LEDGER_READ)(
@@ -114,6 +114,21 @@ export const POST = withAuth(Permission.LEDGER_POST)(
           );
 
           return NextResponse.json({ success: true, proposalId: newProposalId, extracted });
+        }
+
+        // Agent Workflow Action
+        if (body.action === 'START_AGENT_WORKFLOW') {
+          const { agentName } = body;
+          const name = agentName || 'MonthEndAccrualsAgent';
+          const run = DurableAgentRuntime.startWorkflow(session.tenantId, name, 3, 3, client);
+
+          await client.query(
+            `INSERT INTO audit_logs (tenant_id, entity_id, user_id, role, action, resource_type, resource_id, diff_hash)
+             VALUES ($1, $2, $3, $4, 'START_AGENT_WORKFLOW', 'workflow_runs', $5, 'TEMPORAL_AGENT_HASH')`,
+            [session.tenantId, session.entityId, session.userId, session.role, run.workflowId]
+          );
+
+          return NextResponse.json({ success: true, run });
         }
 
         // Decision Action (APPROVE / REJECT)

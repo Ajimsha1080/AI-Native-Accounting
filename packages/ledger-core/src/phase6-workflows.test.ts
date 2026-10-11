@@ -214,6 +214,75 @@ describe('Phase 6: Real Workflows, Transactional Outbox & Signed Webhooks', () =
       assert.equal(dlqResult.success, false);
       assert.equal(dlqResult.status, 'EXHAUSTED_DLQ');
     });
+
+    test('Outbox Publisher dispatches batch to subscribers and logs delivery attempts', async () => {
+      const pool = setupTestDb();
+
+      // Setup webhook_subscriptions and webhook_delivery_attempts tables
+      const memDb = (pool as any);
+      // Create subscription and delivery tables in pg-mem
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS webhook_subscriptions (
+          id TEXT PRIMARY KEY DEFAULT '22222222-3333-4444-5555-666666666666',
+          tenant_id TEXT NOT NULL,
+          url TEXT NOT NULL,
+          secret TEXT NOT NULL,
+          subscribed_events TEXT[] NOT NULL DEFAULT '{"*"}',
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS webhook_delivery_attempts (
+          id TEXT PRIMARY KEY DEFAULT '33333333-4444-5555-6666-777777777777',
+          tenant_id TEXT NOT NULL,
+          subscription_id TEXT NOT NULL,
+          outbox_event_id TEXT NOT NULL,
+          attempt_number INT NOT NULL,
+          status TEXT NOT NULL,
+          response_status_code INT,
+          error_message TEXT,
+          delivered_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      // Add subscription
+      await pool.query(`
+        INSERT INTO webhook_subscriptions (id, tenant_id, url, secret, subscribed_events, is_active)
+        VALUES ('sub-100', $1, 'https://client-webhook.ae/events', $2, '{"*"}', TRUE);
+      `, [TENANT_ID, WEBHOOK_SECRET]);
+
+      // Add outbox event
+      const eventId = await OutboxService.recordEvent(pool, {
+        tenantId: TENANT_ID,
+        eventType: 'PERIOD_CLOSED',
+        aggregateType: 'PERIOD',
+        aggregateId: '2026-01',
+        payload: { period: '2026-01', status: 'CLOSED' }
+      });
+
+      // Mock fetch
+      const mockFetch = async () => ({
+        ok: true,
+        status: 200,
+        statusText: 'OK'
+      } as any);
+
+      const batchResult = await WebhookDeliveryService.dispatchPendingOutboxBatch(pool, 10, mockFetch as any);
+      assert.equal(batchResult.processed, 1);
+      assert.equal(batchResult.delivered, 1);
+      assert.equal(batchResult.failed, 0);
+
+      // Verify delivery attempt was recorded
+      const attemptsRes = await pool.query(`SELECT * FROM webhook_delivery_attempts WHERE outbox_event_id = $1`, [eventId]);
+      assert.equal(attemptsRes.rows.length, 1);
+      assert.equal(attemptsRes.rows[0].status, 'DELIVERED');
+      assert.equal(attemptsRes.rows[0].response_status_code, 200);
+
+      // Verify outbox status transitioned to PUBLISHED
+      const outboxRes = await pool.query(`SELECT status FROM outbox_events WHERE id = $1`, [eventId]);
+      assert.equal(outboxRes.rows[0].status, 'PUBLISHED');
+
+      await pool.end();
+    });
   });
 
   describe('Temporal Workflows: Month-End Close, E-Invoicing & Bank Sync', () => {

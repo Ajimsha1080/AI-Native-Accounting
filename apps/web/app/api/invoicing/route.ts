@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequestContext } from '@/lib/auth';
 import { Permission, TenantDatabaseSession } from '@ledger-ae/shared-types';
 import { getDatabasePool } from '@/lib/db';
+import { getTemporalClient } from '@/lib/temporal';
 
 export const GET = withAuth(Permission.LEDGER_READ)(
   async (request: NextRequest, { session }: AuthenticatedRequestContext) => {
@@ -103,6 +104,33 @@ export const POST = withAuth(Permission.INVOICE_APPROVE)(
           }
 
           return NextResponse.json({ success: true, invoice: res.rows[0] });
+        });
+      }
+
+      if (action === 'TRANSMIT_EINVOICE') {
+        const pool = getDatabasePool();
+        const tenantSession = new TenantDatabaseSession(pool);
+
+        return await tenantSession.withTenant(session.tenantId, async (client) => {
+          const { ublXml } = body;
+          const invoiceRes = await client.query(`SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2`, [invoiceId, session.tenantId]);
+          if (invoiceRes.rows.length === 0) {
+            return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+          }
+
+          const xmlPayload = ublXml || `<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2"><ID>${invoiceRes.rows[0].invoice_number}</ID></Invoice>`;
+          const temporal = getTemporalClient();
+          const workflowId = await temporal.triggerEinvoiceRetry(session.tenantId, invoiceId, xmlPayload);
+
+          await client.query(
+            `INSERT INTO workflow_runs (
+              tenant_id, workflow_type, temporal_workflow_id, status, input_payload, started_at
+            ) VALUES ($1, 'EINVOICE_RETRY', $2, 'RUNNING', $3, NOW())
+            ON CONFLICT (temporal_workflow_id) DO NOTHING`,
+            [session.tenantId, workflowId, JSON.stringify({ invoiceId, triggeredBy: session.userId })]
+          );
+
+          return NextResponse.json({ success: true, workflowId, status: 'TRANSMITTING' });
         });
       }
 

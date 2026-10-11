@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequestContext } from '@/lib/auth';
 import { Permission, TenantDatabaseSession } from '@ledger-ae/shared-types';
 import { getDatabasePool } from '@/lib/db';
+import { getTemporalClient } from '@/lib/temporal';
 
 export const GET = withAuth(Permission.LEDGER_READ)(
   async (_req: NextRequest, { session }: AuthenticatedRequestContext) => {
@@ -87,6 +88,29 @@ export const POST = withAuth(Permission.LEDGER_LOCK)(
           );
 
           return NextResponse.json({ success: true, period: res.rows[0] });
+        }
+
+        if (action === 'START_CLOSE_WORKFLOW') {
+          const temporal = getTemporalClient();
+          const workflowId = await temporal.triggerMonthEndClose(session.tenantId, periodId);
+
+          // Track workflow execution in workflow_runs table
+          await client.query(
+            `INSERT INTO workflow_runs (
+              tenant_id, workflow_type, temporal_workflow_id, status, input_payload, started_at
+            ) VALUES ($1, 'MONTH_END_CLOSE', $2, 'RUNNING', $3, NOW())
+            ON CONFLICT (temporal_workflow_id) DO NOTHING`,
+            [session.tenantId, workflowId, JSON.stringify({ periodId, triggeredBy: session.userId })]
+          );
+
+          // Append audit log
+          await client.query(
+            `INSERT INTO audit_logs (tenant_id, entity_id, user_id, role, action, resource_type, resource_id, diff_hash)
+             VALUES ($1, $2, $3, $4, 'START_CLOSE_WORKFLOW', 'workflow_runs', $5, 'TEMPORAL_CLOSE_HASH')`,
+            [session.tenantId, session.entityId, session.userId, session.role, workflowId]
+          );
+
+          return NextResponse.json({ success: true, workflowId, status: 'RUNNING' });
         }
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

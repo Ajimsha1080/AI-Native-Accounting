@@ -11,6 +11,8 @@ import {
   McpTokenPayload
 } from './auth-tokens.js';
 
+import { Pool, PoolClient } from 'pg';
+
 export interface McpCallToolRequest {
   toolName: string;
   arguments: Record<string, any>;
@@ -36,8 +38,10 @@ export interface McpCallToolResponse {
 export class LedgerMcpServer {
   private mcpServer: Server;
   private toolsList: Tool[] = [];
+  private dbClient?: Pool | PoolClient;
 
-  constructor() {
+  constructor(dbClient?: Pool | PoolClient) {
+    this.dbClient = dbClient;
     this.mcpServer = new Server(
       {
         name: 'ledger-ae-mcp-server',
@@ -239,9 +243,11 @@ export class LedgerMcpServer {
       }
 
       try {
-        const verification = McpSecurityService.verifyAndConsumeApprovalTicket(
+        const verification = await McpSecurityService.verifyAndConsumeApprovalTicket(
           req.approvalTicket,
-          req.arguments.proposalId
+          req.arguments.proposalId,
+          undefined,
+          this.dbClient
         );
 
         return {

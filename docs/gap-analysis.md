@@ -81,13 +81,14 @@ While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), version
 
 ---
 
-### 2.5. Durable Workflows, Outbox & MCP Replay Safety
-| File | Current Implementation | Production Requirement |
+### 2.5. Durable Workflows, Outbox & MCP Replay Safety (Phase D COMPLETE)
+| File | Remediation Implemented | Status |
 | :--- | :--- | :--- |
-| `packages/ledger-core/src/agent-runtime.ts` | Uses `memoryFallback: Map<UUID, AgentWorkflowRun>` when database client is omitted. | Remove memory fallback; orchestrate all accounting workflows via Temporal SDK. |
-| `packages/ledger-core/src/outbox.ts` | In-memory event array simulation for webhook dispatches. | Persist outbox events to `outbox_events`; dispatch with HMAC-SHA256 signatures and database DLQ. |
-| `packages/mcp-server/src/auth-tokens.ts` | Stores burned nonces in an in-memory `Set` (`burnedNonces: Set<string>`). | Store consumed approval nonces in a database table with a `UNIQUE(nonce)` constraint. |
-| `packages/mcp-server/src/auth-tokens.ts` | Hardcoded secret fallback `ledger_ae_mcp_hmac_signing_secret_998877`. | Require `MCP_SIGNING_SECRET` from environment; fail closed if missing or $< 32$ bytes. |
+| `packages/ledger-core/src/temporal/client.ts` & Next.js API Routes (`apps/web/app/api/{close,invoicing,banking/reconciliation,ai/proposals}`) | Wired month-end close, e-invoicing retry, bank sync, and accounting agent workflows to Temporal client (`AccountingTemporalClient`). Workflows write audit logs and track state in `workflow_runs` table. | **RESOLVED** (Phase D) |
+| `infra/docker/Dockerfile.worker` & `docker-compose.yml` | Multi-stage Dockerfile and docker-compose service configuration for background Temporal worker orchestrating activities and workflows. | **RESOLVED** (Phase D) |
+| `packages/ledger-core/src/outbox.ts` | Transactional outbox polling with `SKIP LOCKED`, HMAC-SHA256 timestamped signatures (`X-Ledger-Signature`), exponential backoff retry to DLQ, and audit logging to `webhook_delivery_attempts`. | **RESOLVED** (Phase D) |
+| `packages/mcp-server/src/auth-tokens.ts` & Migration `0007_mcp_nonces_and_tickets.sql` | Deleted hardcoded HMAC secret; enforced `validateKeyLength(secret, 'MCP_SIGNING_SECRET')` $\ge 32$ bytes. Stored burned nonces in database table `mcp_burned_nonces` with `PRIMARY KEY(nonce)` and RLS. | **RESOLVED** (Phase D) |
+| `packages/mcp-server/src/index.test.ts` | Added integration test proving that a single-use approval ticket and nonce burned in PostgreSQL are strictly rejected upon process restart. | **RESOLVED** (Phase D) |
 
 ---
 

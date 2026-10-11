@@ -140,7 +140,7 @@ describe('Milestone 7: Autonomous Agents Runtime & Continuous Monitors', () => {
       assert.equal(run.errorLog.length, 1);
 
       // 4. Recovery phase: Worker restarts, retrieves workflow from Temporal persistence
-      const recovered = DurableAgentRuntime.recoverWorkflowAfterCrash(run.runId);
+      const recovered = await DurableAgentRuntime.recoverWorkflowAfterCrash(run.runId);
       assert.equal(recovered.run.runId, run.runId);
       assert.equal(recovered.restoredState.activeContractsCount, 3); // Restored from Step 0 checkpoint
       assert.equal(recovered.nextStepIndex, 1); // Points to Step 1

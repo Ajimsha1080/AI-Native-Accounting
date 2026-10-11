@@ -239,4 +239,112 @@ export class WebhookDeliveryService {
       };
     }
   }
+
+  /**
+   * Records a webhook delivery attempt in the webhook_delivery_attempts table.
+   */
+  static async recordDeliveryAttempt(
+    client: PoolClient | Pool,
+    params: {
+      tenantId: string;
+      subscriptionId: string;
+      outboxEventId: string;
+      attemptNumber: number;
+      status: 'DELIVERED' | 'FAILED' | 'EXHAUSTED_DLQ';
+      statusCode?: number;
+      errorMessage?: string;
+    }
+  ): Promise<string> {
+    const res = await client.query<{ id: string }>(
+      `INSERT INTO webhook_delivery_attempts (
+        tenant_id,
+        subscription_id,
+        outbox_event_id,
+        attempt_number,
+        status,
+        response_status_code,
+        error_message,
+        delivered_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      RETURNING id;`,
+      [
+        params.tenantId,
+        params.subscriptionId,
+        params.outboxEventId,
+        params.attemptNumber,
+        params.status,
+        params.statusCode ?? null,
+        params.errorMessage ?? null
+      ]
+    );
+
+    return res.rows[0].id;
+  }
+
+  /**
+   * Processes all pending outbox events across active webhook subscribers.
+   */
+  static async dispatchPendingOutboxBatch(
+    client: PoolClient | Pool,
+    batchSize: number = 50,
+    customFetch?: typeof fetch
+  ): Promise<{ processed: number; delivered: number; failed: number }> {
+    const events = await OutboxService.fetchPendingEvents(client, batchSize);
+    let delivered = 0;
+    let failed = 0;
+
+    for (const event of events) {
+      // Find active subscriptions for event's tenant
+      const subRes = await client.query<WebhookSubscription>(
+        `SELECT id, tenant_id as "tenantId", url, secret, subscribed_events as "subscribedEvents", is_active as "isActive", created_at as "createdAt"
+         FROM webhook_subscriptions
+         WHERE tenant_id = $1 AND is_active = TRUE`,
+        [event.tenantId]
+      );
+
+      const matchingSubs = subRes.rows.filter(
+        (sub) =>
+          sub.subscribedEvents.includes('*') ||
+          sub.subscribedEvents.includes(event.eventType)
+      );
+
+      if (matchingSubs.length === 0) {
+        // No subscribers configured; mark published
+        await OutboxService.markPublished(client, event.id!);
+        delivered++;
+        continue;
+      }
+
+      let eventSuccess = true;
+      for (const sub of matchingSubs) {
+        const attempt = (event.retryCount || 0) + 1;
+        const res = await this.deliverWebhook(sub, event, attempt, customFetch);
+
+        await this.recordDeliveryAttempt(client, {
+          tenantId: event.tenantId,
+          subscriptionId: sub.id,
+          outboxEventId: event.id!,
+          attemptNumber: attempt,
+          status: res.status,
+          statusCode: res.statusCode,
+          errorMessage: res.error
+        });
+
+        if (!res.success) {
+          eventSuccess = false;
+        }
+      }
+
+      if (eventSuccess) {
+        await OutboxService.markPublished(client, event.id!);
+        delivered++;
+      } else {
+        await OutboxService.markFailed(client, event.id!, event.retryCount || 0);
+        failed++;
+      }
+    }
+
+    return { processed: events.length, delivered, failed };
+  }
 }
+

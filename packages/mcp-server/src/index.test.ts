@@ -11,6 +11,7 @@ import { BillingMeteringEngine } from './metering.js';
 import { MigrationImporterEngine, LegacyAccountRecord } from './migration-importers.js';
 
 describe('Phase 8: Official MCP SDK Server, Scoped OAuth Tokens & Single-Use Approvals', () => {
+  process.env.MCP_SIGNING_SECRET = 'ledger_ae_mcp_hmac_signing_secret_998877_secure_32bytes!';
   const mcp = new LedgerMcpServer();
   const TENANT_ID = 'tenant-uae-grp-01';
 
@@ -405,4 +406,69 @@ describe('Milestone 12: Migration Importers (Zoho Books, QuickBooks Online, Tall
     assert.equal(result.mappedAccounts[0].accountCategory, 'ASSET');
     assert.equal(result.mappedAccounts[1].accountCategory, 'EQUITY');
   });
+
+  describe('Durable Replay Protection across Restarts (Real Postgres & Migration 0007)', () => {
+    const TEST_DATABASE_URL =
+      process.env.TEST_DATABASE_URL ||
+      process.env.DATABASE_URL ||
+      'postgresql://ledger_app:ledger_app_secure_pass@localhost:9527/ledger_ae_test';
+
+    test('Single-use approval ticket and nonce burned in database are rejected after full server restart', async () => {
+      const { Pool } = await import('pg');
+      const testPool = new Pool({ connectionString: TEST_DATABASE_URL });
+      const testTenantId = '11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      const testApproverId = '30000000-0000-0000-0000-000000000011';
+      const proposalId = `prop-restart-proof-${Date.now()}`;
+
+      // Server Instance 1: Issues and consumes ticket
+      const server1 = new LedgerMcpServer(testPool);
+
+      const ticket = McpSecurityService.issueApprovalTicket({
+        proposalId,
+        tenantId: testTenantId,
+        approverId: testApproverId,
+        approverRole: 'CFO',
+        ttlSeconds: 600
+      });
+
+      const clientToken = McpSecurityService.issueScopedToken({
+        userId: testApproverId,
+        tenantId: testTenantId,
+        role: 'CFO',
+        scopes: ['mcp:approvals:execute']
+      });
+
+      // Execute on Server 1: First usage succeeds and persists burned nonce in DB
+      const res1 = await server1.executeTool({
+        toolName: 'execute_approved_proposal',
+        arguments: { proposalId },
+        bearerToken: clientToken,
+        approvalTicket: ticket
+      });
+
+      assert.equal(res1.isSuccess, true, res1.error || 'Execution failed');
+      const parsed1 = JSON.parse(res1.content[0].text);
+      assert.equal(parsed1.status, 'POSTED');
+
+      // SIMULATE PROCESS RESTART:
+      // Clear all in-memory fallback state and instantiate completely new Server Instance 2
+      McpSecurityService.resetForTesting();
+      const server2 = new LedgerMcpServer(testPool);
+
+      // Replay Attack against Server Instance 2:
+      // Must be rejected by database unique constraint on mcp_burned_nonces
+      const replayRes = await server2.executeTool({
+        toolName: 'execute_approved_proposal',
+        arguments: { proposalId },
+        bearerToken: clientToken,
+        approvalTicket: ticket
+      });
+
+      assert.equal(replayRes.isSuccess, false);
+      assert.match(replayRes.error!, /Single-use approval ticket was already consumed \(Replay Attack Detected\)/);
+
+      await testPool.end();
+    });
+  });
 });
+

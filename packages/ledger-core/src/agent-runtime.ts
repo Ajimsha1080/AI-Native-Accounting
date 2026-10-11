@@ -232,12 +232,18 @@ export class DurableAgentRuntime {
    * Recovers a workflow after a worker process crash.
    * Loads the latest checkpointed state and resumes execution from the latest checkpoint.
    */
-  static recoverWorkflowAfterCrash(runId: UUID): {
+  static async recoverWorkflowAfterCrash(
+    runId: UUID,
+    dbClient?: Pool | PoolClient
+  ): Promise<{
     run: AgentWorkflowRun;
     restoredState: Record<string, any>;
     nextStepIndex: number;
-  } {
-    const run = this.memoryFallback.get(runId);
+  }> {
+    let run = this.memoryFallback.get(runId);
+    if (!run && dbClient) {
+      run = (await this.loadFromDatabase(dbClient, runId)) ?? undefined;
+    }
     if (!run) throw new Error(`Workflow run ${runId} not found`);
 
     const restoredState: Record<string, any> = {};
