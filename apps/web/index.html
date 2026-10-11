@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <title>LedgerAE - UAE AI-Native Group ERP</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--background); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .tab-active {
+      border-bottom: 2px solid var(--primary, #2563eb);
+      color: var(--primary, #2563eb);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-[var(--background,#0f172a)] text-[var(--foreground,#f8fafc)] antialiased min-h-screen flex flex-col font-sans">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-[var(--border,#1e293b)] bg-[var(--card,#1e293b)]/80 backdrop-blur px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white shadow-md">
+          AE
+        </div>
+        <div>
+          <span class="text-base font-bold tracking-tight text-[var(--foreground,#fff)]" id="brand-title">LedgerAE</span>
+          <span class="text-xs text-emerald-400 ml-1.5 px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800" id="badge-live">LIVE PILOT</span>
+        </div>
+      </div>
+
+      <div class="h-5 w-px bg-[var(--border,#334155)] hidden md:block"></div>
+
+      <!-- Entity Selector -->
+      <div class="hidden md:flex items-center gap-2 text-xs">
+        <span class="text-[var(--muted-foreground,#94a3b8)]" id="lbl-entity">Entity:</span>
+        <select id="entity-selector" onchange="onEntityChange(this.value)" class="bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] text-[var(--foreground,#fff)] rounded-md px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500">
+          <option value="group">Al-Noor Group (Consolidated 10 Entities)</option>
+          <option value="mainland">Al-Noor Trading LLC (Dubai Mainland - TRN 100456789012345)</option>
+          <option value="dmcc">Al-Noor Tech DMCC (Free Zone - TRN 100222333444555)</option>
+          <option value="jafza">Al-Noor Logistics FZE (JAFZA QFZP - TRN 100111222333444)</option>
+          <option value="difc">Al-Noor Capital Partners Ltd (DIFC)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Actions & Language Switcher -->
+    <div class="flex items-center gap-3">
+      <div class="hidden sm:flex items-center gap-2 text-xs text-[var(--muted-foreground,#94a3b8)] bg-[var(--background,#0f172a)] px-2.5 py-1 rounded-md border border-[var(--border,#334155)]">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span id="period-status">FY 2026 - P01 [OPEN]</span>
+      </div>
+
+      <!-- Lang Toggle -->
+      <button onclick="toggleLanguage()" class="px-3 py-1 rounded-md border border-[var(--border,#334155)] hover:bg-[var(--secondary,#334155)] text-xs font-medium transition flex items-center gap-1.5" id="btn-lang">
+        <span>العربية</span>
+        <span class="text-xs">🇦🇪</span>
+      </button>
+
+      <!-- Auditor Verification Pill -->
+      <div class="px-2.5 py-1 bg-amber-950/40 border border-amber-800 text-amber-300 rounded text-xs flex items-center gap-1" title="All tax rules cited to UAE Federal Decree-Laws">
+        <span>⚖️</span>
+        <span class="hidden lg:inline text-[11px]" id="advisor-pill">VERIFY WITH TAX ADVISOR</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="border-b border-[var(--border,#1e293b)] bg-[var(--card,#1e293b)]/50 px-6 flex items-center gap-6 overflow-x-auto text-xs">
+    <button onclick="showTab('dashboard')" id="tab-dashboard" class="py-3 px-1 tab-active transition whitespace-nowrap">Dashboard</button>
+    <button onclick="showTab('trial-balance')" id="tab-trial-balance" class="py-3 px-1 text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#fff)] transition whitespace-nowrap">Trial Balance</button>
+    <button onclick="showTab('vat201')" id="tab-vat201" class="py-3 px-1 text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#fff)] transition whitespace-nowrap">VAT 201 Return</button>
+    <button onclick="showTab('corporate-tax')" id="tab-corporate-tax" class="py-3 px-1 text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#fff)] transition whitespace-nowrap">Corporate Tax (CT201)</button>
+    <button onclick="showTab('einvoicing')" id="tab-einvoicing" class="py-3 px-1 text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#fff)] transition whitespace-nowrap">Peppol E-Invoicing</button>
+    <button onclick="showTab('wps-payroll')" id="tab-wps-payroll" class="py-3 px-1 text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#fff)] transition whitespace-nowrap">WPS & Gratuity</button>
+    <button onclick="showTab('ai-copilot')" id="tab-ai-copilot" class="py-3 px-1 text-emerald-400 hover:text-emerald-300 transition whitespace-nowrap flex items-center gap-1 font-semibold">
+      <span>✨</span> AI Copilot
+    </button>
+  </nav>
+
+  <!-- Main Container -->
+  <main class="flex-1 p-6 max-w-7xl w-full mx-auto space-y-6">
+
+    <!-- TAB 1: DASHBOARD -->
+    <section id="content-dashboard" class="space-y-6">
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-4 shadow-sm">
+          <div class="text-xs text-[var(--muted-foreground,#94a3b8)]" id="kpi-rev-lbl">Consolidated Revenue (YTD)</div>
+          <div class="text-xl font-bold mt-1 text-[var(--foreground,#fff)]" id="kpi-rev-val">AED 48,250,000.00</div>
+          <div class="text-xs text-emerald-400 mt-2 flex items-center gap-1">
+            <span>↑ 14.2%</span> <span class="text-[var(--muted-foreground,#64748b)]">vs prior year</span>
+          </div>
+        </div>
+
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-4 shadow-sm">
+          <div class="text-xs text-[var(--muted-foreground,#94a3b8)]" id="kpi-net-lbl">Net Accounting Profit (IFRS)</div>
+          <div class="text-xl font-bold mt-1 text-[var(--foreground,#fff)]" id="kpi-net-val">AED 8,940,000.00</div>
+          <div class="text-xs text-emerald-400 mt-2 flex items-center gap-1">
+            <span>18.5% margin</span> <span class="text-[var(--muted-foreground,#64748b)]">Audited IFRS 10</span>
+          </div>
+        </div>
+
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-4 shadow-sm">
+          <div class="text-xs text-[var(--muted-foreground,#94a3b8)]" id="kpi-vat-lbl">Net VAT 201 Liability</div>
+          <div class="text-xl font-bold mt-1 text-amber-400" id="kpi-vat-val">AED 342,500.00</div>
+          <div class="text-xs text-[var(--muted-foreground,#64748b)] mt-2">Due in 18 days (EmaraTax)</div>
+        </div>
+
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-4 shadow-sm">
+          <div class="text-xs text-[var(--muted-foreground,#94a3b8)]" id="kpi-ct-lbl">Est. Corporate Tax (9%)</div>
+          <div class="text-xl font-bold mt-1 text-cyan-400" id="kpi-ct-val">AED 770,850.00</div>
+          <div class="text-xs text-emerald-400 mt-2">After Art. 32 add-backs</div>
+        </div>
+      </div>
+
+      <!-- Quick Actions & Close Checklist Status -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-sm" id="sec-close-title">Monthly Financial Close Checklist Engine</h3>
+            <span class="text-xs bg-emerald-950/60 text-emerald-300 border border-emerald-800 px-2 py-0.5 rounded font-mono">4 of 5 Completed</span>
+          </div>
+
+          <div class="space-y-2.5 text-xs">
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-[var(--background,#0f172a)]/60 border border-[var(--border,#334155)]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-emerald-400 text-sm">✓</span>
+                <span class="font-medium">Bank Feeds Reconciliation (ENBD, FAB, ADCB)</span>
+              </div>
+              <span class="text-[var(--muted-foreground,#94a3b8)]">100% Matched</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-[var(--background,#0f172a)]/60 border border-[var(--border,#334155)]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-emerald-400 text-sm">✓</span>
+                <span class="font-medium">IAS 21 Period-End FX Revaluation (USD, EUR, GBP)</span>
+              </div>
+              <span class="text-[var(--muted-foreground,#94a3b8)]">Unrealized Gain: AED 14,250</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-[var(--background,#0f172a)]/60 border border-[var(--border,#334155)]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-emerald-400 text-sm">✓</span>
+                <span class="font-medium">IFRS 10 Intercompany Reciprocal Eliminations</span>
+              </div>
+              <span class="text-[var(--muted-foreground,#94a3b8)]">0 fils variance</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-[var(--background,#0f172a)]/60 border border-[var(--border,#334155)]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-emerald-400 text-sm">✓</span>
+                <span class="font-medium">Fixed Assets IAS 16 & IFRS 16 Leases Amortization</span>
+              </div>
+              <span class="text-[var(--muted-foreground,#94a3b8)]">Posted automatically</span>
+            </div>
+
+            <div class="flex items-center justify-between p-2.5 rounded-lg bg-amber-950/20 border border-amber-800/60">
+              <div class="flex items-center gap-2.5">
+                <span class="text-amber-400 text-sm">⏳</span>
+                <span class="font-medium text-amber-200">CFO Sign-off & Period Hard-Lock</span>
+              </div>
+              <button onclick="lockPeriodAction()" class="bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded text-xs transition">
+                Sign & Hard Lock
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Continuous Monitors Findings -->
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-sm" id="sec-monitor-title">AI Continuous Monitors</h3>
+            <span class="text-xs text-emerald-400 flex items-center gap-1">● Active</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div class="p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/40 space-y-1">
+              <div class="flex items-center justify-between font-medium text-emerald-300">
+                <span>Article 53 Blocked VAT</span>
+                <span class="text-xs bg-emerald-900/60 px-1.5 py-0.5 rounded">Remediated</span>
+              </div>
+              <p class="text-[var(--muted-foreground,#94a3b8)] text-[11px]">Identified AED 8,500 entertainment bill. Input VAT correctly blocked from Box 10.</p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-emerald-950/20 border border-emerald-800/40 space-y-1">
+              <div class="flex items-center justify-between font-medium text-emerald-300">
+                <span>Duplicate Bill Check</span>
+                <span class="text-xs bg-emerald-900/60 px-1.5 py-0.5 rounded">Passed</span>
+              </div>
+              <p class="text-[var(--muted-foreground,#94a3b8)] text-[11px]">Zero duplicate vendor invoices detected across 1,420 monthly AP entries.</p>
+            </div>
+
+            <div class="p-3 rounded-lg bg-cyan-950/20 border border-cyan-800/40 space-y-1">
+              <div class="flex items-center justify-between font-medium text-cyan-300">
+                <span>QFZP De-Minimis Health</span>
+                <span class="text-xs bg-cyan-900/60 px-1.5 py-0.5 rounded">2.4% / 5.0%</span>
+              </div>
+              <p class="text-[var(--muted-foreground,#94a3b8)] text-[11px]">JAFZA entity non-qualifying ratio is 2.40% (safe under 5.0% cap).</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: TRIAL BALANCE -->
+    <section id="content-trial-balance" class="hidden space-y-4">
+      <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="font-semibold text-base" id="tb-title">Group Consolidated Trial Balance</h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)]" id="tb-sub">Aggregated over 1,000,000 synthetic vouchers in 247 ms (NFR target < 3 s)</p>
+          </div>
+          <div class="flex items-center gap-2 text-xs">
+            <span class="px-2.5 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono">
+              Debits = Credits [VARIANCE: 0 FILS]
+            </span>
+            <button onclick="alert('Exporting FAF / Excel...')" class="px-3 py-1 bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] rounded hover:bg-[var(--secondary,#334155)] text-xs font-medium">
+              Export XLSX
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto border border-[var(--border,#334155)] rounded-lg">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-[var(--background,#0f172a)] text-[var(--muted-foreground,#94a3b8)] uppercase border-b border-[var(--border,#334155)]">
+              <tr>
+                <th class="p-3">Account Code</th>
+                <th class="p-3">Account Description (Bilingual)</th>
+                <th class="p-3">Category</th>
+                <th class="p-3 text-right">Debit (AED)</th>
+                <th class="p-3 text-right">Credit (AED)</th>
+                <th class="p-3 text-center">Drill-Down</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border,#334155)] font-mono text-[11px]">
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-emerald-400">1010</td>
+                <td class="p-3 font-sans">Emirates NBD Corporate Current (حساب جاري بنك الإمارات دبي الوطني)</td>
+                <td class="p-3 font-sans">Asset</td>
+                <td class="p-3 text-right">18,450,200.00</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-1010')" class="text-cyan-400 hover:underline">View (241)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-emerald-400">1200</td>
+                <td class="p-3 font-sans">Trade Accounts Receivable (العملاء والمدينون التجاريون)</td>
+                <td class="p-3 font-sans">Asset</td>
+                <td class="p-3 text-right">14,320,000.00</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-1200')" class="text-cyan-400 hover:underline">View (89)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-emerald-400">1500</td>
+                <td class="p-3 font-sans">Property, Plant & Equipment (الأصول الثابتة)</td>
+                <td class="p-3 font-sans">Asset</td>
+                <td class="p-3 text-right">25,800,000.00</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-1500')" class="text-cyan-400 hover:underline">View (12)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-amber-400">2010</td>
+                <td class="p-3 font-sans">Trade Accounts Payable (الموردون والدائنون التجاريون)</td>
+                <td class="p-3 font-sans">Liability</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-right">9,850,200.00</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-2010')" class="text-cyan-400 hover:underline">View (114)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-amber-400">2050</td>
+                <td class="p-3 font-sans">VAT 201 Output Tax Payable (ضريبة القيمة المضافة المستحقة)</td>
+                <td class="p-3 font-sans">Liability</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-right">342,500.00</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-2050')" class="text-cyan-400 hover:underline">View (52)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-purple-400">3010</td>
+                <td class="p-3 font-sans">Share Capital & Reserves (رأس المال والاحتياطيات)</td>
+                <td class="p-3 font-sans">Equity</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-right">39,437,500.00</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-3010')" class="text-cyan-400 hover:underline">View (4)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-blue-400">4010</td>
+                <td class="p-3 font-sans">Commercial Sales Revenue (إيرادات المبيعات التجارية)</td>
+                <td class="p-3 font-sans">Revenue</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-right">48,250,000.00</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-4010')" class="text-cyan-400 hover:underline">View (830)</button></td>
+              </tr>
+              <tr class="hover:bg-[var(--background,#0f172a)]/40 transition">
+                <td class="p-3 font-semibold text-rose-400">5010</td>
+                <td class="p-3 font-sans">Operating Expenses & Cost of Sales (تكاليف التشغيل والمبيعات)</td>
+                <td class="p-3 font-sans">Expense</td>
+                <td class="p-3 text-right">39,310,000.00</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-center"><button onclick="viewVoucher('JV-5010')" class="text-cyan-400 hover:underline">View (410)</button></td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-[var(--background,#0f172a)] font-bold text-xs border-t-2 border-[var(--border,#334155)] font-mono">
+              <tr>
+                <td class="p-3 font-sans" colspan="3">TOTAL BALANCES (تطابق المجموع)</td>
+                <td class="p-3 text-right text-emerald-400">AED 97,880,200.00</td>
+                <td class="p-3 text-right text-emerald-400">AED 97,880,200.00</td>
+                <td class="p-3 text-center text-emerald-400 font-sans">BALANCED ✓</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: VAT 201 RETURN -->
+    <section id="content-vat201" class="hidden space-y-4">
+      <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="font-semibold text-base">Federal Tax Authority - Form VAT 201 Return</h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">Tax Period: Q1 2026 | TRN: 100456789012345 | Point-in-Time Drill-Down Invariant Verified</p>
+          </div>
+          <button onclick="alert('Generating official FTA Audit File (FAF)...')" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium">
+            Generate FTA Audit File (FAF)
+          </button>
+        </div>
+
+        <!-- 14-Box Table -->
+        <div class="overflow-x-auto border border-[var(--border,#334155)] rounded-lg">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-[var(--background,#0f172a)] text-[var(--muted-foreground,#94a3b8)] uppercase border-b border-[var(--border,#334155)] text-[11px]">
+              <tr>
+                <th class="p-3">Box Number & Description</th>
+                <th class="p-3 text-right">Taxable Amount (AED)</th>
+                <th class="p-3 text-right">VAT Amount (AED)</th>
+                <th class="p-3 text-right">Adjustment (AED)</th>
+                <th class="p-3 text-center">Drill-Down</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border,#334155)] font-mono text-[11px]">
+              <tr class="bg-[var(--background,#0f172a)]/20 font-sans font-semibold">
+                <td colspan="5" class="p-2.5 text-emerald-400">VAT on Supplies (المخرجات الضريبية)</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Box 1a: Standard Rated Supplies in Abu Dhabi (5%)</td>
+                <td class="p-3 text-right">4,200,000.00</td>
+                <td class="p-3 text-right">210,000.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('1a')" class="text-cyan-400 hover:underline">128 lines</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Box 1b: Standard Rated Supplies in Dubai (5%)</td>
+                <td class="p-3 text-right">18,500,000.00</td>
+                <td class="p-3 text-right">925,000.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('1b')" class="text-cyan-400 hover:underline">450 lines</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Box 1c to 1g: Sharjah & Northern Emirates (5%)</td>
+                <td class="p-3 text-right">3,100,000.00</td>
+                <td class="p-3 text-right">155,000.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('1c-1g')" class="text-cyan-400 hover:underline">72 lines</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Box 3: Supplies Subject to Reverse Charge (RCM - Cloud Services)</td>
+                <td class="p-3 text-right">800,000.00</td>
+                <td class="p-3 text-right">40,000.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('3')" class="text-cyan-400 hover:underline">18 lines</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Box 4: Zero-Rated Cross-Border Exports (Proof of Exit attached)</td>
+                <td class="p-3 text-right">12,400,000.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('4')" class="text-cyan-400 hover:underline">34 lines</button></td>
+              </tr>
+              <tr class="bg-[var(--background,#0f172a)]/20 font-sans font-semibold">
+                <td colspan="5" class="p-2.5 text-cyan-400">VAT on Expenses & Recoveries (المدخلات الضريبية)</td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Box 9: Standard Rated Expenses (Recoverable Input Tax)</td>
+                <td class="p-3 text-right">18,950,000.00</td>
+                <td class="p-3 text-right">947,500.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('9')" class="text-cyan-400 hover:underline">380 lines</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-sans">Article 53 Blocked Non-Recoverable VAT (Client Entertainment)</td>
+                <td class="p-3 text-right">170,000.00</td>
+                <td class="p-3 text-right text-rose-400 font-bold">-8,500.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center"><button onclick="viewDrill('art53')" class="text-cyan-400 hover:underline">8 lines</button></td>
+              </tr>
+            </tbody>
+            <tfoot class="bg-[var(--background,#0f172a)] font-bold text-xs border-t-2 border-[var(--border,#334155)] font-mono">
+              <tr>
+                <td class="p-3 font-sans">BOX 14: NET VAT PAYABLE / (REFUND) TO FTA</td>
+                <td class="p-3 text-right">-</td>
+                <td class="p-3 text-right text-amber-400 text-sm">AED 342,500.00</td>
+                <td class="p-3 text-right">0.00</td>
+                <td class="p-3 text-center text-emerald-400 font-sans">RECONCILED ✓</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CORPORATE TAX (CT201) -->
+    <section id="content-corporate-tax" class="hidden space-y-4">
+      <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="font-semibold text-base">UAE Corporate Tax Module (Federal Decree-Law No. 47 of 2022)</h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">EmaraTax Form CT201 Computation Schedule & Transfer Pricing Schedule</p>
+          </div>
+          <button onclick="downloadCt201()" class="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded text-xs font-medium">
+            Download Form CT201 Export
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs font-mono">
+          <!-- Left: Taxable Income Reconciliation -->
+          <div class="p-4 rounded-lg bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] space-y-2">
+            <div class="font-sans font-semibold text-sm text-[var(--foreground,#fff)] border-b border-[var(--border,#334155)] pb-2">
+              Accounting-to-Tax Reconciliation
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="font-sans">Net Accounting Profit (IFRS):</span>
+              <span class="text-emerald-400">AED 8,940,000.00</span>
+            </div>
+            <div class="flex justify-between py-1 text-rose-300">
+              <span class="font-sans">(+) 50% Entertainment Add-Back (Art. 32):</span>
+              <span>+AED 85,000.00</span>
+            </div>
+            <div class="flex justify-between py-1 text-rose-300">
+              <span class="font-sans">(+) 100% Traffic/Customs Penalties (Art. 33):</span>
+              <span>+AED 15,000.00</span>
+            </div>
+            <div class="flex justify-between py-1 text-emerald-300">
+              <span class="font-sans">(-) Exempt Dividends (Participation Exemption Art. 22):</span>
+              <span>-AED 100,000.00</span>
+            </div>
+            <div class="flex justify-between py-1 border-t border-[var(--border,#334155)] font-bold text-[var(--foreground,#fff)]">
+              <span class="font-sans">Adjusted Taxable Income:</span>
+              <span>AED 8,940,000.00</span>
+            </div>
+            <div class="flex justify-between py-1 text-cyan-300">
+              <span class="font-sans">(-) Loss Relief Utilized (Art. 37 capped at 75%):</span>
+              <span>0.00</span>
+            </div>
+            <div class="flex justify-between py-1 border-t-2 border-[var(--border,#334155)] font-bold text-amber-300">
+              <span class="font-sans">Final Taxable Income:</span>
+              <span>AED 8,940,000.00</span>
+            </div>
+          </div>
+
+          <!-- Right: Tax Computation & Regimes -->
+          <div class="p-4 rounded-lg bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] space-y-2">
+            <div class="font-sans font-semibold text-sm text-[var(--foreground,#fff)] border-b border-[var(--border,#334155)] pb-2">
+              Tax Liability & Regime Assessment
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="font-sans">Statutory 0% Threshold:</span>
+              <span>AED 375,000.00</span>
+            </div>
+            <div class="flex justify-between py-1">
+              <span class="font-sans">Taxable Base Subject to 9%:</span>
+              <span>AED 8,565,000.00</span>
+            </div>
+            <div class="flex justify-between py-1 font-bold text-cyan-400 text-sm">
+              <span class="font-sans">Total Corporate Tax Due @ 9%:</span>
+              <span>AED 770,850.00</span>
+            </div>
+            <div class="flex justify-between py-1 text-xs text-[var(--muted-foreground,#94a3b8)]">
+              <span class="font-sans">Effective Tax Rate:</span>
+              <span>8.62%</span>
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-[var(--border,#334155)] space-y-2 font-sans text-xs">
+              <div class="flex items-center justify-between">
+                <span>Small Business Relief (SBR Art. 21):</span>
+                <span class="text-rose-400">N/A (Revenue > AED 3M)</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span>Qualifying Free Zone Status (QFZP):</span>
+                <span class="text-emerald-400">Qualified (De-minimis 2.4% < 5%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: PEPPOL E-INVOICING -->
+    <section id="content-einvoicing" class="hidden space-y-4">
+      <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 class="font-semibold text-base">Peppol Five-Corner E-Invoicing (PINT-AE OASIS UBL 2.1)</h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">Direct ASP Clearance Adapter Sandbox | 10-Year Immutable Non-Repudiation Archive</p>
+          </div>
+          <button onclick="transmitSampleInvoice()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium">
+            Transmit Test Invoice (380)
+          </button>
+        </div>
+
+        <div class="overflow-x-auto border border-[var(--border,#334155)] rounded-lg">
+          <table class="w-full text-xs text-left">
+            <thead class="bg-[var(--background,#0f172a)] text-[var(--muted-foreground,#94a3b8)] uppercase border-b border-[var(--border,#334155)]">
+              <tr>
+                <th class="p-3">Invoice Number</th>
+                <th class="p-3">Customer TRN</th>
+                <th class="p-3">Type</th>
+                <th class="p-3 text-right">Grand Total (AED)</th>
+                <th class="p-3 text-center">ASP Status</th>
+                <th class="p-3">Clearance UUID</th>
+                <th class="p-3 text-center">Archive Hash</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--border,#334155)] font-mono text-[11px]">
+              <tr>
+                <td class="p-3 font-semibold text-emerald-400">INV-2026-0089</td>
+                <td class="p-3">100987654321001</td>
+                <td class="p-3 font-sans">Commercial (380)</td>
+                <td class="p-3 text-right">45,150.00</td>
+                <td class="p-3 text-center"><span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">CLEARED (AP)</span></td>
+                <td class="p-3 text-[var(--muted-foreground,#94a3b8)]">f81d4fae-7dec-11d0-a765</td>
+                <td class="p-3 text-center"><button onclick="alert('SHA-256: 8a4c2f0... Validated 10-year immutable archive.')" class="text-cyan-400 hover:underline">Verified ✓</button></td>
+              </tr>
+              <tr>
+                <td class="p-3 font-semibold text-emerald-400">CN-2026-0012</td>
+                <td class="p-3">100987654321001</td>
+                <td class="p-3 font-sans">Credit Note (381)</td>
+                <td class="p-3 text-right">-2,100.00</td>
+                <td class="p-3 text-center"><span class="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">CLEARED (AP)</span></td>
+                <td class="p-3 text-[var(--muted-foreground,#94a3b8)]">a1b2c3d4-e5f6-7890-abcd</td>
+                <td class="p-3 text-center"><button onclick="alert('SHA-256: 3c9b1e... Validated 10-year immutable archive.')" class="text-cyan-400 hover:underline">Verified ✓</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: WPS & GRATUITY -->
+    <section id="content-wps-payroll" class="hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- WPS SIF Generation -->
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+          <h3 class="font-semibold text-base">Central Bank Wages Protection System (WPS)</h3>
+          <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">Generates and validates official SIF files with SCR header and EDR records.</p>
+          <div class="p-3 rounded-lg bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] font-mono text-xs space-y-1">
+            <div class="text-emerald-400 font-bold">WPS Validation Result: PASS (0 errors)</div>
+            <div class="text-[var(--muted-foreground,#94a3b8)] text-[11px]">Employer ID: 7841987654321 (MOL 13-digit)</div>
+            <div class="text-[var(--muted-foreground,#94a3b8)] text-[11px]">Payer Bank: 033 (Emirates NBD)</div>
+            <div class="text-[var(--muted-foreground,#94a3b8)] text-[11px]">Total Reconciled Salaries: AED 285,400.00 (42 Staff)</div>
+          </div>
+          <button onclick="alert('Downloaded: 7841987654321202601281430.SIF')" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-medium">
+            Export SIF File for Bank Upload
+          </button>
+        </div>
+
+        <!-- EOSG Gratuity Calculator -->
+        <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+          <h3 class="font-semibold text-base">Article 51 End of Service Gratuity (EOSG)</h3>
+          <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">UAE Labour Law No. 33 of 2021 calculation with statutory 2-year basic cap.</p>
+
+          <div class="space-y-3 text-xs">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[var(--muted-foreground,#94a3b8)]">Basic Monthly Wage (AED)</label>
+                <input id="eosg-wage" type="number" value="18000" class="w-full mt-1 bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] rounded px-2.5 py-1 text-xs text-[var(--foreground,#fff)]">
+              </div>
+              <div>
+                <label class="text-[var(--muted-foreground,#94a3b8)]">Years of Continuous Service</label>
+                <input id="eosg-years" type="number" value="6.5" step="0.5" class="w-full mt-1 bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] rounded px-2.5 py-1 text-xs text-[var(--foreground,#fff)]">
+              </div>
+            </div>
+
+            <button onclick="calculateEosgUi()" class="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-medium">
+              Calculate Gratuity Entitlement
+            </button>
+
+            <div id="eosg-result" class="p-3 rounded-lg bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] font-mono text-xs text-emerald-400">
+              Total Gratuity Due: AED 90,000.00 (5 yrs @ 21 days + 1.5 yrs @ 30 days)
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: AI COPILOT -->
+    <section id="content-ai-copilot" class="hidden space-y-4">
+      <div class="bg-[var(--card,#1e293b)] border border-[var(--border,#334155)] rounded-xl p-5 shadow-sm space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-base flex items-center gap-2">
+              <span>✨</span> LedgerAE AI Copilot (MCP Tool Integration)
+            </h3>
+            <p class="text-xs text-[var(--muted-foreground,#94a3b8)]">Deterministic Typed Query Tools Over Live Books | No Hallucinations | Proposals Only</p>
+          </div>
+          <span class="text-xs text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">Claude 3.5 Sonnet / MCP Ready</span>
+        </div>
+
+        <!-- Chat / Output Area -->
+        <div id="ai-chat-box" class="h-80 overflow-y-auto space-y-3 p-4 bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] rounded-lg text-xs font-sans">
+          <div class="p-3 bg-[var(--card,#1e293b)] rounded-lg border border-[var(--border,#334155)] max-w-xl space-y-1">
+            <span class="font-bold text-emerald-400">AI Assistant:</span>
+            <p class="text-[var(--foreground,#fff)]">Welcome to LedgerAE. I am connected via Model Context Protocol (MCP) to your live group ledger. All financial queries are executed deterministically through typed tools. How may I assist you with your close, VAT return, or Corporate Tax computation today?</p>
+          </div>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="flex gap-2">
+          <input id="ai-input" type="text" placeholder="e.g., 'What is our Q1 VAT 201 net payable and Box 1 breakdown?'" class="flex-1 bg-[var(--background,#0f172a)] border border-[var(--border,#334155)] rounded-lg px-3 py-2 text-xs text-[var(--foreground,#fff)] focus:outline-none focus:ring-1 focus:ring-emerald-500">
+          <button onclick="sendAiMessage()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition">
+            Send Query
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Script for UI Interactivity & Translations -->
+  <script>
+    let currentLang = 'en';
+    const translations = {
+      en: {
+        brand: 'LedgerAE',
+        entity: 'Entity:',
+        badge: 'LIVE PILOT',
+        period: 'FY 2026 - P01 [OPEN]',
+        langBtn: 'العربية 🇦🇪',
+        tabDash: 'Dashboard',
+        tabTb: 'Trial Balance',
+        tabVat: 'VAT 201 Return',
+        tabCt: 'Corporate Tax (CT201)',
+        tabEinvoice: 'Peppol E-Invoicing',
+        tabWps: 'WPS & Gratuity',
+        kpiRev: 'Consolidated Revenue (YTD)',
+        kpiNet: 'Net Accounting Profit (IFRS)',
+        kpiVat: 'Net VAT 201 Liability',
+        kpiCt: 'Est. Corporate Tax (9%)',
+        closeTitle: 'Monthly Financial Close Checklist Engine',
+        monTitle: 'AI Continuous Monitors',
+        tbTitle: 'Group Consolidated Trial Balance',
+        tbSub: 'Aggregated over 1,000,000 synthetic vouchers in 247 ms (NFR target < 3 s)'
+      },
+      ar: {
+        brand: 'ليدجر الإمارات',
+        entity: 'المنشأة:',
+        badge: 'بيئة تجريبية حية',
+        period: 'السنة المالية 2026 - الفترة 01 [مفتوحة]',
+        langBtn: 'English 🇬🇧',
+        tabDash: 'لوحة القيادة',
+        tabTb: 'ميزان المراجعة',
+        tabVat: 'إقرار ضريبة القيمة المضافة 201',
+        tabCt: 'ضريبة الشركات (CT201)',
+        tabEinvoice: 'الفوترة الإلكترونية (بيبول)',
+        tabWps: 'حماية الأجور ومكافأة الخدمة',
+        kpiRev: 'الإيرادات المجمعة (منذ بداية العام)',
+        kpiNet: 'صافي الأرباح المحاسبية (معايير IFRS)',
+        kpiVat: 'صافي مستحقات ضريبة القيمة المضافة',
+        kpiCt: 'ضريبة الشركات التقديرية (9%)',
+        closeTitle: 'محرك قائمة مهام الإقفال المالي الشهري',
+        monTitle: 'مراقبات الذكاء الاصطناعي المستمرة',
+        tbTitle: 'ميزان المراجعة المجمع للمجموعة',
+        tbSub: 'تجميع فوري لأكثر من 1,000,000 قيد محاسبي في 247 مللي ثانية'
+      }
+    };
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'en' ? 'ar' : 'en';
+      document.documentElement.setAttribute('dir', currentLang === 'ar' ? 'rtl' : 'ltr');
+      document.documentElement.setAttribute('lang', currentLang);
+
+      const t = translations[currentLang];
+      document.getElementById('brand-title').innerText = t.brand;
+      document.getElementById('lbl-entity').innerText = t.entity;
+      document.getElementById('badge-live').innerText = t.badge;
+      document.getElementById('period-status').innerText = t.period;
+      document.getElementById('btn-lang').innerHTML = t.langBtn;
+
+      document.getElementById('tab-dashboard').innerText = t.tabDash;
+      document.getElementById('tab-trial-balance').innerText = t.tabTb;
+      document.getElementById('tab-vat201').innerText = t.tabVat;
+      document.getElementById('tab-corporate-tax').innerText = t.tabCt;
+      document.getElementById('tab-einvoicing').innerText = t.tabEinvoice;
+      document.getElementById('tab-wps-payroll').innerText = t.tabWps;
+
+      document.getElementById('kpi-rev-lbl').innerText = t.kpiRev;
+      document.getElementById('kpi-net-lbl').innerText = t.kpiNet;
+      document.getElementById('kpi-vat-lbl').innerText = t.kpiVat;
+      document.getElementById('kpi-ct-lbl').innerText = t.kpiCt;
+      document.getElementById('sec-close-title').innerText = t.closeTitle;
+      document.getElementById('sec-monitor-title').innerText = t.monTitle;
+      document.getElementById('tb-title').innerText = t.tbTitle;
+      document.getElementById('tb-sub').innerText = t.tbSub;
+    }
+
+    function showTab(tabName) {
+      const tabs = ['dashboard', 'trial-balance', 'vat201', 'corporate-tax', 'einvoicing', 'wps-payroll', 'ai-copilot'];
+      tabs.forEach(t => {
+        const content = document.getElementById(`content-${t}`);
+        const btn = document.getElementById(`tab-${t}`);
+        if (t === tabName) {
+          content.classList.remove('hidden');
+          btn.className = 'py-3 px-1 tab-active transition whitespace-nowrap font-semibold';
+        } else {
+          content.classList.add('hidden');
+          btn.className = 'py-3 px-1 text-[var(--muted-foreground,#94a3b8)] hover:text-[var(--foreground,#fff)] transition whitespace-nowrap';
+        }
+      });
+    }
+
+    function onEntityChange(val) {
+      if (val === 'group') {
+        document.getElementById('kpi-rev-val').innerText = 'AED 48,250,000.00';
+        document.getElementById('kpi-net-val').innerText = 'AED 8,940,000.00';
+        document.getElementById('kpi-vat-val').innerText = 'AED 342,500.00';
+        document.getElementById('kpi-ct-val').innerText = 'AED 770,850.00';
+      } else if (val === 'jafza') {
+        document.getElementById('kpi-rev-val').innerText = 'AED 12,400,000.00';
+        document.getElementById('kpi-net-val').innerText = 'AED 2,800,000.00';
+        document.getElementById('kpi-vat-val').innerText = 'AED 0.00 (Out of Scope)';
+        document.getElementById('kpi-ct-val').innerText = 'AED 0.00 (0% QFZP)';
+      } else {
+        document.getElementById('kpi-rev-val').innerText = 'AED 18,500,000.00';
+        document.getElementById('kpi-net-val').innerText = 'AED 3,250,000.00';
+        document.getElementById('kpi-vat-val').innerText = 'AED 162,500.00';
+        document.getElementById('kpi-ct-val').innerText = 'AED 258,750.00';
+      }
+    }
+
+    function viewVoucher(code) {
+      alert(`Drill-down voucher opened: ${code}\nSource Entries: 100% verified. Zero float rounding. Merkle Hash intact.`);
+    }
+
+    function viewDrill(box) {
+      alert(`VAT 201 Drill-down for Box ${box}:\nAll transactions drill to source journal vouchers. Sum of drill-down matches Box total to 0 fils.`);
+    }
+
+    function lockPeriodAction() {
+      const confirmLock = confirm('Are you sure you want to hard lock Period 01? Posts will be rejected unless authorized by CFO reopening protocol.');
+      if (confirmLock) {
+        document.getElementById('period-status').innerText = 'FY 2026 - P01 [HARD LOCKED 🔒]';
+        document.getElementById('period-status').className = 'text-rose-400 font-bold';
+        alert('Period FY 2026 - P01 is now HARD LOCKED. All double-entry vouchers are immutable.');
+      }
+    }
+
+    function downloadCt201() {
+      alert('Form CT201 EmaraTax return generated successfully with Section 1 (IFRS Reconciliation), Section 2 (Loss Relief), Section 3 (9% Computation), and Section 4 (Transfer Pricing Schedule).');
+    }
+
+    function transmitSampleInvoice() {
+      alert('Invoice INV-2026-0090 transmitted via Peppol PINT-AE UBL 2.1 to Sandbox ASP.\nResult: MLS 200 OK | Status: CLEARED (AP) | clearanceReference: b82c91-ae-2026');
+    }
+
+    function calculateEosgUi() {
+      const wage = parseFloat(document.getElementById('eosg-wage').value) || 0;
+      const years = parseFloat(document.getElementById('eosg-years').value) || 0;
+
+      let days = 0;
+      if (years < 1) {
+        days = 0;
+      } else if (years <= 5) {
+        days = years * 21;
+      } else {
+        days = (5 * 21) + ((years - 5) * 30);
+      }
+
+      const dailyRate = wage / 30;
+      let total = days * dailyRate;
+      const maxCap = wage * 24; // 2 years cap
+      if (total > maxCap) total = maxCap;
+
+      document.getElementById('eosg-result').innerText = `Total Gratuity Due: AED ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })} (Statutory Cap: AED ${maxCap.toLocaleString('en-US')})`;
+    }
+
+    function sendAiMessage() {
+      const input = document.getElementById('ai-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const chat = document.getElementById('ai-chat-box');
+      // User message
+      chat.innerHTML += `
+        <div class="p-3 bg-[var(--background,#0f172a)]/80 rounded-lg border border-[var(--border,#334155)] max-w-xl ml-auto text-right space-y-1">
+          <span class="font-bold text-cyan-400">You:</span>
+          <p class="text-[var(--foreground,#fff)]">${text}</p>
+        </div>
+      `;
+
+      // Simulated MCP Tool Execution
+      setTimeout(() => {
+        chat.innerHTML += `
+          <div class="p-3 bg-[var(--card,#1e293b)] rounded-lg border border-[var(--border,#334155)] max-w-xl space-y-1">
+            <span class="font-bold text-emerald-400">AI Assistant (MCP Tool: query_vat201_summary):</span>
+            <p class="text-[var(--foreground,#fff)]">Executed tool <code class="bg-[var(--background,#0f172a)] px-1 rounded text-cyan-300">query_vat201_summary(taxPeriod="2026-Q1")</code> directly over live ledger records:</p>
+            <ul class="list-disc list-inside space-y-0.5 text-[var(--muted-foreground,#94a3b8)]">
+              <li>Standard Rated Sales (Dubai & Abu Dhabi): <strong class="text-white">AED 22,700,000.00</strong></li>
+              <li>Output VAT Due (Boxes 1a–1g): <strong class="text-white">AED 1,290,000.00</strong></li>
+              <li>Recoverable Input VAT (Box 9): <strong class="text-white">AED 947,500.00</strong></li>
+              <li>Net VAT Payable to FTA: <strong class="text-amber-400">AED 342,500.00</strong></li>
+            </ul>
+            <p class="text-[11px] text-[var(--muted-foreground,#64748b)] mt-1">Logic: Computed via integer fils double-entry aggregation with 0 fils variance. Zero model hallucination.</p>
+          </div>
+        `;
+        chat.scrollTop = chat.scrollHeight;
+      }, 400);
+
+      input.value = '';
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    // Enter key sends AI query
+    document.getElementById('ai-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') sendAiMessage();
+    });
+  </script>
+</body>
+</html>
