@@ -1,20 +1,10 @@
 import { NextResponse } from 'next/server';
 import { AuthenticationService, UserRole } from '@ledger-ae/shared-types';
-
-const SEEDED_USER = {
-  id: 'usr_chief_accountant_01',
-  email: 'accountant@alnoor.ae',
-  name: 'Tariq Al-Mansoor',
-  tenantId: '10000000-0000-0000-0000-000000000001',
-  tenantSlug: 'al-noor-group',
-  entityId: '20000000-0000-0000-0000-000000000001',
-  role: UserRole.FINANCIAL_CONTROLLER,
-  totpSecret: 'JBSWY3DPEHPK3PXP', // Base32 test secret
-  recoveryCodes: ['REC-A1B2-C3D4', 'REC-E5F6-G7H8', 'BACKUP-ALNOOR-2026']
-};
+import { getDatabasePool, getValidatedSecrets } from '@/lib/db';
 
 export async function POST(request: Request) {
   try {
+    const { jwtSecret, encryptionKey } = getValidatedSecrets();
     const body = await request.json();
     const { code, tempToken } = body;
 
@@ -25,9 +15,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const jwtSecret = process.env.JWT_SECRET || 'fallback_dev_jwt_secret_min_32_characters_long';
-
-    // 1. Verify temporary 2FA session token
+    // 1. Verify temporary 2FA session token signature & expiration
     const tempPayload = AuthenticationService.verifySessionToken(tempToken, jwtSecret);
     if (!tempPayload) {
       return NextResponse.json(
@@ -36,50 +24,106 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Validate TOTP code via RFC 6238 or one-time recovery code
-    let isTotpValid = code === '123456' || code === '482910';
-    if (!isTotpValid) {
-      try {
-        isTotpValid = AuthenticationService.verifyTotp(code, SEEDED_USER.totpSecret);
-      } catch (e) {
-        // Fallback for custom formatted secrets
-      }
-    }
-    const isRecoveryCode = SEEDED_USER.recoveryCodes.includes(code);
+    const pool = getDatabasePool();
+    const client = await pool.connect();
+    let userRow: any = null;
+    let isTotpValid = false;
+    let isRecoveryCodeValid = false;
 
-    if (!isTotpValid && !isRecoveryCode) {
+    try {
+      await client.query('SET LOCAL app.current_tenant_id = $1', [tempPayload.tenantId]);
+      const userRes = await client.query(
+        `SELECT id, tenant_id, email, full_name_en, role, is_active,
+                totp_secret_encrypted
+         FROM users
+         WHERE id = $1 AND tenant_id = $2`,
+        [tempPayload.userId, tempPayload.tenantId]
+      );
+
+      if (userRes.rows.length === 0 || !userRes.rows[0].is_active) {
+        return NextResponse.json(
+          { error: 'User account not found or deactivated.' },
+          { status: 401 }
+        );
+      }
+      userRow = userRes.rows[0];
+
+      // 2. Real TOTP verification: Decrypt user's encrypted secret and verify with RFC 6238
+      if (userRow.totp_secret_encrypted) {
+        try {
+          const decryptedSecret = AuthenticationService.decryptSecret(
+            userRow.totp_secret_encrypted,
+            encryptionKey
+          );
+          isTotpValid = AuthenticationService.verifyTotp(code, decryptedSecret);
+        } catch (decryptErr) {
+          console.error('[2FA Decrypt Error]', decryptErr);
+        }
+      }
+
+      // 3. One-time recovery code verification: Check hashed recovery codes in database
+      if (!isTotpValid) {
+        const codeHash = AuthenticationService.hashRecoveryCode(code);
+        const recoveryRes = await client.query(
+          `UPDATE user_recovery_codes
+           SET used_at = NOW()
+           WHERE user_id = $1 AND tenant_id = $2 AND code_hash = $3 AND used_at IS NULL
+           RETURNING id`,
+          [userRow.id, tempPayload.tenantId, codeHash]
+        );
+        if (recoveryRes.rows.length > 0) {
+          isRecoveryCodeValid = true;
+        }
+      }
+    } finally {
+      client.release();
+    }
+
+    // NO hardcoded TOTP codes (code === '123456') or simulated bypasses permitted
+    if (!isTotpValid && !isRecoveryCodeValid) {
       return NextResponse.json(
-        { error: 'Invalid 6-digit TOTP code. Please check your authenticator application.' },
+        { error: 'Invalid verification code or recovery code already used.' },
         { status: 400 }
       );
     }
 
-    // 3. Issue full authenticated session token
+    // 4. Issue full authenticated session token
+    const expiresAtMs = Date.now() + 8 * 60 * 60 * 1000; // 8 hours
     const fullSessionPayload = {
-      userId: tempPayload.userId,
-      tenantId: tempPayload.tenantId,
+      userId: userRow.id,
+      tenantId: userRow.tenant_id,
       entityId: tempPayload.entityId,
-      role: tempPayload.role,
-      email: tempPayload.email,
+      role: userRow.role as UserRole,
+      email: userRow.email,
       issuedAt: Date.now(),
-      expiresAt: Date.now() + 8 * 60 * 60 * 1000 // 8 hours session duration
+      expiresAt: expiresAtMs
     };
 
     const sessionJwt = AuthenticationService.signSessionToken(fullSessionPayload, jwtSecret);
 
+    // 5. Store active session in database sessions table for server-side revocation and rotation
+    const sessionId = await AuthenticationService.createSession(pool, {
+      tenantId: userRow.tenant_id,
+      entityId: tempPayload.entityId,
+      userId: userRow.id,
+      role: userRow.role as UserRole,
+      sessionToken: sessionJwt,
+      expiresAt: new Date(expiresAtMs)
+    });
+
     const response = NextResponse.json({
       success: true,
+      sessionId,
       user: {
-        id: SEEDED_USER.id,
-        name: SEEDED_USER.name,
-        role: SEEDED_USER.role,
-        email: SEEDED_USER.email,
-        tenantId: SEEDED_USER.tenantId,
-        tenantSlug: SEEDED_USER.tenantSlug
+        id: userRow.id,
+        name: userRow.full_name_en,
+        role: userRow.role,
+        email: userRow.email,
+        tenantId: userRow.tenant_id
       }
     });
 
-    // 4. Secure HttpOnly cookie
+    // 6. Secure HttpOnly cookie
     response.cookies.set('ledger_session', sessionJwt, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -91,6 +135,9 @@ export async function POST(request: Request) {
     return response;
   } catch (error: any) {
     console.error('[2FA Verify Error]', error?.message || error);
-    return NextResponse.json({ error: error?.message || 'Verification failed' }, { status: 500 });
+    return NextResponse.json(
+      { error: error?.message?.startsWith('CRITICAL_SECURITY_FAILURE') ? error.message : 'Verification failed' },
+      { status: 500 }
+    );
   }
 }

@@ -1,23 +1,10 @@
 import { NextResponse } from 'next/server';
 import { AuthenticationService, UserRole } from '@ledger-ae/shared-types';
-
-// Pre-computed Argon2id hash for 'Password@123' (memoryCost: 65536, timeCost: 3, parallelism: 4)
-// Seeded credentials for local development & automated test suites
-const SEEDED_USER = {
-  id: 'usr_chief_accountant_01',
-  email: 'accountant@alnoor.ae',
-  passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$6a8w50t7mD+oK6W3vKvZlA$nIq8pUe6G9lKz6H4U7lZ4d1s2w3e4r5t6y7u8i9o0pA',
-  name: 'Tariq Al-Mansoor',
-  tenantId: '10000000-0000-0000-0000-000000000001',
-  tenantSlug: 'al-noor-group',
-  entityId: '20000000-0000-0000-0000-000000000001',
-  role: UserRole.FINANCIAL_CONTROLLER,
-  // Encrypted TOTP secret
-  totpSecret: 'JBSWY3DPEHPK3PXP'
-};
+import { getDatabasePool, getValidatedSecrets } from '@/lib/db';
 
 export async function POST(request: Request) {
   try {
+    const { jwtSecret } = getValidatedSecrets();
     const body = await request.json();
     const { email, password, tenantSlug } = body;
 
@@ -28,8 +15,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const rateLimitKey = `${tenantSlug}:${email.toLowerCase().trim()}`;
-    const rateStatus = AuthenticationService.checkRateLimit(rateLimitKey);
+    const pool = getDatabasePool();
+    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedTenantSlug = tenantSlug.toLowerCase().trim();
+    const rateLimitKey = `${normalizedTenantSlug}:${normalizedEmail}`;
+
+    // 1. Rate Limit & Brute-force Lockout Check (backed by database)
+    const rateStatus = await AuthenticationService.checkRateLimit(rateLimitKey, pool);
     if (rateStatus.isLocked) {
       const waitMinutes = Math.ceil((rateStatus.lockoutRemainingMs || 0) / 60000);
       return NextResponse.json(
@@ -38,19 +30,48 @@ export async function POST(request: Request) {
       );
     }
 
-    // Tenant and Email Match Check
-    const isTargetUser =
-      email.toLowerCase().trim() === SEEDED_USER.email &&
-      tenantSlug.toLowerCase().trim() === SEEDED_USER.tenantSlug;
+    // 2. Query user and tenant from database
+    const client = await pool.connect();
+    let userRow: any = null;
+    let tenantRow: any = null;
+    try {
+      const tenantRes = await client.query(
+        'SELECT id, name_en, slug FROM tenants WHERE slug = $1 AND is_active = TRUE',
+        [normalizedTenantSlug]
+      );
+      if (tenantRes.rows.length === 0) {
+        await AuthenticationService.recordFailedAttempt(rateLimitKey, pool);
+        return NextResponse.json(
+          { error: 'Invalid credentials or organization not found.' },
+          { status: 401 }
+        );
+      }
+      tenantRow = tenantRes.rows[0];
 
-    let isPasswordValid = false;
-    if (isTargetUser) {
-      // Real Argon2id verification (or fallback check for seeded password)
-      isPasswordValid = (password === 'Password@123') || (await AuthenticationService.verifyPassword(SEEDED_USER.passwordHash, password));
+      // Query user scoped to tenant
+      await client.query('SET LOCAL app.current_tenant_id = $1', [tenantRow.id]);
+      const userRes = await client.query(
+        `SELECT u.id, u.tenant_id, u.email, u.full_name_en, u.role, u.password_hash,
+                u.is_active, u.is_2fa_enabled, u.totp_secret_encrypted
+         FROM users u
+         WHERE u.email = $1 AND u.tenant_id = $2`,
+        [normalizedEmail, tenantRow.id]
+      );
+      if (userRes.rows.length > 0) {
+        userRow = userRes.rows[0];
+      }
+    } finally {
+      client.release();
     }
 
-    if (!isTargetUser || !isPasswordValid) {
-      const updatedRate = AuthenticationService.recordFailedAttempt(rateLimitKey);
+    // 3. Verify Argon2id password hash strictly - NO plain-text bypasses
+    let isPasswordValid = false;
+    if (userRow && userRow.is_active && userRow.password_hash) {
+      isPasswordValid = await AuthenticationService.verifyPassword(userRow.password_hash, password);
+    }
+
+    if (!userRow || !isPasswordValid) {
+      const updatedRate = await AuthenticationService.recordFailedAttempt(rateLimitKey, pool);
       return NextResponse.json(
         {
           error: `Invalid credentials or organization not found. ${updatedRate.attemptsRemaining} attempt(s) remaining.`
@@ -59,31 +80,48 @@ export async function POST(request: Request) {
       );
     }
 
-    // Success: Reset rate limit attempts
-    AuthenticationService.resetAttempts(rateLimitKey);
+    // 4. Success: Reset rate limit attempts
+    await AuthenticationService.resetAttempts(rateLimitKey, pool);
 
-    // Issue cryptographic temporary 2FA token
-    const jwtSecret = process.env.JWT_SECRET || 'fallback_dev_jwt_secret_min_32_characters_long';
+    // 5. Look up default primary legal entity for tenant
+    let entityId = userRow.tenant_id;
+    try {
+      const entityRes = await pool.query(
+        'SELECT id FROM legal_entities WHERE tenant_id = $1 ORDER BY created_at ASC LIMIT 1',
+        [userRow.tenant_id]
+      );
+      if (entityRes.rows.length > 0) {
+        entityId = entityRes.rows[0].id;
+      }
+    } catch {
+      // Use tenant ID fallback if entities query empty
+    }
+
+    // 6. Issue temporary 2FA token with 5-minute expiration
     const tempTokenPayload = {
-      userId: SEEDED_USER.id,
-      tenantId: SEEDED_USER.tenantId,
-      entityId: SEEDED_USER.entityId,
-      role: SEEDED_USER.role,
-      email: SEEDED_USER.email,
+      userId: userRow.id,
+      tenantId: userRow.tenant_id,
+      entityId,
+      role: userRow.role as UserRole,
+      email: userRow.email,
       issuedAt: Date.now(),
-      expiresAt: Date.now() + 5 * 60 * 1000 // 5 minutes validity
+      expiresAt: Date.now() + 5 * 60 * 1000
     };
 
     const tempToken = AuthenticationService.signSessionToken(tempTokenPayload, jwtSecret);
 
     return NextResponse.json({
-      requires2FA: true,
+      requires2FA: userRow.is_2fa_enabled,
       tempToken,
-      userId: SEEDED_USER.id,
-      name: SEEDED_USER.name,
-      email: SEEDED_USER.email
+      userId: userRow.id,
+      name: userRow.full_name_en,
+      email: userRow.email
     });
-  } catch (error) {
-    return NextResponse.json({ error: 'Internal authentication server error' }, { status: 500 });
+  } catch (error: any) {
+    console.error('[Login Error]', error?.message || error);
+    return NextResponse.json(
+      { error: error?.message?.startsWith('CRITICAL_SECURITY_FAILURE') ? error.message : 'Internal authentication server error' },
+      { status: 500 }
+    );
   }
 }

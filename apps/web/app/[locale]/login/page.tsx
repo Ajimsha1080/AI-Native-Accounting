@@ -41,8 +41,8 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
     resolver: zodResolver(loginSchema),
     defaultValues: {
       tenantSlug: 'al-noor-group',
-      email: 'accountant@alnoor.ae',
-      password: 'Password@123',
+      email: '',
+      password: '',
       rememberMe: true
     }
   });
@@ -247,7 +247,7 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 text-center mt-2">
-                  Tip: Use default test code <code className="text-slate-300 font-mono">123456</code> or <code className="text-slate-300 font-mono">482910</code>
+                  Enter the 6-digit code from your authenticator app or an 8-character recovery code.
                 </p>
               </div>
 
