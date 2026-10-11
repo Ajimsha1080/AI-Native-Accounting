@@ -1,238 +1,131 @@
-# LedgerAE Production Gap Analysis: Prototype to Real Multi-Tenant SaaS
+# LedgerAE Production Gap Analysis: Complete Catalog of Hardcoded, Simulated & Unwired Logic
 
 **Date**: 2026-10-11  
 **Author**: Principal Engineer / Architect  
 **Repo**: `LedgerAE` (`AI-Native-Accounting`)  
-**Objective**: Comprehensive catalog of all mock, hardcoded, in-memory, simulated, floating-point, and unverified components across the entire repository, followed by a phased production transformation roadmap.
+**Objective**: Comprehensive catalog of every file still containing hardcoded users, authentication bypasses, secrets, in-memory data arrays, or simulated behaviour across the repository, serving as the baseline for sequential resolution.
 
 ---
 
-## 1. Executive Summary & Architecture Reality Check
+## 1. Executive Summary & Production Reality Check
 
-LedgerAE currently possesses a well-structured domain core with strong double-entry accounting models, strict integer minor-unit math (`roundHalfEven`, `CURRENCY_DECIMALS`, `BigInt` fils), versioned UAE tax rules, and a clean bilingual Next.js App Router UI.
-
-However, **it is fundamentally an in-memory prototype**:
-1. **Zero Database Persistence**: All database interactions are simulated in memory or via mock classes (`MockPostgresSession`, in-memory `let` arrays in route handlers, `idempotencyCache: Map`). A target schema exists (`packages/shared-types/src/schema.sql`), but no migration runner, ORM/query builder, connection pool, or live RLS enforcement is in place.
-2. **Simulated Authentication & RBAC**: Login accepts hardcoded credentials (`accountant@alnoor.ae` / `Password@123`), bypasses real password hashing (no `argon2`), uses hardcoded TOTP bypass (`123456`), and sets static mock session cookies (`sess_jwt_token_verified_active`). No request middleware validates tenant/entity context cryptographically or from a session store.
-3. **Simulated AI Intelligence**: `services/ai-service/main.py` uses hardcoded regex parsing and static fallbacks (`Al Futtaim Group LLC`, `confidence_score: 0.96`, `INV-AUTO-PARSED`), completely lacking real Anthropic Claude tool calling, structured Zod/Pydantic validation, or vector RAG.
-4. **Duplicate Backends**: Both `apps/api` (a standalone class-based controller) and `apps/web/app/api/*` (Next.js route handlers) implement endpoints, violating the single-backend invariant.
-5. **Floating-Point Leaks**: While `packages/ledger-core/src/money.ts` enforces `BigInt`, floats leak in CSV parsing (`parseFloat` in bank statements, document OCR, WPS SIF validation, and report CSV export).
-6. **In-Memory Workflow & Agent Runtime**: Month-end close, agent retries, and task execution run on an in-memory scheduler with simulated crash recovery rather than durable orchestrators like Temporal.
-7. **Simulated Integrations & MCP Tokens**: Bank feeds (`LeanSandboxAggregatorAdapter`) and ASP e-invoicing (`SandboxAspAdapter`) return static fixtures. MCP write-gating relies on arbitrary string prefixes (`CFO_APPROVED_*`) rather than server-issued, cryptographically signed, single-use approval grants.
-8. **Premature Regulatory & Security Claims**: Documentation claims "ASVS Level 2 verified", "reviewed by tax advisor", and "DR restore drill proven" when only unit simulations exist.
+While LedgerAE possesses strict integer minor-unit math (`BigInt` fils), versioned UAE tax rule definitions, and a localized Next.js frontend, it cannot yet build or operate from a clean checkout as a true production multi-tenant system:
+1. **Clean-Checkout Build Blocked**: `.gitignore` contains `lib/` without root anchoring, causing `apps/web/src/lib/auth.ts` (the core `withAuth` wrapper) to be untracked. On a clean clone, `apps/web` fails to compile because `@/lib/auth` cannot be resolved.
+2. **Authentication Bypasses & Hardcoded Credentials**: 
+   - `apps/web/app/api/auth/login/route.ts` contains `SEEDED_USER` with fallback check `password === 'Password@123'`.
+   - `apps/web/app/api/auth/verify-2fa/route.ts` contains hardcoded OTP code bypasses `code === '123456' || code === '482910'`.
+   - `apps/web/src/lib/auth.ts`, `login/route.ts`, and `verify-2fa/route.ts` contain hardcoded JWT secret fallbacks (`fallback_dev_jwt_secret_min_32_characters_long`).
+   - `packages/shared-types/src/auth-service.ts` uses zero-padded hexadecimal strings (`keyHex.padEnd(64, '0')`) instead of validating real 32-byte encryption keys.
+   - `apps/web/middleware.ts` only handles `next-intl` localization; it does not protect application routes (`/[locale]/app/*`) with session validation.
+3. **Database Layer Disconnected from Route Handlers**:
+   - Every route handler in `apps/web/app/api/*` queries module-level in-memory arrays (`let INVOICES`, `let JOURNAL_ENTRIES`, `let STATEMENT_LINES`, `let PROPOSALS`, etc.) rather than querying PostgreSQL through repositories.
+   - None of the API route handlers initiate a per-request transaction with `SET LOCAL app.current_tenant_id` derived from the verified session.
+4. **Mocked & Simulated Tests**:
+   - `packages/shared-types/src/persistence.test.ts`, `packages/ledger-core/src/repository.test.ts`, and `packages/shared-types/src/rls.test.ts` rely on `pg-mem` or custom in-memory mock classes (`MockPostgresSession`) rather than testing against real PostgreSQL with true Row-Level Security policies.
+5. **Simulated Workflow Runtime & Integrations**:
+   - `DurableAgentRuntime` falls back to in-memory maps (`memoryFallback: Map`) instead of executing durable Temporal workflows.
+   - MCP burned nonces are stored in an in-memory `Set` (`McpSecurityService.burnedNonces`), allowing replay attacks upon process restart.
+   - Banking aggregator (`LeanSandboxAggregatorAdapter`) and Peppol ASP (`SandboxAspAdapter`) rely on synthetic hardcoded fixtures and in-memory delay flags.
 
 ---
 
-## 2. File-by-File Gap Analysis
+## 2. Exhaustive File-by-File Catalog of Gaps & Violations
 
-### 2.1. Authentication, Sessions & Credentials
+### 2.1. Clean Build & Git Tracking
 | File | Current Implementation | Production Requirement |
 | :--- | :--- | :--- |
-| `apps/web/app/api/auth/login/route.ts` | Hardcoded credential check: `email === 'accountant@alnoor.ae' && password === 'Password@123'`. Returns static `tempToken: 'temp_sess_token_2fa_alnoor_881920'`. | Query `users` table via tenant-scoped repository; verify password with `argon2id`; issue signed, short-lived 2FA grant token. |
-| `apps/web/app/api/auth/verify-2fa/route.ts` | Hardcoded TOTP check: `code === '123456'`. Sets static cookie `ledger_session = 'sess_jwt_token_verified_active'`. | Encrypted user TOTP secret (AES-GCM); verify standard RFC 6238 TOTP token with replay prevention; issue cryptographically signed JWT or database session. |
-| `apps/web/app/[locale]/login/page.tsx` | Default form values prefill `al-noor-group`, `accountant@alnoor.ae`, `Password@123`. | Empty form defaults; strict input validation; rate limiting; lockout on failed attempts. |
-| `apps/web/e2e/screen*.spec.ts` (screens 1–9) | Hardcoded test credentials `Password@123` across all Playwright specs. | Seeded dynamic test fixtures in local database. |
-| `packages/mcp-server/src/server.ts` | MCP write permission checks `approvalToken.startsWith('CFO_APPROVED_')`. | Server-issued, cryptographically signed (Ed25519 or HMAC SHA-256), expiring, single-use approval tokens recorded in audit logs. |
-| `docker-compose.yml` | Hardcoded secrets: `POSTGRES_PASSWORD: secret_local_postgres_password`, `MINIO_ROOT_PASSWORD: minioadminpassword`. | Parameterized via `.env` with strict `.env.example` validation. |
+| `.gitignore` (lines 8, 30) | Unanchored `lib/` and `build/` ignores `apps/web/src/lib/auth.ts`. | Anchor paths to root: `/lib/`, `/build/` or remove so `apps/web/src/lib/**` is strictly tracked in git. |
+| `apps/web/src/lib/auth.ts` | Untracked due to `.gitignore`; contains hardcoded JWT fallback string. | Must be committed to git; fail startup if `JWT_SECRET` is missing/short. |
+| `package.json` & workspace tsconfigs | Monorepo build script does not enforce topological project references (`tsc -b`). | Explicit dependency-ordered compilation or `tsc -b` with project references across workspaces. |
+| `.github/workflows/ci.yml` | Builds depend on existing workspace cache; no isolated clean-checkout test job. | Add explicit CI job that runs a fresh clone, clean `npm ci`, and verifies build on first attempt. |
 
 ---
 
-### 2.2. In-Memory Data Stores & Simulated Persistence
+### 2.2. Authentication, Passwords, TOTP & Sessions
 | File | Current Implementation | Production Requirement |
 | :--- | :--- | :--- |
-| `apps/web/app/api/ledger/journals/route.ts` | Module-level mutable variable `let JOURNAL_ENTRIES: JournalEntry[] = [...]`. | PostgreSQL `journal_entries` and `journal_lines` tables with transaction isolation and RLS. |
-| `apps/web/app/api/ledger/accounts/route.ts` | Module-level `const ACCOUNTS: AccountItem[] = [...]` and in-memory filtering. | PostgreSQL `chart_of_accounts` table queried with `app.current_tenant_id`. |
-| `apps/web/app/api/invoicing/route.ts` | Module-level `let INVOICES: InvoiceItem[] = [...]`. | PostgreSQL `invoices`, `invoice_lines`, and `customers` tables. |
-| `apps/web/app/api/banking/reconciliation/route.ts` | Module-level `let STATEMENT_LINES`, `let LEDGER_LINES`, `let AI_SUGGESTIONS`. | PostgreSQL `bank_statements`, `bank_statement_lines`, and `reconciliations` tables. |
-| `apps/web/app/api/ai/proposals/route.ts` | Module-level `let PROPOSALS: AiProposalItem[] = [...]`. | PostgreSQL `ai_proposals` and `ai_action_logs` tables. |
-| `apps/web/app/api/close/route.ts` | Module-level `let CLOSE_STEPS`, `let AUDIT_LOGS`, `const ROLES`. | PostgreSQL `accounting_periods`, `close_steps`, and immutable `audit_logs` tables. |
-| `apps/web/app/api/dashboard/metrics/route.ts` | Simulated metric computations based on request headers `x-role` and `x-entity-id`. | Real aggregation queries against ledger lines for the authenticated session entity. |
-| `apps/api/src/controller.ts` | In-memory `idempotencyCache: Map`, `webhookSubscriptions: []`, `dispatchedWebhooks: []`. | Redis/Postgres for idempotency keys, transactional outbox for webhooks. |
-| `packages/shared-types/src/rls.test.ts` | `MockPostgresSession` simulating RLS with an in-memory JS array. | Real PostgreSQL integration test suite using Testcontainers. |
+| `apps/web/app/api/auth/login/route.ts` | Embedded `SEEDED_USER` object with `email: 'accountant@alnoor.ae'`; plain-text bypass `(password === 'Password@123')`. | Remove `SEEDED_USER` and plain-text check. Query database `users` table; verify password strictly via Argon2id. |
+| `apps/web/app/api/auth/login/route.ts` | Hardcoded JWT fallback `fallback_dev_jwt_secret_min_32_characters_long`. | Fail startup immediately if `JWT_SECRET` is missing or `< 32` bytes. |
+| `apps/web/app/api/auth/verify-2fa/route.ts` | Embedded `SEEDED_USER` object; hardcoded TOTP bypass `code === '123456' \|\| code === '482910'`. | Remove `SEEDED_USER` and OTP bypasses. Decrypt user's TOTP secret with AES-256-GCM; verify RFC 6238 token; verify hashed one-time recovery codes. |
+| `apps/web/app/api/auth/verify-2fa/route.ts` | Hardcoded recovery codes array `['REC-A1B2-C3D4', 'REC-E5F6-G7H8', ...]`. | Store recovery codes hashed (Argon2id or SHA-256) in a `user_recovery_codes` table, marked single-use upon consumption. |
+| `packages/shared-types/src/auth-service.ts` | Zero-pads encryption keys: `keyHex.padEnd(64, '0')`. In-memory `failedAttempts` map. | Validate exact 32-byte key length (64 hex characters) without zero padding. Move rate limiting and lockouts to database/Redis. |
+| `apps/web/src/lib/auth.ts` | Hardcoded JWT fallback: `process.env.JWT_SECRET \|\| 'fallback_dev_...'`. | Enforce `JWT_SECRET` length $\ge 32$ bytes at startup; reject fallbacks. |
+| `apps/web/middleware.ts` | Only executes `next-intl` middleware; does not gate `/[locale]/app/*` routes. | Inspect `ledger_session` cookie; verify cryptographic signature; redirect unauthenticated users to `/[locale]/login`. |
+| Database Schema (`packages/shared-types/migrations/0001_core_ledger.sql`) | Missing `sessions` table for session tracking, rotation, and revocation. | Create `sessions` table (`id`, `user_id`, `tenant_id`, `token_hash`, `expires_at`, `revoked_at`, `ip_address`, `user_agent`). |
 
 ---
 
-### 2.3. Floating-Point Money Leaks (`parseFloat`, `Number(on money)`, `.toFixed`)
-| File | Line(s) | Current Pattern | Production Requirement |
-| :--- | :--- | :--- | :--- |
-| `packages/ledger-core/src/bank-statement-parser.ts` | 47, 48, 157, 170, 242 | `parseFloat(inflowStr) * 100`, `parseFloat(outflowStr) * 100` | Parse decimal strings directly to integer minor units via shared `parseDecimalToMinorUnits(str, decimals)`. |
-| `packages/ledger-core/src/document-intelligence.ts` | 102, 114 | `parseFloat(cleanNum) * 100`, `parseFloat(cleanVat) * 100` | Direct string decimal parsing to `BigInt` minor units without intermediate float representation. |
-| `packages/ledger-core/src/ifrs16-lease.ts` | 73, 84 | `Number(input.monthlyPaymentFils) * discountFactor * 10000` | Exact fixed-point math using scaled integer basis points or rational arithmetic. |
-| `packages/uae-tax-engine/src/wps-sif.ts` | 132, 173, 174, 187, 189 | `parseFloat(headerParts[5])`, `parseFloat(parts[7])`, `.toFixed(2)` | Parse salary amounts as integer fils (`BigInt`); validate exact integer equality. |
-| `packages/ubl-pinta-generator/src/generator.ts` | 193, 196 | `parseFloat(payableMatch[1]) * 100`, `parseFloat(vatMatch[1]) * 100` | Parse XML monetary strings using integer decimal parser. |
-| `apps/web/app/[locale]/app/reports/page.tsx` | 105 | `(Number(l.debitMinorUnits)/100).toFixed(2)` | Use `formatMoney(l.debitMinorUnits, 'AED')` from shared money module. |
+### 2.3. Route Handlers & In-Memory Data Arrays (Database Layer Disconnect)
+| File | In-Memory / Simulated Logic | Production Requirement |
+| :--- | :--- | :--- |
+| `apps/web/app/api/ledger/journals/route.ts` | `let JOURNAL_ENTRIES: JournalEntry[] = [...]`. Direct mutation on POST. | Connect to `LedgerRepository.postJournalEntry()` inside a transaction with `SET LOCAL app.current_tenant_id = $1`. |
+| `apps/web/app/api/ledger/accounts/route.ts` | `const ACCOUNTS: AccountItem[] = [...]`. In-memory array filtering. | Query `chart_of_accounts` table scoped to session `tenant_id` and `entity_id`. |
+| `apps/web/app/api/invoicing/route.ts` | `let INVOICES: InvoiceItem[] = [...]`, `resetInvoicesState()`. | Query `invoices`, `bills`, `invoice_lines`, and `bill_lines` tables via persistence repository. |
+| `apps/web/app/api/banking/reconciliation/route.ts` | `let STATEMENT_LINES`, `let LEDGER_LINES`, `let AI_SUGGESTIONS`, `resetReconciliationState()`. | Query `bank_statements`, `bank_statement_lines`, and real reconciliation records from PostgreSQL. |
+| `apps/web/app/api/close/route.ts` | `let CLOSE_STEPS`, `let AUDIT_LOGS`. | Query `accounting_periods`, `close_steps`, and immutable `audit_logs` table via SQL. |
+| `apps/web/app/api/dashboard/metrics/route.ts` | Mocked financial metrics based on string matching (`entityId.includes('mainland')`). | Execute real SQL aggregation queries across `journal_lines` for cash, AR ageing, and AP ageing. |
+| `apps/web/app/api/reports/route.ts` | Static `REPORT_DATA` object returning hardcoded financial statement numbers. | Compute Trial Balance, P&L, Balance Sheet, and Consolidation dynamically from posted ledger entries. |
+| `apps/web/app/api/tax/vat201/route.ts` | Static `VAT201_DATA` object with pre-populated boxes and hardcoded drill-down rows. | Compute VAT 201 return dynamically using `calculateVat201Return()` from posted ledger lines. |
+| `apps/web/app/api/ai/proposals/route.ts` | `let PROPOSALS: AiProposalItem[] = [...]`, `resetProposalsState()`. | Query and persist to `ai_proposals` table in PostgreSQL. |
+| `apps/web/app/api/test/reset-mock-state/route.ts` | Resets in-memory arrays in invoicing, banking, and proposals route handlers. | Delete test reset route or repurpose to reset isolated test database schema. |
 
 ---
 
-### 2.4. AI Intelligence & Document Extraction
+### 2.4. Persistence & Database Testing (pg-mem vs Real PostgreSQL)
+| File | In-Memory / Simulated Logic | Production Requirement |
+| :--- | :--- | :--- |
+| `packages/shared-types/src/rls.test.ts` | `MockPostgresSession` uses a JavaScript array (`TenantRecord[]`) to simulate RLS. | Run integration tests against real PostgreSQL using Testcontainers or live service container. |
+| `packages/shared-types/src/persistence.test.ts` | Uses `pg-mem` memory database to execute migrations and test RLS. | Execute against real PostgreSQL instance; verify `FORCE ROW LEVEL SECURITY` and non-superuser role. |
+| `packages/ledger-core/src/repository.test.ts` | Uses `pg-mem` with custom function stubs (`gen_random_uuid`, `length`). | Run `LedgerRepository` integration tests against real PostgreSQL; assert append-only triggers. |
+| Database Migrations `0001` to `0004` | Tables have `ENABLE ROW LEVEL SECURITY`, but lack `FORCE ROW LEVEL SECURITY`. | Add `FORCE ROW LEVEL SECURITY` to all tenant-scoped tables so table owners cannot bypass policies. |
+
+---
+
+### 2.5. Durable Workflows, Outbox & MCP Replay Safety
 | File | Current Implementation | Production Requirement |
 | :--- | :--- | :--- |
-| `services/ai-service/main.py` | Hardcoded regex matching: static vendor fallback (`Al Futtaim Group LLC` / `Etisalat UAE`), fixed confidence `0.96`, synthetic single line item generation. | Call Anthropic Claude API (tool use / structured output) with current configured model; unknown fields remain `null`; return explicit extraction tokens and schema validation. |
-| `packages/ledger-core/src/document-intelligence.ts` | Regex heuristics matching vendor names and dates with fallback `'2026-03-01'`. | Replace heuristics with LLM extraction pipeline validated with Zod; prompt evals on labelled dataset. |
-| `packages/ledger-core/src/assistant.ts` | Regex pattern matching for questions like `"what is our cash"` with hardcoded answers. | Query router using typed domain tools (Trial Balance tool, VAT tool, Ageing tool); cite source entry IDs; vector RAG for policy docs. |
+| `packages/ledger-core/src/agent-runtime.ts` | Uses `memoryFallback: Map<UUID, AgentWorkflowRun>` when database client is omitted. | Remove memory fallback; orchestrate all accounting workflows via Temporal SDK. |
+| `packages/ledger-core/src/outbox.ts` | In-memory event array simulation for webhook dispatches. | Persist outbox events to `outbox_events`; dispatch with HMAC-SHA256 signatures and database DLQ. |
+| `packages/mcp-server/src/auth-tokens.ts` | Stores burned nonces in an in-memory `Set` (`burnedNonces: Set<string>`). | Store consumed approval nonces in a database table with a `UNIQUE(nonce)` constraint. |
+| `packages/mcp-server/src/auth-tokens.ts` | Hardcoded secret fallback `ledger_ae_mcp_hmac_signing_secret_998877`. | Require `MCP_SIGNING_SECRET` from environment; fail closed if missing or $< 32$ bytes. |
 
 ---
 
-### 2.5. Workflows, Integrations & Disaster Recovery Simulations
+### 2.6. AI Engine, Document Intelligence & Evals
 | File | Current Implementation | Production Requirement |
 | :--- | :--- | :--- |
-| `packages/ledger-core/src/agent-runtime.ts` | In-memory loop with simulated crash recovery flag (`shouldSimulateCrash`). | Real Temporal SDK workflow definitions, activity definitions, durable timers, and retry policies. |
-| `packages/ledger-core/src/bank-feed-aggregator.ts` | `mockAccounts` and `mockTransactions` arrays. Dummy HMAC check: `signature.length > 0 && secret.length > 0`. | Real bank aggregator sandbox client (e.g., Lean / Tarabut); real HMAC SHA-256 signature verification. |
-| `packages/ubl-pinta-generator/src/asp-adapter.ts` | `SandboxAspAdapter` with in-memory clearance reference generator `FTA-CLEARANCE-UUID-...` and `simulateNetworkFailure` boolean flag. | Real accredited service provider (ASP) sandbox client contract. |
-| `packages/ledger-core/src/security-hardening.ts` | `DisasterRecoveryEngine.runSimulatedRestoreDrill` computing arithmetic difference between mock timestamps. | Real automated backup and restore script with actual PostgreSQL dump/WAL replay drill. |
+| `packages/ledger-core/src/document-intelligence.ts` | Regex heuristics and hardcoded fallback date `'2026-03-01'`. | Call Claude 3.5 Sonnet with Zod structured output; leave unrecognized fields `null` for human review. |
+| `packages/ledger-core/src/assistant.ts` | Keyword matching (`what is our cash`) with pre-canned answers. | Route questions to typed domain tools with cited ledger voucher IDs; log tokens and cost to `ai_action_logs`. |
+| CI Pipeline (`.github/workflows/ci.yml`) | No automated AI accuracy evaluation suite in CI. | Commit a labelled bilingual dataset (25+ UAE invoices); run CI eval asserting accuracy thresholds. |
 
 ---
 
-### 2.6. Documentation & Regulatory Claims Hygiene
-| File | Inaccurate Claim / Tone | Correction Required |
+### 2.7. Integrations (E-Invoicing & Open Banking)
+| File | Current Implementation | Production Requirement |
 | :--- | :--- | :--- |
-| `README.md` (lines 5, 94-106) | "Security Standard: OWASP ASVS Level 2, SOC 2 Type II / ISO 27001 Ready", "reviewed by tax advisor", "ASVS audit checklist signed off". | Reframe accurately: "Designed for OWASP ASVS Level 2 principles; regulatory rules mapped to official UAE legislation (VERIFY WITH UAE TAX ADVISOR before official filing); pilot prototype ready for staging hardening." |
-| `docs/ga-release-pilot-checklist.md` | "Lead Auditor / Principal Architect: Antigravity Principal Engineering & UAE Tax Advisory Practice", checks marked `[x]` as GA verified. | Explicitly note this as a release template checklist, not an external third-party audit certification. |
-| `docs/open-questions.md` | Lists open regulatory and vendor questions. | Maintain as active source of truth; link every unresolved edge case to test suites. |
+| `packages/ubl-pinta-generator/src/asp-adapter.ts` | `SandboxAspAdapter` uses simulated random IDs (`FTA-CLEARANCE-UUID-...`) and in-memory delay. | Record an ADR selecting an accredited service provider; implement real contract tests against sandbox. |
+| `packages/ledger-core/src/bank-feed-aggregator.ts` | `LeanSandboxAggregatorAdapter` uses static in-memory accounts array. | Record an ADR selecting a UAE Open Banking provider; implement contract tests against real sandbox endpoints. |
 
 ---
 
-## 3. Architecture Decision Records (ADRs) to Establish
-
-1. **ADR 0017: Single Backend Architecture (Next.js Route Handlers vs NestJS)**
-   - **Decision**: Designate **Next.js Route Handlers (`apps/web/app/api/*`)** as the single unified backend for LedgerAE.
-   - **Rationale**: Next.js App Router already hosts all 9 localized screens and 12 API route handlers. Decommission and remove `apps/api` (the 3-file NestJS skeleton). All Next.js route handlers will delegate directly to shared domain packages (`packages/ledger-core`, `packages/uae-tax-engine`, `packages/persistence`).
-2. **ADR 0018: Strict Integer Minor Units & Zero-Float Invariant**
-   - Centralize decimal parsing in `packages/ledger-core/src/money.ts` (`parseDecimalToMinorUnits`).
-   - Introduce custom ESLint rule banning `parseFloat`, `Number(`, and `.toFixed` on monetary variables.
-3. **ADR 0019: Persistence & Multi-Tenant Row Level Security Architecture**
-   - Use Kysely / Drizzle with PostgreSQL 16+.
-   - Every connection executes `SET LOCAL app.current_tenant_id = $1` within a transaction before querying.
-   - Non-superuser role with `FORCE ROW LEVEL SECURITY`.
-4. **ADR 0020: AI Document Extraction and Agent Architecture**
-   - Sunset the Python FastAPI stub in favor of TypeScript Anthropic Claude SDK with tool calling, Zod structured outputs, and pgvector for document embeddings.
+### 2.8. Regulatory Claims & Operational Transparency
+| File | Unverified Statement | Honest Correction Required |
+| :--- | :--- | :--- |
+| `docs/ga-release-pilot-checklist.md` | Marked `[x]` for all milestones with claims of ASVS audit signoff. | Explicitly label as "Target Architecture & Pilot Readiness Checklist"; clarify that third-party audit and pen-testing have not yet occurred. |
+| `README.md` | Claims "SOC 2 Type II controls" and "ASVS Level 2 verified". | Rephrase honestly: "Architecture designed to meet OWASP ASVS Level 2 principles; formal audit and certification pending external engagement." |
+| Tax Engine Notices | Rule implementations require statutory disclaimer. | Ensure all statutory outputs (VAT 201, CT201, WPS SIF, EOSG) consistently display `"VERIFY WITH UAE TAX ADVISOR"`. |
 
 ---
 
-## 4. Phase-by-Phase Production Roadmap
+## 3. Phased Production Transformation Roadmap
 
-### Phase 0: Truth, Hygiene & CI Pipeline
-- **Scope**:
-  - Remove all committed `.tsbuildinfo` and `.pyc` files.
-  - Update `.gitignore` to prevent any build cache, bytecode, or local artifacts from entering git.
-  - Correct `README.md` to truthfully reflect prototype vs production state, removing premature claims of external audits or certifications.
-  - Add `.env.example` defining all required configuration variables.
-  - Update `docker-compose.yml` to consume environment variables instead of hardcoded passwords.
-  - Add GitHub Actions CI workflow (`.github/workflows/ci.yml`) covering: install, build, typecheck, lint, unit tests, Playwright E2E, secret scanning (TruffleHog/GitLeaks), and dependency audit (`npm audit`).
-- **Definition of Done (DoD)**:
-  - Clean git status with no tracked `.tsbuildinfo` or `.pyc`.
-  - CI workflow file passes local lint/syntax checks.
-  - `npm run build`, `npm run typecheck`, `npm test` execute with 0 errors.
+The roadmap will proceed strictly one phase at a time. Each phase has an explicit Definition of Done (DoD). Work on the next phase will only commence after running clean-checkout builds, typechecks, linters, tests, and receiving user approval:
 
-### Phase 1: Persistence & Multi-Tenant Database Layer
-- **Scope**:
-  - Build migration pipeline (PostgreSQL 16) extending `schema.sql`: tenants, entities, users, accounts, books, periods, journals, lines, audit logs, invoices, bills, vendors, customers, payments, bank statements, bank lines, reconciliations, VAT returns, e-invoices, ASP messages, AI proposals, AI action logs, workflow runs, fixed assets, leases, contracts, rev-rec schedules, payroll, documents, and outbox events.
-  - Implement repository layer in `packages/persistence`.
-  - Enforce `SET LOCAL app.current_tenant_id = :tenantId` with `FORCE ROW LEVEL SECURITY`.
-  - Connect application via non-superuser database role.
-- **Definition of Done (DoD)**:
-  - Cross-tenant isolation integration tests pass against a real PostgreSQL instance (via Testcontainers or local Postgres).
-  - All module-level data stores (`let INVOICES`, `let JOURNAL_ENTRIES`, etc.) replaced by repository queries.
-
-### Phase 2: Authentication, Sessions & RBAC
-- **Scope**:
-  - Implement real user authentication with `argon2id` password hashing.
-  - Implement RFC 6238 TOTP with encrypted secrets (AES-256-GCM) and one-time recovery codes.
-  - Implement signed JWT sessions or database session store with rotation, expiration, and revocation.
-  - Add rate limiting and account lockout after repeated failed attempts.
-  - Implement `withAuth(permission)` wrapper and middleware on EVERY route handler; tenant and entity context extracted exclusively from the validated session.
-  - Remove hardcoded credentials (`accountant@alnoor.ae`, `Password@123`, `123456`).
-- **Definition of Done (DoD)**:
-  - Unauthenticated, expired, or cross-tenant requests return 401/403.
-  - RBAC and segregation-of-duties tests pass (e.g. Creator cannot Approve own journal).
-
-### Phase 3: Single Source of Truth & Route Rewiring
-- **Scope**:
-  - Retire and delete `apps/api`.
-  - Rewire every Next.js route handler to call shared domain services and database repositories.
-  - Journal postings strictly enforce `validateLedgerInvariants`, period locks, append-only triggers, and SHA-256 hash chains.
-  - Form VAT 201 generated dynamically from ledger lines via `calculateVat201Return`, retaining voucher drill-down lineage.
-- **Definition of Done (DoD)**:
-  - UI numbers match ledger-core outputs in integration tests with 0 fils variance.
-  - No static dummy data remaining in any API handler.
-
-### Phase 4: Zero-Float Money Architecture & Lint Guardrails
-- **Scope**:
-  - Implement `parseDecimalToMinorUnits(value: string, decimals: number): bigint` in `packages/ledger-core/src/money.ts`.
-  - Eliminate all `parseFloat`, `Number(money)`, and `.toFixed` from `bank-statement-parser.ts`, `document-intelligence.ts`, `ifrs16-lease.ts`, `wps-sif.ts`, `ubl-pinta-generator`, and web CSV export.
-  - Implement fast-check property tests for round-trip parsing, formatting, and Banker's Rounding across arbitrary decimal inputs.
-  - Add an ESLint rule / script banning floating-point money operations across the monorepo.
-- **Definition of Done (DoD)**:
-  - 10,000-iteration property tests pass.
-  - ESLint money rule passes on all packages.
-
-### Phase 5: Real AI & Document Intelligence
-- **Scope**:
-  - Replace regex extraction with Anthropic Claude SDK (tool use / structured output via Zod).
-  - Model IDs parameterized via environment configuration.
-  - Unknown or ambiguous fields remain `null` and route to human review inbox.
-  - Implement eval suite on a labelled bilingual UAE dataset (25+ invoices) verifying accuracy thresholds in CI.
-  - Implement Accounting Assistant with typed read-only domain tools and cited ledger voucher IDs.
-  - Add pgvector embeddings for contract and guidance RAG.
-  - Retire `services/ai-service` via ADR 0020.
-- **Definition of Done (DoD)**:
-  - AI extraction tests pass with zero numerical hallucination; unknown fields route to approval.
-  - All AI token usages and costs logged to `ai_action_logs`.
-
-### Phase 6: Durable Workflows & Outbox
-- **Scope**:
-  - Implement Temporal workflows for month-end close checklist, recurring accruals, e-invoice ASP retries, and bank feed sync.
-  - Replace in-memory `agent-runtime.ts` with Temporal workers and activities.
-  - Implement transactional outbox pattern in PostgreSQL for event delivery and webhooks.
-  - Deliver webhooks with HMAC-SHA256 signatures, exponential backoff, and dead-letter queues.
-- **Definition of Done (DoD)**:
-  - Temporal workflows recover state across worker restarts without duplicate ledger side effects.
-  - Outbox dispatch tests verify at-least-once delivery with idempotency.
-
-### Phase 7: Real Integrations & Contract Tests
-- **Scope**:
-  - Accredited Service Provider (ASP) integration with real sandbox credentials for UAE Peppol PINT-AE.
-  - Open Banking aggregator integration (Lean Technologies / Tarabut Gateway sandbox).
-  - Stripe integration for billing and card payments.
-  - Strict contract tests with recorded network fixtures (MSW / VCR).
-- **Definition of Done (DoD)**:
-  - Sandbox contract tests pass against real external API specifications.
-  - Network timeouts and error codes handled gracefully with circuit breakers.
-
-### Phase 8: Hardened Model Context Protocol (MCP) Server
-- **Scope**:
-  - Adopt official `@modelcontextprotocol/sdk`.
-  - Scoped API tokens and OAuth client credentials.
-  - Write tools create unposted proposals only; posting requires a server-issued, cryptographically signed, single-use, expiring approval token recorded in the audit log.
-  - Remove all prefix-string token checks (`CFO_APPROVED_*`).
-- **Definition of Done (DoD)**:
-  - Unauthorized or forged approval tokens are rejected.
-  - Audit log captures full MCP session, tool inputs, and authorizer identity.
-
-### Phase 9: Complete Feature Modules & UI Polish
-- **Scope**:
-  - Bills & Vendors, Customers & Payments, 3-Tier Approvals.
-  - Multi-Entity Consolidation & Multi-Book reporting with saved views and Excel/PDF export.
-  - Fixed Assets, IFRS 15, and IFRS 16 screens.
-  - Payroll & Central Bank WPS SIF generation/validation.
-  - E-Invoice status and failure queue.
-  - Audit log viewer and RBAC settings.
-  - Onboarding migration wizard (Zoho Books / QuickBooks / Tally XML import).
-  - Auditor read-only workspace, ops console, and sandbox tenants.
-- **Definition of Done (DoD)**:
-  - All 9 UI screens and new modules fully functional against real database.
-  - Playwright E2E passes in both English and Arabic RTL.
-
-### Phase 10: Production Readiness, Infrastructure & Operations
-- **Scope**:
-  - Production multi-stage Dockerfiles for web, workers, and migration runner.
-  - Terraform for UAE region (`me-central-1`) and Kubernetes manifests.
-  - Secrets management (AWS Secrets Manager / Vault).
-  - OpenTelemetry tracing and Sentry error monitoring.
-  - Automated PostgreSQL backup and verifiable PITR restore drill script.
-  - Performance load test: 1M ledger lines in PostgreSQL reporting actual p95 trial balance latency.
-  - WCAG 2.1 AA accessibility audit and external penetration testing checklist.
-- **Definition of Done (DoD)**:
-  - Clean container builds and reproducible local deployment via Docker Compose.
-  - Actual restore drill executed and logged.
-  - 1M line trial balance p95 under 3.0 seconds.
+- **Phase A**: Clean Build & CI Pipeline (Un-ignore `apps/web/src/lib/auth.ts`, ordered monorepo build, fresh clone CI job).
+- **Phase B**: Real Authentication (Argon2id, RFC 6238 TOTP, sessions table, middleware protection, zero credential fallbacks).
+- **Phase C**: Wire the Database (Eliminate in-memory route arrays, RLS via `SET LOCAL app.current_tenant_id`, testcontainers for real Postgres).
+- **Phase D**: Durable Workflows & Replay Safety (Temporal workflows, transactional outbox, database-backed MCP nonces).
+- **Phase E**: Real AI End-to-End (Claude tool calling, prompt evals on labelled dataset, `ai_action_logs` telemetry).
+- **Phase F**: Integrations & Sandboxes (Official Peppol ASP and Open Banking contracts, integer Stripe billing).
+- **Phase G**: Feature Completion (Full UI + API + Playwright E2E across all modules in English and Arabic).
+- **Phase H**: Production Proof & Audit (Real PITR restore drill on managed Postgres, 1M line p95 benchmark, honest README).

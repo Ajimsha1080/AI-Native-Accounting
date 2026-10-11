@@ -147,3 +147,40 @@ jobs:
       - name: Execute 1,000,000 Lines Trial Balance Latency Benchmark
         run: node --max-old-space-size=4096 scripts/perf/trial-balance-1m-benchmark.mjs
 
+  clean-checkout-verification:
+    name: Clean Checkout Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fresh Clean Checkout
+        uses: actions/checkout@v4
+        with:
+          clean: true
+
+      - name: Verify withAuth is tracked in git
+        run: |
+          test -f apps/web/src/lib/auth.ts || (echo "FATAL: apps/web/src/lib/auth.ts is not tracked in git!" && exit 1)
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fresh Clean Install
+        run: npm ci
+
+      - name: Topological Monorepo Build (First Run)
+        run: npm run build
+
+      - name: Monorepo Typecheck
+        run: npm run typecheck
+
+      - name: Zero-Float Money & Linter Check
+        run: npm run lint
+
+      - name: Monorepo Unit & Integration Test Suite
+        run: npm test
+
+      - name: Next.js Production Build
+        run: npm run build -w @ledger-ae/web
+
+
