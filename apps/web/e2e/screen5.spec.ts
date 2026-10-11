@@ -21,10 +21,10 @@ test.describe('Screen 5: VAT 201 Return View with Drill-down from Every Box to S
     await expect(page.locator('text=Box 1a')).toBeVisible();
     await expect(page.locator('text=Box 1b')).toBeVisible();
     await expect(page.locator('text=Box 9')).toBeVisible();
-    await expect(page.locator('text=Box 14')).toBeVisible();
+    await expect(page.locator('text=Box 14').first()).toBeVisible();
 
     // 4. Verify Net FTA Liability
-    await expect(page.locator('text=AED 342,500.00')).toBeVisible();
+    await expect(page.locator('text=AED 342,500.00').first()).toBeVisible();
 
     // 5. Open Drill-Down Modal on Box 1b (Dubai Sales)
     const inspectBtn1b = page.locator('tr:has-text("Box 1b") button:has-text("Inspect")');

@@ -34,7 +34,7 @@ export interface AiMatchSuggestion {
   varianceFils: string;
 }
 
-let STATEMENT_LINES: BankStatementLine[] = [
+const INITIAL_STATEMENT_LINES: BankStatementLine[] = [
   {
     id: 'stmt-001',
     date: '2026-01-15',
@@ -65,7 +65,7 @@ let STATEMENT_LINES: BankStatementLine[] = [
   }
 ];
 
-let LEDGER_LINES: LedgerTransactionLine[] = [
+const INITIAL_LEDGER_LINES: LedgerTransactionLine[] = [
   {
     id: 'ledg-001',
     voucherNumber: 'JV-2026-0001',
@@ -95,7 +95,7 @@ let LEDGER_LINES: LedgerTransactionLine[] = [
   }
 ];
 
-let AI_SUGGESTIONS: AiMatchSuggestion[] = [
+const INITIAL_AI_SUGGESTIONS: AiMatchSuggestion[] = [
   {
     id: 'sugg-001',
     statementLineId: 'stmt-001',
@@ -118,7 +118,22 @@ let AI_SUGGESTIONS: AiMatchSuggestion[] = [
   }
 ];
 
-export const GET = withAuth(Permission.BANK_RECONCILE)(async (_req: NextRequest, _ctx) => {
+let STATEMENT_LINES: BankStatementLine[] = JSON.parse(JSON.stringify(INITIAL_STATEMENT_LINES));
+let LEDGER_LINES: LedgerTransactionLine[] = JSON.parse(JSON.stringify(INITIAL_LEDGER_LINES));
+let AI_SUGGESTIONS: AiMatchSuggestion[] = JSON.parse(JSON.stringify(INITIAL_AI_SUGGESTIONS));
+
+export function resetReconciliationState() {
+  STATEMENT_LINES = JSON.parse(JSON.stringify(INITIAL_STATEMENT_LINES));
+  LEDGER_LINES = JSON.parse(JSON.stringify(INITIAL_LEDGER_LINES));
+  AI_SUGGESTIONS = JSON.parse(JSON.stringify(INITIAL_AI_SUGGESTIONS));
+}
+
+export const GET = withAuth(Permission.BANK_RECONCILE)(async (req: NextRequest, _ctx) => {
+  const { searchParams } = new URL(req.url);
+  const reset = searchParams.get('reset');
+  if (reset === 'true' || reset === '1') {
+    resetReconciliationState();
+  }
   const bankBalanceMinorUnits = STATEMENT_LINES.reduce((acc, l) => acc + BigInt(l.amountMinorUnits), 1240000000n);
   const ledgerBalanceMinorUnits = LEDGER_LINES.reduce((acc, l) => acc + BigInt(l.amountMinorUnits), 1240000000n);
   const differenceMinorUnits = bankBalanceMinorUnits - ledgerBalanceMinorUnits;

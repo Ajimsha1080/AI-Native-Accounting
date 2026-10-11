@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Screen 4: Invoices & Vendor Bills (List, Detail, PDF Preview en/ar, Approvals)', () => {
+  test.beforeEach(async ({ request }) => {
+    await request.get('/api/test/reset-mock-state');
+  });
+
   test('Inspect invoices & bills list, select document, check bilingual preview, and approve pending bill', async ({ page }) => {
     // 1. Authenticate to app
     await page.goto('/en/login');
@@ -18,14 +22,14 @@ test.describe('Screen 4: Invoices & Vendor Bills (List, Detail, PDF Preview en/a
     await expect(page.locator('h1')).toContainText(/Invoices & Vendor Bills/i);
 
     // 3. Verify Table Rows
-    await expect(page.locator('text=INV-2026-0101')).toBeVisible();
-    await expect(page.locator('text=Emaar Properties PJSC')).toBeVisible();
-    await expect(page.locator('text=AED 525,000.00')).toBeVisible();
+    await expect(page.locator('text=INV-2026-0101').first()).toBeVisible();
+    await expect(page.locator('text=Emaar Properties PJSC').first()).toBeVisible();
+    await expect(page.locator('text=AED 525,000.00').first()).toBeVisible();
 
     // 4. Verify Bilingual Document Preview
     await expect(page.locator('text=Official UAE Tax Document (en / ar)')).toBeVisible();
-    await expect(page.locator('text=Al-Noor Trading LLC')).toBeVisible();
-    await expect(page.locator('text=100456789012345')).toBeVisible();
+    await expect(page.locator('strong:has-text("Al-Noor Trading LLC")')).toBeVisible();
+    await expect(page.locator('text=100456789012345').first()).toBeVisible();
 
     // 5. Filter by Vendor Bills
     await page.click('button:has-text("Vendor Bills")');
@@ -34,7 +38,7 @@ test.describe('Screen 4: Invoices & Vendor Bills (List, Detail, PDF Preview en/a
 
     // 6. Select Pending Bill and Approve
     await page.click('text=BILL-2026-5502');
-    await expect(page.locator('text=Cisco Systems Gulf FZ-LLC')).toBeVisible();
+    await expect(page.locator('text=Cisco Systems Gulf FZ-LLC').first()).toBeVisible();
     await expect(page.locator('text=Approve & Clear')).toBeVisible();
 
     await page.click('button:has-text("Approve & Clear")');

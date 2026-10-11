@@ -30,7 +30,7 @@ export interface AiProposalItem {
   };
 }
 
-let PROPOSALS: AiProposalItem[] = [
+const INITIAL_PROPOSALS: AiProposalItem[] = [
   {
     id: 'prop-001',
     titleEn: 'Auto-Match Emirates NBD Inward Wire to Invoice INV-2026-0042',
@@ -106,7 +106,18 @@ let PROPOSALS: AiProposalItem[] = [
   }
 ];
 
-export const GET = withAuth(Permission.LEDGER_READ)(async (_req: NextRequest, _ctx) => {
+let PROPOSALS: AiProposalItem[] = JSON.parse(JSON.stringify(INITIAL_PROPOSALS));
+
+export function resetProposalsState() {
+  PROPOSALS = JSON.parse(JSON.stringify(INITIAL_PROPOSALS));
+}
+
+export const GET = withAuth(Permission.LEDGER_READ)(async (req: NextRequest, _ctx) => {
+  const { searchParams } = new URL(req.url);
+  const reset = searchParams.get('reset');
+  if (reset === 'true' || reset === '1') {
+    resetProposalsState();
+  }
   const pendingCount = PROPOSALS.filter((p) => p.status === 'PENDING_REVIEW').length;
   const totalTokensConsumed = PROPOSALS.reduce((acc, p) => acc + p.costMetrics.totalTokens, 0);
 

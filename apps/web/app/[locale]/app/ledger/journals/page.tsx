@@ -321,6 +321,14 @@ function JournalsView({ params }: { params: Promise<{ locale: string }> }) {
         </button>
       </div>
 
+      {/* Global Success Notification */}
+      {formSuccess && (
+        <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <span>{formSuccess}</span>
+        </div>
+      )}
+
       {/* Voucher Entry Form (Draft, Validate, Post) */}
       {isCreating && (
         <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-5">
@@ -345,12 +353,7 @@ function JournalsView({ params }: { params: Promise<{ locale: string }> }) {
             </div>
           )}
 
-          {formSuccess && (
-            <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
-              <span>{formSuccess}</span>
-            </div>
-          )}
+
 
           {/* Form Header Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

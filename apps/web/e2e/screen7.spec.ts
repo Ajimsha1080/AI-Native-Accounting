@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Screen 7: AI Proposals Inbox (Approve/Reject, Source, Logic, and Cost)', () => {
+  test.beforeEach(async ({ request }) => {
+    await request.get('/api/test/reset-mock-state');
+  });
+
   test('Inspect proposals, verify statutory basis and token telemetry, approve proposal, and verify Arabic RTL', async ({ page }) => {
     // 1. Authenticate to app
     await page.goto('/en/login');
@@ -19,14 +23,14 @@ test.describe('Screen 7: AI Proposals Inbox (Approve/Reject, Source, Logic, and 
 
     // 3. Verify Telemetry Header & Feed
     await expect(page.locator('text=Tokens Ingested')).toBeVisible();
-    await expect(page.locator('text=Auto-Match Emirates NBD Inward Wire')).toBeVisible();
-    await expect(page.locator('text=98%')).toBeVisible();
+    await expect(page.locator('text=Auto-Match Emirates NBD Inward Wire').first()).toBeVisible();
+    await expect(page.locator('text=98%').first()).toBeVisible();
 
     // 4. Verify Inspection Panel Details
     await expect(page.locator('text=UAE STATUTORY LEGAL BASIS & DECREE-LAW')).toBeVisible();
     await expect(page.locator('text=EXPLAINABLE REASONING & LOGIC')).toBeVisible();
     await expect(page.locator('text=PROPOSED DOUBLE-ENTRY JOURNAL VOUCHER')).toBeVisible();
-    await expect(page.locator('text=AED 142,500.00')).toBeVisible();
+    await expect(page.locator('text=AED 142,500.00').first()).toBeVisible();
     await expect(page.locator('text=Latency:')).toBeVisible();
 
     // 5. Approve Proposal

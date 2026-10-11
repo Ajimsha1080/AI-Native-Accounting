@@ -3,6 +3,13 @@ import { NextIntlClientProvider } from 'next-intl';
 import { ReactNode } from 'react';
 import '../globals.css';
 
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'LedgerAE - UAE Enterprise Financial Platform',
+  description: 'AI-Native Enterprise Financial Management for UAE Groups'
+};
+
 const locales = ['en', 'ar'];
 
 export function generateStaticParams() {

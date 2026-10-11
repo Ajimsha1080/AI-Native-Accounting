@@ -176,7 +176,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                 <div className="text-lg font-black text-white mt-1">
                   {formatMinorUnits(BigInt(data.ledgerBalanceMinorUnits), { locale })}
                 </div>
-                <span className="text-[10px] text-slate-500">Account 1020 (Emirates NBD)</span>
+                <span className="text-[10px] text-slate-500 font-medium">{data.accountName}</span>
               </div>
 
               <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">

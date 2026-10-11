@@ -36,7 +36,7 @@ test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL',
     const entitySelector = page.locator('select').nth(1);
     await expect(entitySelector).toBeVisible();
     await entitySelector.selectOption('ent-mainland');
-    await expect(page.locator('text=Al-Noor Trading LLC (Dubai Mainland)')).toBeVisible();
+    await expect(page.locator('aside').getByText('Al-Noor Trading LLC (Dubai Mainland)')).toBeVisible();
 
     // 8. Verify Language Switch to Arabic toggles RTL and Arabic Typography
     const langBtn = page.locator('a[aria-label="التحويل إلى العربية"]');
@@ -46,6 +46,6 @@ test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL',
     const htmlElement = page.locator('html');
     await expect(htmlElement).toHaveAttribute('dir', 'rtl');
     await expect(htmlElement).toHaveAttribute('lang', 'ar');
-    await expect(page.locator('h1')).toContainText(/لوحة التحكم/i);
+    await expect(page.locator('h1')).toContainText(/لوحة القيادة/i);
   });
 });

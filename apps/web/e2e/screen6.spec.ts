@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Screen 6: Bank Reconciliation (Statement vs Ledger, Match, AI Explanations and Confidence)', () => {
+  test.beforeEach(async ({ request }) => {
+    await request.get('/api/test/reset-mock-state');
+  });
+
   test('Inspect bank feed vs ledger, review AI match explanations, and accept match', async ({ page }) => {
     // 1. Authenticate to app
     await page.goto('/en/login');
@@ -25,7 +29,7 @@ test.describe('Screen 6: Bank Reconciliation (Statement vs Ledger, Match, AI Exp
     // 4. Verify AI Match Assistant Suggestions
     await expect(page.locator('text=AI Reconciliation Agent')).toBeVisible();
     await expect(page.locator('text=99% Match')).toBeVisible();
-    await expect(page.locator('text=Al-Futtaim Group')).toBeVisible();
+    await expect(page.locator('text=Al-Futtaim Group').first()).toBeVisible();
 
     // 5. Accept AI Match Suggestion
     const acceptBtn = page.locator('button:has-text("Accept & Match Entry")').first();

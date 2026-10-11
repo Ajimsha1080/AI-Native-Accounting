@@ -39,34 +39,34 @@ export const GET = withAuth(Permission.LEDGER_READ)(
           { name: 'ADCB - Treasury & Tax (AED)', iban: 'AE550260000009876543210', minorUnits: (cashMinorUnits * 35n / 100n).toString() }
         ]
       },
-      receivables: {
+      arAgeing: {
         totalMinorUnits: arTotalMinorUnits.toString(),
-        buckets: {
-          current: (arTotalMinorUnits * 50n / 100n).toString(),
-          days30: (arTotalMinorUnits * 25n / 100n).toString(),
-          days60: (arTotalMinorUnits * 15n / 100n).toString(),
-          days90Plus: (arTotalMinorUnits * 10n / 100n).toString()
-        }
+        current_0_30: (arTotalMinorUnits * 50n / 100n).toString(),
+        past_31_60: (arTotalMinorUnits * 25n / 100n).toString(),
+        past_61_90: (arTotalMinorUnits * 15n / 100n).toString(),
+        over_90: (arTotalMinorUnits * 10n / 100n).toString()
       },
-      payables: {
+      apAgeing: {
         totalMinorUnits: apTotalMinorUnits.toString(),
-        buckets: {
-          current: (apTotalMinorUnits * 60n / 100n).toString(),
-          days30: (apTotalMinorUnits * 20n / 100n).toString(),
-          days60: (apTotalMinorUnits * 12n / 100n).toString(),
-          days90Plus: (apTotalMinorUnits * 8n / 100n).toString()
-        }
+        current_0_30: (apTotalMinorUnits * 60n / 100n).toString(),
+        past_31_60: (apTotalMinorUnits * 20n / 100n).toString(),
+        past_61_90: (apTotalMinorUnits * 12n / 100n).toString(),
+        over_90: (apTotalMinorUnits * 8n / 100n).toString()
       },
       vatLiability: {
-        minorUnits: vatLiabilityMinorUnits.toString(),
+        netPayableMinorUnits: vatLiabilityMinorUnits.toString(),
+        outputVatMinorUnits: (vatLiabilityMinorUnits * 150n / 100n).toString(),
+        inputVatRecoverableMinorUnits: (vatLiabilityMinorUnits * 50n / 100n).toString(),
         period: '2026-Q1',
         dueDate: '2026-04-28',
+        formBoxStatus: 'BOX_1_TO_14_READY',
         isDesignatedZone: isJAFZA
       },
-      closeProgress: {
+      closeStatus: {
         totalSteps: 12,
         completedSteps: 8,
-        status: 'IN_PROGRESS',
+        period: 'FY2026-P01',
+        daysRemaining: 4,
         checklist: [
           { step: 1, name: 'Bank Statement Feeds Reconciled', status: 'COMPLETED' },
           { step: 2, name: 'Accounts Payable 3-Way Match Verified', status: 'COMPLETED' },

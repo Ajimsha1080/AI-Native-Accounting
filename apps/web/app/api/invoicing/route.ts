@@ -31,7 +31,7 @@ export interface InvoiceItem {
   }>;
 }
 
-let INVOICES: InvoiceItem[] = [
+const INITIAL_INVOICES: InvoiceItem[] = [
   {
     id: 'inv-2026-001',
     type: 'SALES_INVOICE',
@@ -150,10 +150,21 @@ let INVOICES: InvoiceItem[] = [
   }
 ];
 
+let INVOICES: InvoiceItem[] = JSON.parse(JSON.stringify(INITIAL_INVOICES));
+
+export function resetInvoicesState() {
+  INVOICES = JSON.parse(JSON.stringify(INITIAL_INVOICES));
+}
+
 export const GET = withAuth(Permission.LEDGER_READ)(async (request: NextRequest, _ctx) => {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get('type');
   const id = searchParams.get('id');
+  const reset = searchParams.get('reset');
+
+  if (reset === 'true' || reset === '1') {
+    resetInvoicesState();
+  }
 
   if (id) {
     const found = INVOICES.find((i) => i.id === id);
