@@ -9,10 +9,12 @@
     "test": "node --test dist/**/*.test.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@ledger-ae/shared-types": "*",
     "@ledger-ae/uae-tax-engine": "*",
     "@types/pg": "^8.23.1",
-    "pg": "^8.23.1"
+    "pg": "^8.23.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",

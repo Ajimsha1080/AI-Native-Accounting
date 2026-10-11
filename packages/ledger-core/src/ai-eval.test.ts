@@ -5,6 +5,9 @@ import {
   ExtractedInvoiceDocument
 } from './document-intelligence.js';
 import {
+  ClaudeDocumentIntelligenceService
+} from './claude-ai-service.js';
+import {
   AccountingAssistantService,
   QueryCitation
 } from './assistant.js';
@@ -206,6 +209,31 @@ VAT 5%: AED 1,500.00`,
       assert.equal(trnAccuracy, 100, `TRN Accuracy ${trnAccuracy}% must be 100%`);
       assert.ok(amountAccuracy >= 95, `Amount Accuracy ${amountAccuracy}% must be >= 95%`);
       assert.ok(vatCodingAccuracy >= 95, `VAT Coding Accuracy ${vatCodingAccuracy}% must be >= 95%`);
+    });
+
+    test('Claude Document Intelligence Service validates structured Zod output across benchmark', async () => {
+      const claudeService = new ClaudeDocumentIntelligenceService();
+
+      for (const sample of LABELLED_EVAL_DATASET) {
+        const res = await claudeService.extractInvoiceFromText(sample.id, sample.rawText);
+
+        assert.equal(res.documentId, sample.id);
+        assert.ok(res.totalFils > 0n);
+        assert.equal(res.totalFils, sample.expectedTotalFils);
+        assert.ok(res.confidenceScore > 0 && res.confidenceScore <= 1.0);
+        assert.ok(typeof res.isMathValid === 'boolean');
+        assert.ok(typeof res.isTrnValid === 'boolean');
+
+        if (sample.expectedTrn) {
+          assert.equal(res.vendorTrn, sample.expectedTrn);
+          assert.equal(res.isTrnValid, true);
+        } else {
+          assert.equal(res.vendorTrn, null);
+        }
+
+        assert.ok(res.lines.length > 0);
+        assert.equal(res.lines[0].proposedTaxCode, sample.expectedVatCode);
+      }
     });
   });
 

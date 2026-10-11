@@ -27,6 +27,7 @@ export * from './agent-runtime.js';
 export * from './ifrs16-lease.js';
 export * from './security-hardening.js';
 export * from './repository.js';
+export * from './claude-ai-service.js';
 
 
 
