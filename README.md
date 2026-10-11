@@ -40,12 +40,50 @@ npm test
 - `@ledger-ae/api`: 5 tests (REST endpoints, idempotency replay, HMAC SHA-256 webhooks, ASP clearance).
 - `@ledger-ae/web`: 3 tests (bilingual Arabic RTL localization, AED currency formatting).
 
-### Step 3: Run Document Intelligence Service
+### Step 3: Run Next.js 9-Screen Production Web ERP
+```bash
+# Starts Next.js production server on port 3005
+npm run start -w @ledger-ae/web
+```
+- Web Application: **[http://localhost:3005](http://localhost:3005)**
+- Supported Locales: English (`/en/...`) & Arabic with Native RTL (`/ar/...`)
+- Test Credentials: `al-noor-group` / `accountant@alnoor.ae` / `Password@123` / TOTP: `123456`
+
+### Step 4: Run Playwright E2E Test Suite
+```bash
+# Runs Playwright E2E tests across all 9 screens
+npx playwright test -c apps/web/playwright.config.ts
+```
+
+### Step 5: Run Document Intelligence Service
 ```bash
 cd services/ai-service
 pip install -r requirements.txt
 python test_ai_service.py
 ```
+
+---
+
+## 2. Next.js App Router 9-Screen ERP Suite
+
+The web application (`apps/web`) is a real-time, dynamic Next.js App Router ERP client built with:
+- **Framework:** Next.js App Router + React 19 + TypeScript Strict Mode.
+- **Styling & RTL:** Tailwind CSS with CSS logical properties (`ms-*`, `me-*`, `ps-*`, `pe-*`), mirrored icons, and `IBM Plex Sans Arabic`.
+- **Forms & Tables:** TanStack Table v8, `react-hook-form` with `zod` schema resolvers.
+- **Strict Minor Units:** Zero floating-point math; all monetary amounts operate as integer fils (`BigInt`).
+- **Standardized State Matrix:** Loading skeletons, empty states, dismissible error alerts with retry, and 403 permission-denied views.
+
+| Screen | Route | Key Capabilities |
+| :--- | :--- | :--- |
+| **Screen 1: Auth & App Shell** | `/[locale]/login`<br>`/[locale]/login/verify-2fa` | Tenant slug identification, 6-digit TOTP 2FA, session countdown warning, entity context dropdown, en/ar language switcher. |
+| **Screen 2: Dashboard** | `/[locale]/app/dashboard` | Live cash liquidity, AR/AP ageing distribution (0–30d, 31–60d, 61–90d, 90+d), VAT net liability, month-end closing readiness, open AI proposals. |
+| **Screen 3: COA & Journals** | `/[locale]/app/ledger/accounts`<br>`/[locale]/app/ledger/journals` | TanStack Table chart of accounts, keyboard-first journal voucher grid, invariant validation (0 fils variance), posting, and 1-click contra reversal. |
+| **Screen 4: Invoices & Bills** | `/[locale]/app/invoicing/sales` | Peppol PINT-AE UBL 2.1 e-invoices, vendor bills with 3-way matching, split-pane bilingual en/ar PDF preview, and approval workflows. |
+| **Screen 5: FTA VAT 201 Return** | `/[locale]/app/tax/vat201` | Statutory 14-box return (Emirate sales 1a–1g, RCM Art. 48, zero-rated exports Art. 45). Every populated box features interactive voucher drill-down lineage. |
+| **Screen 6: Bank Reconciliation** | `/[locale]/app/banking/reconciliation` | Bank feed ingestion (MT940/CAMT.053) vs general ledger, AI explainable matching proposals, and auto-post bank fee journal. |
+| **Screen 7: AI Proposals Inbox** | `/[locale]/app/ai/proposals` | Human-in-the-loop agent governance: source event lineage, UAE statutory citations, explainable logic, proposed journal preview, and token cost telemetry. |
+| **Screen 8: Financial Reports** | `/[locale]/app/reports` | Tabbed statements: Trial Balance, Profit & Loss, Balance Sheet, IFRS 10 Consolidation with eliminations, and client CSV export. |
+| **Screen 9: Close & Roles** | `/[locale]/app/close` | 12-step month-end closing checklist, append-only cryptographic SHA-256 audit trail with hash-chain integrity verification, and RBAC matrix. |
 
 ---
 
