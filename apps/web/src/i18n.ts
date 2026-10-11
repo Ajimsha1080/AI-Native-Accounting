@@ -1,50 +1,35 @@
-import { LanguageLocale, LocalizationConfig } from '@ledger-ae/shared-types';
+import { getRequestConfig } from 'next-intl/server';
+import { LanguageLocale } from '@ledger-ae/shared-types';
 
-export const DICTIONARY = {
-  en: {
-    dashboard: 'Financial Dashboard',
-    generalLedger: 'General Ledger',
-    journalEntries: 'Journal Entries',
-    vat201Return: 'FTA VAT 201 Return',
-    continuousClose: 'Continuous Close Checklist',
-    newEntry: 'Post Journal Voucher',
-    debits: 'Debits',
-    credits: 'Credits',
-    balance: 'Balance',
-    status: 'Status',
-    verified: 'AI Verified',
-    requiresApproval: 'Requires Approval',
-    advisorWarning: 'Requires UAE Tax Advisor Review',
-    currency: 'AED'
-  },
-  ar: {
-    dashboard: 'لوحة التحكم المالية',
-    generalLedger: 'دفتر الأستاذ العام',
-    journalEntries: 'قيود اليومية',
-    vat201Return: 'إقرار ضريبة القيمة المضافة (نموذج 201)',
-    continuousClose: 'قائمة إقفال الفترة المستمر',
-    newEntry: 'ترحيل قيد يومية',
-    debits: 'مدين',
-    credits: 'دائن',
-    balance: 'الرصيد',
-    status: 'الحالة',
-    verified: 'تم التحقق بواسطة الذكاء الاصطناعي',
-    requiresApproval: 'يتطلب موافقة',
-    advisorWarning: 'يتطلب مراجعة المستشار الضريبي',
-    currency: 'د.إ'
-  }
-} as const;
-
-export function getLocalizationConfig(locale: LanguageLocale): LocalizationConfig {
+export function getLocalizationConfig(locale: LanguageLocale) {
   const isRtl = locale === LanguageLocale.AR;
   return {
     locale,
     isRtl,
-    calendar: 'gregorian',
-    currencyDisplay: isRtl ? 'د.إ' : 'AED'
+    currencyDisplay: isRtl ? 'د.إ' : 'AED',
+    direction: isRtl ? 'rtl' : 'ltr'
   };
 }
 
-export function translate(key: keyof typeof DICTIONARY['en'], locale: LanguageLocale): string {
-  return DICTIONARY[locale]?.[key] ?? DICTIONARY.en[key];
+const DICTIONARY: Record<string, Record<LanguageLocale, string>> = {
+  generalLedger: {
+    [LanguageLocale.EN]: 'General Ledger',
+    [LanguageLocale.AR]: 'دفتر الأستاذ العام'
+  },
+  vat201Return: {
+    [LanguageLocale.EN]: 'VAT 201 Return',
+    [LanguageLocale.AR]: 'إقرار ضريبة القيمة المضافة (نموذج 201)'
+  }
+};
+
+export function translate(key: string, locale: LanguageLocale): string {
+  return DICTIONARY[key]?.[locale] || key;
 }
+
+export default getRequestConfig(async ({ locale }) => {
+  const currentLocale = locale && ['en', 'ar'].includes(locale) ? locale : 'en';
+  return {
+    locale: currentLocale,
+    messages: (await import(`../messages/${currentLocale}.json`)).default
+  };
+});

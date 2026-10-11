@@ -8,3 +8,5 @@ dist/
 coverage/
 tmp/
 scratch/
+.next/
+*.tsbuildinfo
