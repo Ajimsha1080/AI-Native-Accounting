@@ -1,4 +1,4 @@
-import { roundHalfEven } from '@ledger-ae/ledger-core';
+import { roundHalfEven } from '@ledger-ae/shared-types';
 
 export interface EosgCalculationInput {
   basicMonthlySalaryFils: bigint; // Calculation is based strictly on basic wage, excluding allowances

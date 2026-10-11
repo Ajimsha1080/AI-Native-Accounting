@@ -104,3 +104,43 @@ export function formatMinorUnitsToDecimal(amount: bigint | string, decimals: num
 
   return `${isNegative ? '-' : ''}${whole.toString()}.${paddedFraction}`;
 }
+
+/**
+ * Deterministic Banker's Rounding (Half-Even Rounding).
+ * Eliminates cumulative statistical upward bias in large financial ledgers.
+ */
+export function roundHalfEven(numerator: bigint, denominator: bigint): bigint {
+  if (denominator === 0n) {
+    throw new Error('Division by zero in rounding');
+  }
+
+  const quotient = numerator / denominator;
+  const remainder = numerator % denominator;
+  const absRemainder = remainder < 0n ? -remainder : remainder;
+  const absDenominator = denominator < 0n ? -denominator : denominator;
+
+  const doubleRemainder = absRemainder * 2n;
+
+  if (doubleRemainder < absDenominator) {
+    return quotient;
+  } else if (doubleRemainder > absDenominator) {
+    return remainder > 0n ? quotient + 1n : quotient - 1n;
+  } else {
+    // Exact half-way case: round to nearest even integer
+    const isEven = quotient % 2n === 0n;
+    if (isEven) {
+      return quotient;
+    } else {
+      return remainder > 0n ? quotient + 1n : quotient - 1n;
+    }
+  }
+}
+
+/**
+ * Format minor units into standard display strings (e.g. 10050n fils -> '100.50').
+ * If currency is passed, returns '100.50'.
+ */
+export function formatMoney(amount: bigint | string, currency?: string): string {
+  return formatMinorUnitsToDecimal(amount, 2);
+}
+

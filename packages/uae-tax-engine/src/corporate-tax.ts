@@ -1,5 +1,4 @@
-import { UUID } from '@ledger-ae/shared-types';
-import { roundHalfEven, formatMoney } from '@ledger-ae/ledger-core';
+import { UUID, roundHalfEven, formatMoney } from '@ledger-ae/shared-types';
 
 export interface CorporateTaxEntityProfile {
   entityId: UUID;

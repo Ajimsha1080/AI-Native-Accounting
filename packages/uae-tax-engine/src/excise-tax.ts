@@ -1,4 +1,4 @@
-import { roundHalfEven } from '@ledger-ae/ledger-core';
+import { roundHalfEven } from '@ledger-ae/shared-types';
 
 export enum ExciseCategory {
   CARBONATED_DRINKS = 'CARBONATED_DRINKS',       // 50%

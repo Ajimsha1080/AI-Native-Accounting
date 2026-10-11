@@ -1,4 +1,4 @@
-import { roundHalfEven } from '@ledger-ae/ledger-core';
+import { roundHalfEven } from '@ledger-ae/shared-types';
 
 export interface PartialExemptionInput {
   taxableSuppliesFils: bigint; // Standard rated + zero rated supplies (entitled to recovery)
