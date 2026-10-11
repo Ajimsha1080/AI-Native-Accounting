@@ -32,3 +32,7 @@ export * from './outbox.js';
 export * from './temporal/activities.js';
 export * from './temporal/workflows.js';
 export * from './temporal/client.js';
+export * from './integrations/contracts.js';
+export * from './integrations/einvoicing-asp.js';
+export * from './integrations/bank-aggregator.js';
+export * from './integrations/stripe-gateway.js';
