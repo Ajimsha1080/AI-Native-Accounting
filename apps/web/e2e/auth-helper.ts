@@ -23,9 +23,12 @@ export async function loginAndAuthenticate(
   } = options;
 
   await page.goto(`/${locale}/login`);
-  await page.fill('input[name="tenantSlug"]', tenantSlug);
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
+  await page.locator('input[name="tenantSlug"]').clear();
+  await page.locator('input[name="tenantSlug"]').fill(tenantSlug);
+  await page.locator('input[name="email"]').clear();
+  await page.locator('input[name="email"]').fill(email);
+  await page.locator('input[name="password"]').clear();
+  await page.locator('input[name="password"]').fill(password);
   await page.click('button[type="submit"]');
 
   await page.waitForSelector('input[placeholder="123456"]');

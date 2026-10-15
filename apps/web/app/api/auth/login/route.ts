@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     let userRow: any = null;
     let tenantRow: any = null;
     try {
+      await client.query("SELECT set_config('app.current_tenant_id', '', false)");
       const tenantRes = await client.query(
         'SELECT id, name, slug FROM tenants WHERE slug = $1',
         [normalizedTenantSlug]

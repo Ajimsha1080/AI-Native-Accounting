@@ -18,7 +18,7 @@ test.describe('Screen 9: Close Checklist, Audit Log Viewer, Settings & Roles', (
     // 4. Switch to Cryptographic Audit Trail Tab
     await page.click('button:has-text("Cryptographic Audit Trail")');
     await expect(page.locator('text=Immutable Append-Only Audit Trail')).toBeVisible();
-    await expect(page.locator('text=POST_JOURNAL_VOUCHER (JV-2026-0001)')).toBeVisible();
+    await expect(page.locator('text=POST_JOURNAL_VOUCHER (JV-2026-0001)').first()).toBeVisible();
     await expect(page.locator('text=Cryptographic Chain Valid')).toBeVisible();
 
     // 5. Switch to Roles & Permissions Tab

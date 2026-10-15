@@ -63,6 +63,24 @@ export const GET = withAuth(Permission.LEDGER_READ)(
         const totalLiabilities = liabilityLines.reduce((acc: bigint, l: any) => acc + BigInt(l.creditMinorUnits) - BigInt(l.debitMinorUnits), 0n);
         const totalEquity = equityLines.reduce((acc: bigint, l: any) => acc + BigInt(l.creditMinorUnits) - BigInt(l.debitMinorUnits), 0n);
 
+        // Query subsidiary legal entities for IFRS 10 multi-entity consolidation
+        const entitiesRes = await client.query(
+          `SELECT
+             e.id as "entityId",
+             e.legal_name_en as "nameEn",
+             e.legal_name_ar as "nameAr",
+             e.base_currency as currency,
+             COALESCE(SUM(CASE WHEN l.direction = 'DEBIT' THEN l.amount_base ELSE 0 END), 0) as total_debit,
+             COALESCE(SUM(CASE WHEN l.direction = 'CREDIT' THEN l.amount_base ELSE 0 END), 0) as total_credit
+           FROM legal_entities e
+           LEFT JOIN journal_entries j ON j.legal_entity_id = e.id AND j.tenant_id = e.tenant_id
+           LEFT JOIN journal_lines l ON l.journal_entry_id = j.id AND l.tenant_id = e.tenant_id
+           WHERE e.tenant_id = $1
+           GROUP BY e.id, e.legal_name_en, e.legal_name_ar, e.base_currency
+           ORDER BY e.created_at ASC`,
+          [session.tenantId]
+        );
+
         return NextResponse.json({
           reportType: type,
           period: 'FY 2026 - P01 (01 Jan 2026 - 31 Jan 2026)',
@@ -91,7 +109,14 @@ export const GET = withAuth(Permission.LEDGER_READ)(
             isBalanced: totalAssets === (totalLiabilities + totalEquity)
           },
           consolidation: {
-            entities: [],
+            entities: entitiesRes.rows.map((r: any) => ({
+              entityId: r.entityId,
+              nameEn: r.nameEn,
+              nameAr: r.nameAr,
+              currency: r.currency || 'AED',
+              debitMinorUnits: r.total_debit?.toString() || '0',
+              creditMinorUnits: r.total_credit?.toString() || '0'
+            })),
             intercompanyEliminationsMinorUnits: '0',
             consolidatedTotalMinorUnits: totalDebit.toString()
           }

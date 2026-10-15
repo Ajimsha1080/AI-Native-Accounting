@@ -9,6 +9,15 @@ export const GET = withAuth(Permission.LEDGER_READ)(
       const { searchParams } = new URL(request.url);
       const entityId = searchParams.get('entityId') || session.entityId;
 
+      const resolvedEntityUuid =
+        entityId === 'ent-mainland'
+          ? '00000000-0000-0000-0000-000000000001'
+          : entityId === 'ent-dmcc'
+          ? '00000000-0000-0000-0000-000000000002'
+          : entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)
+          ? entityId
+          : null;
+
       const pool = getDatabasePool();
       const tenantSession = new TenantDatabaseSession(pool);
 
@@ -20,7 +29,7 @@ export const GET = withAuth(Permission.LEDGER_READ)(
            JOIN journal_entries e ON e.id = l.journal_entry_id
            JOIN chart_of_accounts c ON c.id = l.account_id
            WHERE l.tenant_id = $1 AND ($2::uuid IS NULL OR e.legal_entity_id = $2::uuid) AND c.sub_type IN ('CASH', 'BANK')`,
-          [session.tenantId, entityId && entityId.startsWith('0') || entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId) ? entityId : null]
+          [session.tenantId, resolvedEntityUuid]
         );
 
         // Query AR balance
@@ -30,7 +39,7 @@ export const GET = withAuth(Permission.LEDGER_READ)(
            JOIN journal_entries e ON e.id = l.journal_entry_id
            JOIN chart_of_accounts c ON c.id = l.account_id
            WHERE l.tenant_id = $1 AND ($2::uuid IS NULL OR e.legal_entity_id = $2::uuid) AND c.code = '1200'`,
-          [session.tenantId, entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId) ? entityId : null]
+          [session.tenantId, resolvedEntityUuid]
         );
 
         // Query AP balance
@@ -40,7 +49,7 @@ export const GET = withAuth(Permission.LEDGER_READ)(
            JOIN journal_entries e ON e.id = l.journal_entry_id
            JOIN chart_of_accounts c ON c.id = l.account_id
            WHERE l.tenant_id = $1 AND ($2::uuid IS NULL OR e.legal_entity_id = $2::uuid) AND c.code = '2010'`,
-          [session.tenantId, entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId) ? entityId : null]
+          [session.tenantId, resolvedEntityUuid]
         );
 
         // Query VAT liability
@@ -50,7 +59,7 @@ export const GET = withAuth(Permission.LEDGER_READ)(
            JOIN journal_entries e ON e.id = l.journal_entry_id
            JOIN chart_of_accounts c ON c.id = l.account_id
            WHERE l.tenant_id = $1 AND ($2::uuid IS NULL OR e.legal_entity_id = $2::uuid) AND c.code = '2110'`,
-          [session.tenantId, entityId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId) ? entityId : null]
+          [session.tenantId, resolvedEntityUuid]
         );
 
         const dbCash = BigInt(cashRes.rows[0].cash);

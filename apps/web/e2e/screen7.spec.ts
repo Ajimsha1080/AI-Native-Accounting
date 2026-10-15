@@ -15,6 +15,9 @@ test.describe('Screen 7: AI Proposals Inbox (Approve/Reject, Source, Logic, and 
     await expect(page.locator('text=Auto-Match Emirates NBD Inward Wire').first()).toBeVisible();
     await expect(page.locator('text=98%').first()).toBeVisible();
 
+    // Select the Emirates NBD proposal to inspect its details
+    await page.locator('text=Auto-Match Emirates NBD Inward Wire').first().click();
+
     // 4. Verify Inspection Panel Details
     await expect(page.locator('text=UAE STATUTORY LEGAL BASIS & DECREE-LAW')).toBeVisible();
     await expect(page.locator('text=EXPLAINABLE REASONING & LOGIC')).toBeVisible();

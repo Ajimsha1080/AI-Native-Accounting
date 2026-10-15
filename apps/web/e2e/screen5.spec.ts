@@ -26,7 +26,7 @@ test.describe('Screen 5: VAT 201 Return View with Drill-down from Every Box to S
 
     // Verify modal contents
     await expect(page.locator('text=Source Audit Lineage: 2 verified double-entry transactions')).toBeVisible();
-    await expect(page.locator('text=Emaar Properties PJSC')).toBeVisible();
+    await expect(page.locator('text=Emaar Properties PJSC').first()).toBeVisible();
     await expect(page.locator('text=AED 500,000.00')).toBeVisible();
 
     // Close modal

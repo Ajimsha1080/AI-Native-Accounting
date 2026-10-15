@@ -6,6 +6,13 @@ import {
   TenantDataRetentionRecord
 } from './security-hardening.js';
 import { Direction, JournalEntryCandidate } from './invariants.js';
+import { Pool } from 'pg';
+import { AuthenticationService } from '@ledger-ae/shared-types';
+
+const TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ||
+  process.env.DATABASE_URL ||
+  'postgresql://ledger_app:ledger_app_secure_pass@localhost:9527/ledger_ae_test';
 
 describe('Milestone 13: Hardening & ASVS Level 2 Verification', () => {
   test('ASVS V10: SSRF Protection blocks private IPs, cloud metadata, and unencrypted protocols', () => {
@@ -182,3 +189,102 @@ describe('Milestone 13: Disaster Recovery (DR) Drill - RPO <= 5 min, RTO <= 1 ho
     assert.ok(drillResult.verificationDetails.some((d) => d.includes('ZERO VARIANCE')));
   });
 });
+
+describe('Phase 4 Security: Rate Limiting & Replay Persistence (Real Postgres)', () => {
+  test('Rate Limit Persistence: Brute-force lockout persists in Postgres auth_rate_limits table across process restarts', async () => {
+    let pool = new Pool({ connectionString: TEST_DATABASE_URL });
+    const identifier = `al-noor-group:attacker-${Date.now()}@pentest.ae`;
+
+    try {
+      // 1. Initial state: 0 attempts, not locked
+      const initial = await AuthenticationService.checkRateLimit(identifier, pool, 5, 15 * 60 * 1000);
+      assert.equal(initial.isLocked, false);
+      assert.equal(initial.attemptsRemaining, 5);
+
+      // 2. Perform 5 failed brute-force attempts
+      let lastRate: any;
+      for (let i = 1; i <= 5; i++) {
+        lastRate = await AuthenticationService.recordFailedAttempt(identifier, pool, 5, 15 * 60 * 1000);
+      }
+
+      // 3. Rate limiter triggers lockout
+      assert.equal(lastRate.isLocked, true);
+      assert.equal(lastRate.attemptsRemaining, 0);
+
+      // 4. Verify PostgreSQL persistence in auth_rate_limits table
+      const res = await pool.query('SELECT failed_attempts, locked_until FROM auth_rate_limits WHERE identifier = $1', [identifier]);
+      assert.equal(res.rows.length, 1);
+      assert.equal(res.rows[0].failed_attempts, 5);
+      assert.ok(res.rows[0].locked_until);
+      assert.ok(new Date(res.rows[0].locked_until).getTime() > Date.now());
+
+      // 5. SIMULATE COLD PROCESS RESTART:
+      // Sever the database connection pool completely and instantiate a fresh pool
+      await pool.end();
+
+      const newPool = new Pool({ connectionString: TEST_DATABASE_URL });
+      try {
+        // Query checkRateLimit on new server instance: must remain locked
+        const postRestart = await AuthenticationService.checkRateLimit(identifier, newPool, 5, 15 * 60 * 1000);
+        assert.equal(postRestart.isLocked, true, 'Lockout must persist across server restarts in PostgreSQL');
+        assert.equal(postRestart.attemptsRemaining, 0);
+
+        // 6. Reset attempts upon successful verification or admin unlock
+        await AuthenticationService.resetAttempts(identifier, newPool);
+        const postReset = await AuthenticationService.checkRateLimit(identifier, newPool, 5, 15 * 60 * 1000);
+        assert.equal(postReset.isLocked, false);
+        assert.equal(postReset.attemptsRemaining, 5);
+      } finally {
+        await newPool.end();
+      }
+    } finally {
+      // Clean up if pool is still open
+      try {
+        await pool.end();
+      } catch {}
+    }
+  });
+
+  test('MCP Ticket Replay Protection: Burned approval nonces persist in PostgreSQL and block replay attacks', async () => {
+    const pool = new Pool({ connectionString: TEST_DATABASE_URL });
+    const nonce = `test-nonce-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+    const proposalId = `prop-test-${Date.now()}`;
+    const expiresAt = new Date(Date.now() + 600000);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantId]);
+
+      // Query seeded user for foreign key relation
+      const uRes = await client.query('SELECT id FROM users WHERE tenant_id = $1 LIMIT 1', [tenantId]);
+      const approverId = uRes.rows[0].id;
+
+      // 1. First consumption of approval ticket nonce succeeds
+      await client.query(
+        `INSERT INTO mcp_burned_nonces (nonce, tenant_id, proposal_id, consumed_by, expires_at)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [nonce, tenantId, proposalId, approverId, expiresAt]
+      );
+
+      // 2. REPLAY ATTACK: Second insertion with identical nonce is strictly rejected by primary key unique constraint
+      await assert.rejects(
+        async () => {
+          await client.query(
+            `INSERT INTO mcp_burned_nonces (nonce, tenant_id, proposal_id, consumed_by, expires_at)
+             VALUES ($1, $2, $3, $4, $5)`,
+            [nonce, tenantId, proposalId, approverId, expiresAt]
+          );
+        },
+        (err: any) => err.code === '23505' // PostgreSQL unique_violation
+      );
+
+      await client.query('ROLLBACK'); // Roll back test nonce
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  });
+});
+

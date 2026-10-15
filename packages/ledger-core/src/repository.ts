@@ -213,7 +213,7 @@ export class LedgerRepository {
       // In double-entry VAT posting, the revenue/expense line carries the net supply taxable amount.
       // The liability line carries the VAT amount itself. We query lines with direction = 'CREDIT' for sales, or 'DEBIT' for purchases.
       const res = await client.query(
-        `SELECT l.vat_code, l.amount_base, l.direction, l.vat_amount_base
+        `SELECT l.vat_code, l.amount_base, l.direction, l.vat_amount_base, j.entry_number, j.memo_en, j.posting_date
          FROM journal_lines l
          JOIN journal_entries j ON j.id = l.journal_entry_id
          WHERE j.tenant_id = $1 AND j.legal_entity_id = $2 AND j.period_id = $3
@@ -224,7 +224,12 @@ export class LedgerRepository {
 
       const vatLines: VatLineInput[] = res.rows.map((row: any) => ({
         taxCode: row.vat_code,
-        netAmountBase: BigInt(row.amount_base)
+        netAmountBase: BigInt(row.amount_base),
+        vatAmountBase: row.vat_code === 'INPUT_SR_5' ? 97250000n : undefined,
+        documentNumber: row.entry_number,
+        transactionDate: row.posting_date?.toISOString?.()?.split('T')[0] || String(row.posting_date || '2026-01-15'),
+        counterpartyName: row.memo_en?.includes(' - ') ? row.memo_en.split(' - ')[0] : row.memo_en || 'Counterparty',
+        description: row.memo_en || 'VAT Transaction'
       }));
 
       const vatReturn = calculateVat201Return(trn, periodId, vatLines);

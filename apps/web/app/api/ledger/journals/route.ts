@@ -143,25 +143,33 @@ export const POST = withAuth(Permission.LEDGER_POST)(
       let bookId = journal.bookId;
       let periodId = journal.periodId;
 
-      if (!bookId || !periodId) {
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [session.tenantId]);
-          if (!bookId) {
-            const bRes = await client.query('SELECT id FROM books WHERE tenant_id = $1 LIMIT 1', [session.tenantId]);
-            if (bRes.rows.length > 0) bookId = bRes.rows[0].id;
-          }
-          if (!periodId) {
-            const pRes = await client.query('SELECT id FROM accounting_periods WHERE tenant_id = $1 AND is_hard_locked = false ORDER BY period_number ASC LIMIT 1', [session.tenantId]);
-            if (pRes.rows.length > 0) periodId = pRes.rows[0].id;
-          }
-          await client.query('COMMIT');
-        } catch {
-          await client.query('ROLLBACK');
-        } finally {
-          client.release();
+      const client = await pool.connect();
+      const accMap = new Map<string, string>();
+      try {
+        await client.query('BEGIN');
+        await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [session.tenantId]);
+        if (!bookId) {
+          const bRes = await client.query('SELECT id FROM books WHERE tenant_id = $1 LIMIT 1', [session.tenantId]);
+          if (bRes.rows.length > 0) bookId = bRes.rows[0].id;
         }
+        if (!periodId) {
+          const pRes = await client.query('SELECT id FROM accounting_periods WHERE tenant_id = $1 AND is_hard_locked = false ORDER BY period_number ASC LIMIT 1', [session.tenantId]);
+          if (pRes.rows.length > 0) periodId = pRes.rows[0].id;
+        }
+        const accListRes = await client.query(
+          `SELECT id, code FROM chart_of_accounts WHERE tenant_id = $1`,
+          [session.tenantId]
+        );
+        for (const row of accListRes.rows) {
+          accMap.set(row.id, row.id);
+          accMap.set(row.code, row.id);
+          accMap.set(`acc-${row.code}`, row.id);
+        }
+        await client.query('COMMIT');
+      } catch {
+        await client.query('ROLLBACK');
+      } finally {
+        client.release();
       }
 
       if (!bookId) {
@@ -176,18 +184,6 @@ export const POST = withAuth(Permission.LEDGER_POST)(
           { error: 'No open accounting period found for tenant', code: 'PERIOD_NOT_FOUND' },
           { status: 400 }
         );
-      }
-
-      // Resolve account IDs for tenant
-      const accListRes = await pool.query(
-        `SELECT id, code FROM chart_of_accounts WHERE tenant_id = $1`,
-        [session.tenantId]
-      );
-      const accMap = new Map<string, string>();
-      for (const row of accListRes.rows) {
-        accMap.set(row.id, row.id);
-        accMap.set(row.code, row.id);
-        accMap.set(`acc-${row.code}`, row.id);
       }
 
       const candidate: JournalEntryCandidate = {

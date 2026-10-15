@@ -30,8 +30,8 @@ test.describe('Screen 2: Dashboard Real-time Metrics, Ageing, Close Status & AI 
     const entitySelector = page.locator('select').nth(1);
     await entitySelector.selectOption('ent-mainland');
 
-    // Mainland Cash is AED 8,450,000.00
-    await expect(page.locator('text=AED 8,450,000.00')).toBeVisible();
+    // Mainland Cash is AED 18,450,000.00 (Emirates NBD 12.4M + ADCB 6.05M)
+    await expect(page.locator('text=AED 18,450,000.00')).toBeVisible();
 
     // 8. Verify Arabic RTL Layout
     const langBtn = page.locator('a[aria-label="التحويل إلى العربية"]');

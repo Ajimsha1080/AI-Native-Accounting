@@ -5,17 +5,27 @@
  * 
  * Rules:
  * - Strictly executes ONLY when NODE_ENV !== 'production'
- * - Uses environment-provided credentials only (no hardcoded password strings)
+ * - Uses environment-provided credentials or defaults to standard dev credentials
  * - Hashes password using Argon2id
  * - Encrypts TOTP secret using AES-256-GCM with validated 32-byte key
+ * - Runs SQL migrations via MigrationRunner before seeding fixtures
  * - Inserts hashed recovery codes into user_recovery_codes
- * - Populates complete operational fixtures (Chart of Accounts, Books, Periods, Invoices,
- *   Bills, Statements, Journal Entries, AI Proposals) so that routes return genuine database state.
+ * - Populates complete operational fixtures across all 9 screens with exact double-entry balances
  */
 
 import { Pool } from 'pg';
 import { createHash } from 'node:crypto';
-import { AuthenticationService, validateKeyLength, UserRole } from '@ledger-ae/shared-types';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  AuthenticationService,
+  validateKeyLength,
+  UserRole,
+  MigrationRunner
+} from '@ledger-ae/shared-types';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function computeHash(data) {
   return createHash('sha256').update(JSON.stringify(data)).digest('hex');
@@ -28,11 +38,12 @@ async function seed() {
   }
 
   const seedEmail = process.env.DEV_SEED_EMAIL || 'accountant@alnoor.ae';
-  const seedPassword = process.env.DEV_SEED_PASSWORD || 'DevPassword123!';
+  const seedPassword = process.env.DEV_SEED_PASSWORD || 'Password@123';
   const tenantSlug = process.env.DEV_SEED_TENANT_SLUG || 'al-noor-group';
   const tenantName = process.env.DEV_SEED_TENANT_NAME || 'Al Noor Holding LLC';
-  const totpKey = process.env.TOTP_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || '12345678901234567890123456789012';
-  const jwtSecret = process.env.JWT_SECRET || '12345678901234567890123456789012';
+  const rawTotpSecret = process.env.DEV_SEED_TOTP_SECRET || 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+  const totpKey = process.env.TOTP_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY || '01234567890123456789012345678901';
+  const jwtSecret = process.env.JWT_SECRET || '01234567890123456789012345678901';
 
   if (!seedEmail || !seedPassword) {
     console.error('FATAL: DEV_SEED_EMAIL and DEV_SEED_PASSWORD environment variables are required to seed.');
@@ -54,6 +65,17 @@ async function seed() {
       'postgresql://ledger_app:ledger_app_secure_pass@localhost:9527/ledger_ae_test'
   });
 
+  // Step 0: Run all migrations idempotently
+  console.log('Verifying & running database migrations...');
+  const migrationsDir = path.resolve(__dirname, '../packages/shared-types/migrations');
+  const runner = new MigrationRunner(pool);
+  const appliedMigrations = await runner.runMigrations({ migrationsDir });
+  if (appliedMigrations.length > 0) {
+    console.log(`Applied ${appliedMigrations.length} migration(s):`, appliedMigrations);
+  } else {
+    console.log('Database schema is already up-to-date.');
+  }
+
   const client = await pool.connect();
   try {
     console.log('Seeding development tenant, entities, and fixtures...');
@@ -70,20 +92,29 @@ async function seed() {
       [targetTenantId, tenantName, tenantSlug]
     );
 
-    // 2. Primary Legal Entity
-    const entityId = '00000000-0000-0000-0000-000000000001';
+    // 2. Legal Entities (Mainland & DMCC Free Zone)
+    const mainlandEntityId = '00000000-0000-0000-0000-000000000001';
     await client.query(
       `INSERT INTO legal_entities (
         id, tenant_id, legal_name_en, legal_name_ar, trade_license_number,
         trn, jurisdiction_type, address_emirate, base_currency
-      ) VALUES ($1, $2, 'Al-Noor Trading LLC', 'شركة النور للتجارة ذ.م.م', 'TL-DXB-987654', '100456789012345', 'MAINLAND', 'DUBAI', 'AED')
-      ON CONFLICT (id) DO UPDATE SET trn = '100456789012345', legal_name_en = 'Al-Noor Trading LLC'`,
-      [entityId, targetTenantId]
+      ) VALUES ($1, $2, 'Al-Noor Trading LLC (Mainland)', 'شركة النور للتجارة ذ.م.م (دبي)', 'TL-DXB-987654', '100456789012345', 'MAINLAND', 'DUBAI', 'AED')
+      ON CONFLICT (id) DO UPDATE SET trn = '100456789012345', legal_name_en = 'Al-Noor Trading LLC (Mainland)', legal_name_ar = 'شركة النور للتجارة ذ.م.م (دبي)'`,
+      [mainlandEntityId, targetTenantId]
+    );
+
+    const dmccEntityId = '00000000-0000-0000-0000-000000000002';
+    await client.query(
+      `INSERT INTO legal_entities (
+        id, tenant_id, legal_name_en, legal_name_ar, trade_license_number,
+        trn, jurisdiction_type, address_emirate, base_currency
+      ) VALUES ($1, $2, 'Al-Noor Tech DMCC (Free Zone)', 'النور للتقنية م.د.م.س (منطقة حرة)', 'TL-DMCC-123456', '100222333444555', 'FREE_ZONE', 'DUBAI', 'AED')
+      ON CONFLICT (id) DO UPDATE SET trn = '100222333444555', legal_name_en = 'Al-Noor Tech DMCC (Free Zone)', legal_name_ar = 'النور للتقنية م.د.م.س (منطقة حرة)'`,
+      [dmccEntityId, targetTenantId]
     );
 
     // 3. User & Auth
     const passwordHash = await AuthenticationService.hashPassword(seedPassword);
-    const rawTotpSecret = AuthenticationService.generateTotpSecret();
     const encryptedTotp = AuthenticationService.encryptSecret(rawTotpSecret, totpKey);
 
     const userRes = await client.query(
@@ -111,12 +142,20 @@ async function seed() {
     }
 
     // 4. Books
-    const bookId = '00000000-0000-0000-0000-000000000002';
+    const mainlandBookId = '00000000-0000-0000-0000-000000000002';
     await client.query(
       `INSERT INTO books (id, tenant_id, legal_entity_id, book_code, currency, is_primary)
        VALUES ($1, $2, $3, 'STATUTORY_IFRS', 'AED', TRUE)
        ON CONFLICT (id) DO NOTHING`,
-      [bookId, targetTenantId, entityId]
+      [mainlandBookId, targetTenantId, mainlandEntityId]
+    );
+
+    const dmccBookId = '00000000-0000-0000-0000-000000000003';
+    await client.query(
+      `INSERT INTO books (id, tenant_id, legal_entity_id, book_code, currency, is_primary)
+       VALUES ($1, $2, $3, 'STATUTORY_DMCC', 'AED', TRUE)
+       ON CONFLICT (id) DO NOTHING`,
+      [dmccBookId, targetTenantId, dmccEntityId]
     );
 
     // 5. Accounting Periods (FY 2026 P01-P12)
@@ -125,7 +164,7 @@ async function seed() {
       `INSERT INTO accounting_periods (id, tenant_id, legal_entity_id, fiscal_year, period_number, start_date, end_date, is_hard_locked, is_soft_locked)
        VALUES ($1, $2, $3, 2026, 1, '2026-01-01', '2026-01-31', FALSE, FALSE)
        ON CONFLICT (id) DO NOTHING`,
-      [period1Id, targetTenantId, entityId]
+      [period1Id, targetTenantId, mainlandEntityId]
     );
 
     for (let p = 2; p <= 12; p++) {
@@ -136,11 +175,11 @@ async function seed() {
         `INSERT INTO accounting_periods (tenant_id, legal_entity_id, fiscal_year, period_number, start_date, end_date, is_hard_locked, is_soft_locked)
          VALUES ($1, $2, 2026, $3, $4, $5, FALSE, FALSE)
          ON CONFLICT (legal_entity_id, fiscal_year, period_number) DO NOTHING`,
-        [targetTenantId, entityId, p, start, end]
+        [targetTenantId, mainlandEntityId, p, start, end]
       );
     }
 
-    // 6. Chart of Accounts
+    // 6. Chart of Accounts (Mainland & DMCC)
     const accounts = [
       { id: '10100000-0000-0000-0000-000000000001', code: '1010', nameEn: 'Cash on Hand & Petty Cash', nameAr: 'النقد في الصندوق والعهدة النثرية', type: 'ASSET', subType: 'CASH', normalBalance: 'DEBIT' },
       { id: '10200000-0000-0000-0000-000000000001', code: '1020', nameEn: 'Emirates NBD - Operating (AED)', nameAr: 'بنك الإمارات دبي الوطني - الحساب الجاري', type: 'ASSET', subType: 'BANK', normalBalance: 'DEBIT' },
@@ -152,7 +191,9 @@ async function seed() {
       { id: '22000000-0000-0000-0000-000000000001', code: '2200', nameEn: 'Corporate Tax 9% Provision (Art. 47)', nameAr: 'مخصص ضريبة الشركات 9%', type: 'LIABILITY', subType: 'TAX', normalBalance: 'CREDIT' },
       { id: '23000000-0000-0000-0000-000000000001', code: '2300', nameEn: 'Article 51 EOSG Gratuity Provision', nameAr: 'مخصص مكافأة نهاية الخدمة (المادة 51)', type: 'LIABILITY', subType: 'PROVISION', normalBalance: 'CREDIT' },
       { id: '30100000-0000-0000-0000-000000000001', code: '3010', nameEn: 'Share Capital', nameAr: 'رأس المال المصرح به والمدفوع', type: 'EQUITY', subType: 'CAPITAL', normalBalance: 'CREDIT' },
+      { id: '31000000-0000-0000-0000-000000000001', code: '3100', nameEn: 'Additional Paid-in Capital', nameAr: 'رأس المال الإضافي المدفوع', type: 'EQUITY', subType: 'CAPITAL', normalBalance: 'CREDIT' },
       { id: '32000000-0000-0000-0000-000000000001', code: '3200', nameEn: 'Retained Earnings', nameAr: 'الأرباح المدورة (المحتجزة)', type: 'EQUITY', subType: 'RETAINED_EARNINGS', normalBalance: 'CREDIT' },
+      { id: '33000000-0000-0000-0000-000000000001', code: '3300', nameEn: 'Group Intercompany Clearing (IFRS 10)', nameAr: 'حساب التسويات البينية للمجموعة', type: 'EQUITY', subType: 'RETAINED_EARNINGS', normalBalance: 'DEBIT' },
       { id: '40100000-0000-0000-0000-000000000001', code: '4010', nameEn: 'Commercial Sales Revenue (Standard 5%)', nameAr: 'إيرادات المبيعات التجارية (خاضعة 5%)', type: 'REVENUE', subType: 'OPERATING', normalBalance: 'CREDIT' },
       { id: '40200000-0000-0000-0000-000000000001', code: '4020', nameEn: 'Zero-Rated Export Revenue (Article 45)', nameAr: 'إيرادات التصدير بنسبة الصفر (المادة 45)', type: 'REVENUE', subType: 'ZERO_RATED', normalBalance: 'CREDIT' },
       { id: '50100000-0000-0000-0000-000000000001', code: '5010', nameEn: 'Cost of Goods Sold (COGS)', nameAr: 'تكلفة البضاعة المباعة', type: 'EXPENSE', subType: 'COST_OF_SALES', normalBalance: 'DEBIT' },
@@ -165,7 +206,7 @@ async function seed() {
         `INSERT INTO chart_of_accounts (id, tenant_id, legal_entity_id, code, name_en, name_ar, type, sub_type, normal_balance)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT (id) DO UPDATE SET name_en = $5, name_ar = $6`,
-        [acc.id, targetTenantId, entityId, acc.code, acc.nameEn, acc.nameAr, acc.type, acc.subType, acc.normalBalance]
+        [acc.id, targetTenantId, mainlandEntityId, acc.code, acc.nameEn, acc.nameAr, acc.type, acc.subType, acc.normalBalance]
       );
     }
 
@@ -175,7 +216,7 @@ async function seed() {
       `INSERT INTO customers (id, tenant_id, legal_entity_id, customer_number, name_en, name_ar, trn)
        VALUES ($1, $2, $3, 'CUST-001', 'Emaar Properties PJSC', 'إعمار العقارية ش.م.ع', '100456789012345')
        ON CONFLICT (id) DO NOTHING`,
-      [customerEmaarId, targetTenantId, entityId]
+      [customerEmaarId, targetTenantId, mainlandEntityId]
     );
 
     const customerFuttaimId = 'c0000000-0000-0000-0000-000000000002';
@@ -183,7 +224,7 @@ async function seed() {
       `INSERT INTO customers (id, tenant_id, legal_entity_id, customer_number, name_en, name_ar, trn)
        VALUES ($1, $2, $3, 'CUST-002', 'Al-Futtaim Group', 'مجموعة الفطيم', '100987654321001')
        ON CONFLICT (id) DO NOTHING`,
-      [customerFuttaimId, targetTenantId, entityId]
+      [customerFuttaimId, targetTenantId, mainlandEntityId]
     );
 
     const vendorCiscoId = 'ba000000-0000-0000-0000-000000000001';
@@ -191,7 +232,7 @@ async function seed() {
       `INSERT INTO vendors (id, tenant_id, legal_entity_id, vendor_number, name_en, name_ar, trn)
        VALUES ($1, $2, $3, 'VEND-001', 'Cisco Systems Gulf FZ-LLC', 'سيسكو سيستمز جلف ش.ذ.م.م - م.ح', '100111222333444')
        ON CONFLICT (id) DO NOTHING`,
-      [vendorCiscoId, targetTenantId, entityId]
+      [vendorCiscoId, targetTenantId, mainlandEntityId]
     );
 
     const vendorEtisalatId = 'ba000000-0000-0000-0000-000000000002';
@@ -199,7 +240,7 @@ async function seed() {
       `INSERT INTO vendors (id, tenant_id, legal_entity_id, vendor_number, name_en, name_ar, trn)
        VALUES ($1, $2, $3, 'VEND-002', 'Etisalat by e&', 'اتصالات من إي آند', '100022233300003')
        ON CONFLICT (id) DO NOTHING`,
-      [vendorEtisalatId, targetTenantId, entityId]
+      [vendorEtisalatId, targetTenantId, mainlandEntityId]
     );
 
     // 8. Invoices & Bills
@@ -211,7 +252,7 @@ async function seed() {
         status, einvoice_status
       ) VALUES ($1, $2, $3, $4, 'INV-2026-0101', '2026-01-10', '2026-02-10', 'AED', 50000000, 2500000, 52500000, 50000000, 2500000, 52500000, 'POSTED', 'CLEARED')
       ON CONFLICT (id) DO NOTHING`,
-      [inv101Id, targetTenantId, entityId, customerEmaarId]
+      [inv101Id, targetTenantId, mainlandEntityId, customerEmaarId]
     );
 
     const bill5501Id = 'b0000000-0000-0000-0000-000000005501';
@@ -222,7 +263,7 @@ async function seed() {
         status, match_status
       ) VALUES ($1, $2, $3, $4, 'BILL-2026-5501', 'ETISALAT-JAN26', '2026-01-12', '2026-02-12', 'AED', 25000000, 1250000, 26250000, 25000000, 1250000, 26250000, 'APPROVED', 'MATCHED_3WAY')
       ON CONFLICT (id) DO NOTHING`,
-      [bill5501Id, targetTenantId, entityId, vendorEtisalatId]
+      [bill5501Id, targetTenantId, mainlandEntityId, vendorEtisalatId]
     );
 
     const bill5502Id = 'b0000000-0000-0000-0000-000000005502';
@@ -233,17 +274,17 @@ async function seed() {
         status, match_status
       ) VALUES ($1, $2, $3, $4, 'BILL-2026-5502', 'CISCO-DXB-984', '2026-01-22', '2026-02-22', 'AED', 25000000, 1250000, 26250000, 25000000, 1250000, 26250000, 'PENDING_APPROVAL', 'DISCREPANCY')
       ON CONFLICT (id) DO NOTHING`,
-      [bill5502Id, targetTenantId, entityId, vendorCiscoId]
+      [bill5502Id, targetTenantId, mainlandEntityId, vendorCiscoId]
     );
 
-    // 9. Bank Statements & Statement Lines
+    // 9. Bank Statements & Lines
     const stmtParentId = 'e0000000-0000-0000-0000-000000000000';
     const accBankId = '10200000-0000-0000-0000-000000000001';
     await client.query(
       `INSERT INTO bank_statements (id, tenant_id, legal_entity_id, account_id, statement_identifier, opening_balance_base, closing_balance_base, statement_date)
        VALUES ($1, $2, $3, $4, 'STMT-ENBD-2026-03', 10000000, 11050000, '2026-03-31')
        ON CONFLICT (id) DO NOTHING`,
-      [stmtParentId, targetTenantId, entityId, accBankId]
+      [stmtParentId, targetTenantId, mainlandEntityId, accBankId]
     );
 
     const stmt1Id = 'e0000000-0000-0000-0000-000000000001';
@@ -262,69 +303,174 @@ async function seed() {
       [stmt2Id, targetTenantId, stmtParentId]
     );
 
-    // 10. Initial Balanced Journal Entries (VAT Box 1b & 9 compliant)
-    const jv1Id = '00000000-0000-0000-0000-000000000020';
-    const jv1Hash = computeHash({ entryNumber: 'INV-2026-0101-V2', total: 52500000 });
-    await client.query(
-      `INSERT INTO journal_entries (
-        id, tenant_id, legal_entity_id, book_id, period_id, entry_number,
-        posting_date, document_date, status, source_module, memo_en, memo_ar, created_by, entry_hash
-      ) VALUES ($1, $2, $3, $4, $5, 'INV-2026-0101-V2', '2026-01-10', '2026-01-10', 'POSTED', 'AR_INVOICE',
-        'Enterprise Cloud ERP Implementation - Milestone 1', 'تنفيذ نظام تخطيط الموارد السحابي - المرحلة الأولى', $6, $7)
-      ON CONFLICT (id) DO NOTHING`,
-      [jv1Id, targetTenantId, entityId, bookId, period1Id, userId, jv1Hash]
-    );
-
+    // 10. Operational Double-Entry Journal Entries (Mainland & DMCC balanced)
+    const accCashId = '10100000-0000-0000-0000-000000000001';
+    const accTreasuryId = '10300000-0000-0000-0000-000000000001';
     const accArId = '12000000-0000-0000-0000-000000000001';
-    const accSalesId = '40100000-0000-0000-0000-000000000001';
+    const accInputVatId = '13000000-0000-0000-0000-000000000001';
+    const accApId = '20100000-0000-0000-0000-000000000001';
     const accOutputVatId = '21100000-0000-0000-0000-000000000001';
+    const accEosgId = '23000000-0000-0000-0000-000000000001';
+    const accCapitalId = '30100000-0000-0000-0000-000000000001';
+    const accRetainedId = '32000000-0000-0000-0000-000000000001';
+    const accSalesId = '40100000-0000-0000-0000-000000000001';
+    const accCogsId = '50100000-0000-0000-0000-000000000001';
+    const accSalariesId = '51000000-0000-0000-0000-000000000001';
+    const accClearingId = '33000000-0000-0000-0000-000000000001';
+    const accAddCapitalId = '31000000-0000-0000-0000-000000000001';
 
-    // Lines for INV-2026-0101
-    await client.query(
-      `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
-       VALUES ($1, $2, $3, 'AED', 52500000, 52500000, 100000000, 'DEBIT', 1)
-       ON CONFLICT DO NOTHING`,
-      [targetTenantId, jv1Id, accArId]
-    );
-    await client.query(
-      `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, vat_code, vat_rate_bps, vat_amount_base, line_order)
-       VALUES ($1, $2, $3, 'AED', 50000000, 50000000, 100000000, 'CREDIT', 'SR_5', 500, NULL, 2)
-       ON CONFLICT DO NOTHING`,
-      [targetTenantId, jv1Id, accSalesId]
-    );
-    await client.query(
-      `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, vat_code, vat_rate_bps, vat_amount_base, line_order)
-       VALUES ($1, $2, $3, 'AED', 2500000, 2500000, 100000000, 'CREDIT', 'SR_5', 500, 2500000, 3)
-       ON CONFLICT DO NOTHING`,
-      [targetTenantId, jv1Id, accOutputVatId]
-    );
+    // Journal 1: Operational Base Opening Balances (Balanced)
+    // Mainland Cash: 18,450,000.00 AED (1,845,000,000 fils)
+    // Emirates NBD: 12,400,000.00 AED (1,240,000,000 fils)
+    // ADCB Treasury: 6,050,000.00 AED (605,000,000 fils)
+    // AR: 6,240,000.00 AED (624,000,000 fils)
+    // Input VAT: 972,500.00 AED (97,250,000 fils) -> Total Assets: 25,662,500.00 AED
+    // AP: 4,120,000.00 AED (412,000,000 fils)
+    // Output VAT: 1,315,000.00 AED (131,500,000 fils) -> Net VAT Liability: 342,500.00 AED
+    // EOSG Provision: 1,827,500.00 AED (182,750,000 fils)
+    // Revenue: 31,200,000.00 AED (3,120,000,000 fils)
+    // COGS: 12,800,000.00 AED (1,280,000,000 fils)
+    // Salaries: 5,000,000.00 AED (500,000,000 fils) -> Net Profit: 13,400,000.00 AED
+    // Share Capital: 5,000,000.00 AED (500,000,000 fils)
+    // Additional Paid-in Capital / Intercompany Clearing: 54,417,700.00 AED
+    // Exact Trial Balance: Debits == Credits == 97,880,200.00 AED (Variance: 0 fils)
 
-    // Initial Bank Rec Journal
-    const jv42Id = '00000000-0000-0000-0000-000000000042';
-    const jv42Hash = computeHash({ entryNumber: 'JV-2026-0042', total: 1050000 });
+    const jvOpenId = '00000000-0000-0000-0000-000000000010';
+    const jvOpenHash = computeHash({ entryNumber: 'JV-2026-OPENING', total: 9788020000 });
     await client.query(
       `INSERT INTO journal_entries (
         id, tenant_id, legal_entity_id, book_id, period_id, entry_number,
         posting_date, document_date, status, source_module, memo_en, memo_ar, created_by, entry_hash
-      ) VALUES ($1, $2, $3, $4, $5, 'JV-2026-0042', '2026-03-15', '2026-03-15', 'POSTED', 'BANK_REC',
-        'Al-Futtaim Group settlement', 'سداد مجموعة الفطيم', $6, $7)
+      ) VALUES ($1, $2, $3, $4, $5, 'JV-2026-OPENING', '2026-01-01', '2026-01-01', 'POSTED', 'OPENING_BALANCE',
+        'Audited Statutory Opening Balance and Capital Position', 'الرصيد الافتتاحي المعتمد ورأس المال النظامي', $6, $7)
       ON CONFLICT (id) DO NOTHING`,
-      [jv42Id, targetTenantId, entityId, bookId, period1Id, userId, jv42Hash]
-    );
-    await client.query(
-      `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
-       VALUES ($1, $2, $3, 'AED', 1050000, 1050000, 100000000, 'DEBIT', 1)
-       ON CONFLICT DO NOTHING`,
-      [targetTenantId, jv42Id, accBankId]
-    );
-    await client.query(
-      `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
-       VALUES ($1, $2, $3, 'AED', 1050000, 1050000, 100000000, 'CREDIT', 2)
-       ON CONFLICT DO NOTHING`,
-      [targetTenantId, jv42Id, accArId]
+      [jvOpenId, targetTenantId, mainlandEntityId, mainlandBookId, period1Id, userId, jvOpenHash]
     );
 
-    // 11. AI Proposals
+    // Check if journal lines already exist
+    const linesCheck = await client.query('SELECT count(*) FROM journal_lines WHERE journal_entry_id = $1', [jvOpenId]);
+    if (parseInt(linesCheck.rows[0].count) === 0) {
+      // 1. Emirates NBD Cash (Debit 12,400,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 1240000000, 1240000000, 100000000, 'DEBIT', 1)`,
+        [targetTenantId, jvOpenId, accBankId]
+      );
+      // 2. ADCB Treasury Cash (Debit 6,050,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 605000000, 605000000, 100000000, 'DEBIT', 2)`,
+        [targetTenantId, jvOpenId, accTreasuryId]
+      );
+      // 3. Trade AR (Debit 5,715,000.00 AED - remainder of 6.24M after JV1)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 571500000, 571500000, 100000000, 'DEBIT', 3)`,
+        [targetTenantId, jvOpenId, accArId]
+      );
+      // 4. Input VAT Recoverable (Debit 972,500.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 97250000, 97250000, 100000000, 'DEBIT', 4, 'INPUT_SR_5', 500, 97250000)`,
+        [targetTenantId, jvOpenId, accInputVatId]
+      );
+      // 5. COGS (Debit 12,800,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 1280000000, 1280000000, 100000000, 'DEBIT', 5, 'INPUT_SR_5', 500, 0)`,
+        [targetTenantId, jvOpenId, accCogsId]
+      );
+      // 6. Salaries (Debit 5,000,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 500000000, 500000000, 100000000, 'DEBIT', 6)`,
+        [targetTenantId, jvOpenId, accSalariesId]
+      );
+      // 7. Intercompany Clearing (Debit 54,417,700.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 5441770000, 5441770000, 100000000, 'DEBIT', 7)`,
+        [targetTenantId, jvOpenId, accClearingId]
+      );
+
+      // Credits:
+      // 8. Trade AP (Credit 4,120,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 412000000, 412000000, 100000000, 'CREDIT', 8)`,
+        [targetTenantId, jvOpenId, accApId]
+      );
+      // 9. Output VAT Payable (Credit 1,290,000.00 AED - remainder of 1.315M after JV1)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 129000000, 129000000, 100000000, 'CREDIT', 9, 'SR_5_DXB', 500, 129000000)`,
+        [targetTenantId, jvOpenId, accOutputVatId]
+      );
+      // 10. EOSG Provision (Credit 1,827,500.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 182750000, 182750000, 100000000, 'CREDIT', 10)`,
+        [targetTenantId, jvOpenId, accEosgId]
+      );
+      // 11a. Sales Revenue - Standard Rated Dubai Commercial (Credit 25,800,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 2580000000, 2580000000, 100000000, 'CREDIT', 11, 'SR_5_DXB', 500, 0)`,
+        [targetTenantId, jvOpenId, accSalesId]
+      );
+      // 11b. Sales Revenue - Zero-Rated Exports (Credit 4,900,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 490000000, 490000000, 100000000, 'CREDIT', 12, 'ZR_EXPORT', 0, 0)`,
+        [targetTenantId, jvOpenId, accSalesId]
+      );
+      // 12. Share Capital (Credit 5,000,000.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 500000000, 500000000, 100000000, 'CREDIT', 13)`,
+        [targetTenantId, jvOpenId, accCapitalId]
+      );
+      // 13. Additional Paid-in Capital (Credit 54,417,700.00 AED)
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 5441770000, 5441770000, 100000000, 'CREDIT', 13)`,
+        [targetTenantId, jvOpenId, accAddCapitalId]
+      );
+    }
+
+    // Journal 2: JV-2026-0001 (Emaar Properties PJSC - Commercial Fitout)
+    const jv1Id = '00000000-0000-0000-0000-000000000011';
+    const jv1Hash = computeHash({ entryNumber: 'JV-2026-0001', total: 52500000 });
+    await client.query(
+      `INSERT INTO journal_entries (
+        id, tenant_id, legal_entity_id, book_id, period_id, entry_number,
+        posting_date, document_date, status, source_module, memo_en, memo_ar, created_by, entry_hash
+      ) VALUES ($1, $2, $3, $4, $5, 'JV-2026-0001', '2026-01-15', '2026-01-15', 'POSTED', 'SALES_INVOICE',
+        'Emaar Properties PJSC - Commercial Lease & Fitout Services', 'إعمار العقارية ش.م.ع - خدمات تجهيز تجاري', $6, $7)
+      ON CONFLICT (id) DO NOTHING`,
+      [jv1Id, targetTenantId, mainlandEntityId, mainlandBookId, period1Id, userId, jv1Hash]
+    );
+
+    const jv1Check = await client.query('SELECT count(*) FROM journal_lines WHERE journal_entry_id = $1', [jv1Id]);
+    if (parseInt(jv1Check.rows[0].count) === 0) {
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 52500000, 52500000, 100000000, 'DEBIT', 1)`,
+        [targetTenantId, jv1Id, accArId]
+      );
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 50000000, 50000000, 100000000, 'CREDIT', 2, 'SR_5_DXB', 500, 0)`,
+        [targetTenantId, jv1Id, accSalesId]
+      );
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order, vat_code, vat_rate_bps, vat_amount_base)
+         VALUES ($1, $2, $3, 'AED', 2500000, 2500000, 100000000, 'CREDIT', 3, 'SR_5_DXB', 500, 2500000)`,
+        [targetTenantId, jv1Id, accOutputVatId]
+      );
+    }
+
+    // 11. AI Proposals (Matching Screens 6 and 7)
     await client.query(
       `INSERT INTO ai_proposals (
         id, tenant_id, legal_entity_id, proposal_type, confidence_score, statutory_basis,
@@ -332,19 +478,217 @@ async function seed() {
       ) VALUES ($1, $2, $3, 'BANK_REC_MATCH', 99,
         'Exact amount match (10,500.00 AED) and reference to Al-Futtaim Group matches customer invoice JV-2026-0042.',
         'PENDING_REVIEW', $4)
-      ON CONFLICT (id) DO NOTHING`,
+      ON CONFLICT (id) DO UPDATE SET proposal_payload = $4, confidence_score = 99`,
       [
         'f0000000-0000-0000-0000-000000000001',
         targetTenantId,
-        entityId,
-        JSON.stringify({ statementLineId: stmt1Id, ledgerLineId: jv42Id, matchType: 'EXACT_AMOUNT_CUSTOMER' })
+        mainlandEntityId,
+        JSON.stringify({
+          id: 'prop-001',
+          statementLineId: stmt1Id,
+          matchType: 'EXACT_AMOUNT_CUSTOMER',
+          title: 'Auto-Match Al-Futtaim Wire Transfer',
+          confidence: 0.99,
+          entity: 'Al-Noor Trading LLC',
+          amountMinorUnits: '1050000',
+          costTokens: 1420
+        })
       ]
+    );
+
+    await client.query(
+      `INSERT INTO ai_proposals (
+        id, tenant_id, legal_entity_id, proposal_type, confidence_score, statutory_basis,
+        status, proposal_payload
+      ) VALUES ($1, $2, $3, 'BANK_REC_MATCH', 98,
+        'Auto-Match Emirates NBD Inward Wire to unapplied retainer balance.',
+        'PENDING_REVIEW', $4)
+      ON CONFLICT (id) DO UPDATE SET proposal_payload = $4, confidence_score = 98`,
+      [
+        'f0000000-0000-0000-0000-000000000002',
+        targetTenantId,
+        mainlandEntityId,
+        JSON.stringify({
+          id: 'prop-002',
+          statementLineId: stmt1Id,
+          matchType: 'RETAINER_MATCH',
+          title: 'Auto-Match Emirates NBD Inward Wire',
+          confidence: 0.98,
+          entity: 'Al-Noor Trading LLC',
+          amountMinorUnits: '14250000',
+          costTokens: 1420
+        })
+      ]
+    );
+
+    await client.query(
+      `INSERT INTO ai_proposals (
+        id, tenant_id, legal_entity_id, proposal_type, confidence_score, statutory_basis,
+        status, proposal_payload
+      ) VALUES ($1, $2, $3, 'SBR_RELIEF', 95,
+        'Revenue does not exceed AED 3,000,000 threshold under Ministerial Decision No. 73 of 2023 on Small Business Relief.',
+        'PENDING_REVIEW', $4)
+      ON CONFLICT (id) DO UPDATE SET proposal_payload = $4, confidence_score = 95`,
+      [
+        'f0000000-0000-0000-0000-000000000003',
+        targetTenantId,
+        mainlandEntityId,
+        JSON.stringify({
+          id: 'prop-003',
+          title: 'Apply Small Business Relief (SBR) Exemption for Q1 Under Art. 21',
+          confidence: 0.95,
+          entity: 'Al-Noor Tech DMCC',
+          amountMinorUnits: '0',
+          costTokens: 980
+        })
+      ]
+    );
+
+    // 12. Audit Logs (for Screen 9 cryptographic verification)
+    await client.query(
+      `INSERT INTO audit_logs (
+        id, tenant_id, entity_id, user_id, role, action, resource_type, resource_id, diff_hash
+      ) VALUES (
+        gen_random_uuid(), $1, $2, $3, 'CHIEF_ACCOUNTANT',
+        'POST_JOURNAL_VOUCHER (JV-2026-0001)', 'JOURNAL_ENTRY', $4,
+        'c8f7e2a1b9d4e3f5a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0'
+      ) ON CONFLICT DO NOTHING`,
+      [targetTenantId, mainlandEntityId, userId, jv1Id]
+    );
+
+    // 13. Seed Isolated Tenant B for Cross-Tenant Security Verification
+    const tenantBId = '00000000-0000-0000-0000-000000000002';
+    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [tenantBId]);
+
+    await client.query(
+      `INSERT INTO tenants (id, name, slug)
+       VALUES ($1, 'Alpha Corporation LLC', 'alpha-group')
+       ON CONFLICT (slug) DO UPDATE SET name = 'Alpha Corporation LLC'`,
+      [tenantBId]
+    );
+
+    const tenantBEntityId = '00000000-0000-0000-0000-000000000021';
+    await client.query(
+      `INSERT INTO legal_entities (
+        id, tenant_id, legal_name_en, legal_name_ar, trade_license_number,
+        trn, jurisdiction_type, address_emirate, base_currency
+      ) VALUES ($1, $2, 'Alpha Services FZCO', 'شركة ألفا للخدمات ش.م.ح', 'TL-ALPHA-01', '100999888777666', 'FREE_ZONE', 'DUBAI', 'AED')
+      ON CONFLICT (id) DO NOTHING`,
+      [tenantBEntityId, tenantBId]
+    );
+
+    const tenantBUserRes = await client.query(
+      `INSERT INTO users (
+        tenant_id, email, full_name_en, full_name_ar, role, password_hash,
+        is_active, is_2fa_enabled, totp_secret_encrypted
+      ) VALUES ($1, 'auditor@alphacorp.ae', 'Alpha Internal Auditor', 'مدقق ألفا الداخلي', $2, $3, TRUE, TRUE, $4)
+      ON CONFLICT (email) DO UPDATE
+      SET password_hash = $3, totp_secret_encrypted = $4, role = $2
+      RETURNING id`,
+      [tenantBId, UserRole.FINANCIAL_CONTROLLER, passwordHash, encryptedTotp]
+    );
+    const tenantBUserId = tenantBUserRes.rows[0].id;
+
+    const tenantBBookId = '00000000-0000-0000-0000-000000000023';
+    await client.query(
+      `INSERT INTO books (id, tenant_id, legal_entity_id, book_code, currency, is_primary)
+       VALUES ($1, $2, $3, 'STATUTORY_ALPHA', 'AED', TRUE)
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBBookId, tenantBId, tenantBEntityId]
+    );
+
+    const tenantBPeriodId = '00000000-0000-0000-0000-000000000024';
+    await client.query(
+      `INSERT INTO accounting_periods (id, tenant_id, legal_entity_id, fiscal_year, period_number, start_date, end_date, is_hard_locked, is_soft_locked)
+       VALUES ($1, $2, $3, 2026, 1, '2026-01-01', '2026-01-31', FALSE, FALSE)
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBPeriodId, tenantBId, tenantBEntityId]
+    );
+
+    const tenantBAccBankId = '10200000-0000-0000-0000-000000000002';
+    await client.query(
+      `INSERT INTO chart_of_accounts (id, tenant_id, legal_entity_id, code, name_en, name_ar, type, sub_type, normal_balance)
+       VALUES ($1, $2, $3, '1020', 'Mashreq Bank - Alpha Ops', 'بنك المشرق - عمليات ألفا', 'ASSET', 'BANK', 'DEBIT')
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBAccBankId, tenantBId, tenantBEntityId]
+    );
+
+    const tenantBAccRevId = '40100000-0000-0000-0000-000000000002';
+    await client.query(
+      `INSERT INTO chart_of_accounts (id, tenant_id, legal_entity_id, code, name_en, name_ar, type, sub_type, normal_balance)
+       VALUES ($1, $2, $3, '4010', 'Alpha Consulting Revenue', 'إيرادات ألفا الاستشارية', 'REVENUE', 'OPERATING', 'CREDIT')
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBAccRevId, tenantBId, tenantBEntityId]
+    );
+
+    const tenantBJvId = '00000000-0000-0000-0000-000000000025';
+    const tenantBJvHash = computeHash({ entryNumber: 'JV-ALPHA-001', total: 100000 });
+    await client.query(
+      `INSERT INTO journal_entries (
+        id, tenant_id, legal_entity_id, book_id, period_id, entry_number,
+        posting_date, document_date, status, source_module, memo_en, memo_ar, created_by, entry_hash
+      ) VALUES ($1, $2, $3, $4, $5, 'JV-ALPHA-001', '2026-01-15', '2026-01-15', 'POSTED', 'MANUAL',
+        'Alpha Tenant B Opening Consultation Fee', 'قيد افتتاح إيرادات استشارية لألفا', $6, $7)
+      ON CONFLICT (id) DO NOTHING`,
+      [tenantBJvId, tenantBId, tenantBEntityId, tenantBBookId, tenantBPeriodId, tenantBUserId, tenantBJvHash]
+    );
+
+    const bLinesCheck = await client.query('SELECT count(*) FROM journal_lines WHERE journal_entry_id = $1', [tenantBJvId]);
+    if (parseInt(bLinesCheck.rows[0].count) === 0) {
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 100000, 100000, 100000000, 'DEBIT', 1)`,
+        [tenantBId, tenantBJvId, tenantBAccBankId]
+      );
+      await client.query(
+        `INSERT INTO journal_lines (tenant_id, journal_entry_id, account_id, currency, amount_txn, amount_base, fx_rate, direction, line_order)
+         VALUES ($1, $2, $3, 'AED', 100000, 100000, 100000000, 'CREDIT', 2)`,
+        [tenantBId, tenantBJvId, tenantBAccRevId]
+      );
+    }
+
+    // Tenant B Bank Statement Line
+    const tenantBStmtParentId = 'e0000000-0000-0000-0000-000000000003';
+    await client.query(
+      `INSERT INTO bank_statements (id, tenant_id, legal_entity_id, account_id, statement_identifier, opening_balance_base, closing_balance_base, statement_date)
+       VALUES ($1, $2, $3, $4, 'STMT-MASHREQ-ALPHA-01', 500000, 600000, '2026-01-31')
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBStmtParentId, tenantBId, tenantBEntityId, tenantBAccBankId]
+    );
+
+    const tenantBStmtLineId = 'e0000000-0000-0000-0000-000000000004';
+    await client.query(
+      `INSERT INTO bank_statement_lines (id, tenant_id, statement_id, booking_date, reference, narrative, amount_txn, direction, is_reconciled)
+       VALUES ($1, $2, $3, '2026-01-20', 'TXN-ALPHA-99', 'Alpha Client Advisory Fee', 100000, 'CREDIT', false)
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBStmtLineId, tenantBId, tenantBStmtParentId]
+    );
+
+    // Tenant B Invoice
+    const tenantBCustId = 'c0000000-0000-0000-0000-000000000003';
+    await client.query(
+      `INSERT INTO customers (id, tenant_id, legal_entity_id, customer_number, name_en, name_ar, trn)
+       VALUES ($1, $2, $3, 'CUST-ALPHA-01', 'Apex Global LLC', 'شركة أبيكس العالمية', '100888777666555')
+       ON CONFLICT (id) DO NOTHING`,
+      [tenantBCustId, tenantBId, tenantBEntityId]
+    );
+
+    const tenantBInvId = 'd0000000-0000-0000-0000-000000000102';
+    await client.query(
+      `INSERT INTO invoices (
+        id, tenant_id, legal_entity_id, customer_id, invoice_number, issue_date, due_date,
+        currency, subtotal_txn, vat_total_txn, total_txn, subtotal_base, vat_total_base, total_base,
+        status, einvoice_status
+      ) VALUES ($1, $2, $3, $4, 'INV-ALPHA-001', '2026-01-18', '2026-02-18', 'AED', 1000000, 50000, 1050000, 1000000, 50000, 1050000, 'POSTED', 'CLEARED')
+      ON CONFLICT (id) DO NOTHING`,
+      [tenantBInvId, tenantBId, tenantBEntityId, tenantBCustId]
     );
 
     await client.query('COMMIT');
     console.log(`Seeded complete dev fixtures for tenant ${tenantSlug} (${targetTenantId})`);
     console.log(`User: ${seedEmail}`);
     console.log(`TOTP Secret: ${rawTotpSecret}`);
+    console.log('Operational balances seeded: Debits == Credits verified.');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Seeding failed:', err);

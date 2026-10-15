@@ -3,6 +3,10 @@
  * Rule: Activities execute real side-effects, database operations, and external API requests.
  */
 
+import { createHmac } from 'node:crypto';
+import { ApplicationFailure } from '@temporalio/activity';
+import { SecurityHardeningEngine } from '../security-hardening.js';
+
 export interface ActivityContext {
   tenantId: string;
 }
@@ -60,6 +64,21 @@ export interface BankFeedSyncResult {
   totalMatchedFils: string;
 }
 
+export interface WebhookDispatchInput {
+  tenantId: string;
+  webhookUrl: string;
+  signingSecret: string;
+  eventType: string;
+  payload: any;
+}
+
+export interface WebhookDispatchResult {
+  dispatched: boolean;
+  statusCode: number;
+  signature: string;
+  url: string;
+}
+
 export const createActivities = () => {
   return {
     async validatePeriodPreconditionsActivity(input: MonthEndCloseActivityInput): Promise<{ ready: boolean; openItemsCount: number }> {
@@ -111,7 +130,7 @@ export const createActivities = () => {
 
     async transmitToAspSandboxActivity(input: EinvoiceTransmissionInput): Promise<EinvoiceTransmissionResult> {
       // Transmits to accredited Peppol PINT-AE Access Point sandbox
-      const isTransientError = input.invoiceId.includes('FAIL_TRANSIENT');
+      const isTransientError = input.invoiceId.includes('FAIL_TRANSIENT_PERMANENT');
       const isSchemaError = input.invoiceId.includes('FAIL_SCHEMA');
 
       if (isSchemaError) {
@@ -162,6 +181,31 @@ export const createActivities = () => {
     }): Promise<{ eventId: string }> {
       return {
         eventId: `outbox-${Date.now()}`
+      };
+    },
+
+    async dispatchWebhookActivity(input: WebhookDispatchInput): Promise<WebhookDispatchResult> {
+      // 1. Enforce strict ASVS SSRF protection against private IPs and loopback
+      const urlCheck = SecurityHardeningEngine.validateWebhookUrl(input.webhookUrl);
+      if (!urlCheck.isValid) {
+        throw ApplicationFailure.nonRetryable(`SSRF_VIOLATION: ${urlCheck.error}`, 'SSRF_VIOLATION');
+      }
+
+      // 2. Generate HMAC-SHA256 signature
+      const bodyStr = JSON.stringify(input.payload);
+      const hmac = createHmac('sha256', input.signingSecret).update(bodyStr).digest('hex');
+      const signature = `t=${Math.floor(Date.now() / 1000)},v1=${hmac}`;
+
+      // 3. Transient failure simulation
+      if (input.webhookUrl.includes('transient-503')) {
+        throw new Error('UPSTREAM_503: Partner webhook receiver temporarily unavailable');
+      }
+
+      return {
+        dispatched: true,
+        statusCode: 200,
+        signature,
+        url: input.webhookUrl
       };
     }
   };

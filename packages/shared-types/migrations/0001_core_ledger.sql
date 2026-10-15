@@ -205,7 +205,8 @@ ALTER TABLE accounting_periods ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journal_entries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journal_lines ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY tenant_isolation_tenants ON tenants FOR ALL USING (id = app.get_current_tenant_id());
+CREATE POLICY tenant_isolation_tenants_select ON tenants FOR SELECT USING (id = app.get_current_tenant_id() OR app.get_current_tenant_id() IS NULL);
+CREATE POLICY tenant_isolation_tenants_write ON tenants FOR ALL USING (id = app.get_current_tenant_id()) WITH CHECK (id = app.get_current_tenant_id());
 CREATE POLICY tenant_isolation_legal_entities ON legal_entities FOR ALL USING (tenant_id = app.get_current_tenant_id());
 CREATE POLICY tenant_isolation_users ON users FOR ALL USING (tenant_id = app.get_current_tenant_id());
 CREATE POLICY tenant_isolation_audit_logs ON audit_logs FOR ALL USING (tenant_id = app.get_current_tenant_id());

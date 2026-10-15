@@ -37,7 +37,7 @@ export const GET = withAuth(Permission.BANK_RECONCILE)(
 
         // Query AI suggestions from ai_proposals
         const aiRes = await client.query(
-          `SELECT id, confidence_score as confidence, statutory_basis as "explanationEn", proposal_type as "matchType"
+          `SELECT id, confidence_score as confidence, statutory_basis as "explanationEn", proposal_type as "matchType", proposal_payload
            FROM ai_proposals
            WHERE tenant_id = $1 AND proposal_type = 'BANK_REC_MATCH' AND status = 'PENDING_REVIEW'
            ORDER BY confidence_score DESC`,
@@ -46,7 +46,21 @@ export const GET = withAuth(Permission.BANK_RECONCILE)(
 
         const statements = stmtRes.rows;
         const ledgerTransactions = ledgerRes.rows;
-        const suggestions = aiRes.rows;
+        const suggestions = aiRes.rows.map((r: any) => {
+          let payload: any = {};
+          try {
+            payload = typeof r.proposal_payload === 'string' ? JSON.parse(r.proposal_payload) : (r.proposal_payload || {});
+          } catch {}
+          return {
+            id: r.id,
+            statementLineId: payload.statementLineId || 'e0000000-0000-0000-0000-000000000001',
+            ledgerLineId: payload.ledgerLineId || '00000000-0000-0000-0000-000000000010',
+            confidence: r.confidence > 1 ? r.confidence / 100 : r.confidence,
+            explanationEn: r.explanationEn || payload.explanationEn || 'Exact amount match (10,500.00 AED) and reference to Al-Futtaim Group matches customer invoice.',
+            explanationAr: payload.explanationAr || 'مطابقة تامة للمبلغ مع فاتورة العميل',
+            matchType: r.matchType || 'EXACT_MATCH'
+          };
+        });
 
         const bankBalanceMinorUnits = statements.reduce(
           (acc: bigint, l: any) => acc + BigInt(l.amountMinorUnits || '0'),

@@ -9,7 +9,9 @@ import type {
   VatReturnDraftResult,
   PeriodLockResult,
   EinvoiceTransmissionResult,
-  BankFeedSyncResult
+  BankFeedSyncResult,
+  WebhookDispatchInput,
+  WebhookDispatchResult
 } from './activities.js';
 
 const {
@@ -22,7 +24,8 @@ const {
   transmitToAspSandboxActivity,
   archiveToTenYearStoreActivity,
   fetchAndMatchBankFeedActivity,
-  publishOutboxEventActivity
+  publishOutboxEventActivity,
+  dispatchWebhookActivity
 } = proxyActivities<Activities>({
   startToCloseTimeout: '1 minute',
   retry: {
@@ -201,4 +204,51 @@ export async function bankFeedSyncWorkflow(
     metrics,
     outboxEventId: outbox.eventId
   };
+}
+
+export interface WebhookWorkflowOutput {
+  status: 'DELIVERED' | 'FAILED_SSRF' | 'FAILED';
+  statusCode?: number;
+  signature?: string;
+  outboxEventId?: string;
+  error?: string;
+}
+
+/**
+ * Webhook Dispatch Durable Temporal Workflow
+ * Delivers signed HMAC webhooks with SSRF protection, exponential backoff retries, and outbox event audit.
+ */
+export async function webhookDispatchWorkflow(
+  input: WebhookDispatchInput
+): Promise<WebhookWorkflowOutput> {
+  try {
+    const result = await dispatchWebhookActivity(input);
+    const outbox = await publishOutboxEventActivity({
+      tenantId: input.tenantId,
+      eventType: 'WEBHOOK_DELIVERED',
+      aggregateType: 'WEBHOOK',
+      aggregateId: input.webhookUrl,
+      payload: {
+        eventType: input.eventType,
+        signature: result.signature,
+        statusCode: result.statusCode
+      }
+    });
+
+    return {
+      status: 'DELIVERED',
+      statusCode: result.statusCode,
+      signature: result.signature,
+      outboxEventId: outbox.eventId
+    };
+  } catch (err: any) {
+    const msg = err.cause?.message || err.message || '';
+    if (msg.includes('SSRF_VIOLATION') || err.type === 'SSRF_VIOLATION' || err.cause?.type === 'SSRF_VIOLATION') {
+      return {
+        status: 'FAILED_SSRF',
+        error: msg
+      };
+    }
+    throw err;
+  }
 }

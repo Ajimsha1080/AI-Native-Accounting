@@ -8,11 +8,35 @@ export const GET = withAuth(Permission.LEDGER_READ)(
   async (request: NextRequest, { session }: AuthenticatedRequestContext) => {
     try {
       const { searchParams } = new URL(request.url);
-      const periodId = searchParams.get('periodId') || '50000000-0000-0000-0000-000000000001';
+      let resolvedPeriodId = searchParams.get('periodId');
       const trn = searchParams.get('trn') || '100456789012345';
       const boxNumber = searchParams.get('box');
 
       const pool = getDatabasePool();
+      if (!resolvedPeriodId) {
+        const client = await pool.connect();
+        try {
+          await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [session.tenantId]);
+          const pPosted = await client.query(
+            `SELECT period_id FROM journal_entries WHERE tenant_id = $1 AND status = 'POSTED' ORDER BY posting_date DESC LIMIT 1`,
+            [session.tenantId]
+          );
+          if (pPosted.rows.length > 0) {
+            resolvedPeriodId = pPosted.rows[0].period_id;
+          } else {
+            const pRes = await client.query(
+              'SELECT id FROM accounting_periods WHERE tenant_id = $1 ORDER BY fiscal_year ASC, period_number ASC LIMIT 1',
+              [session.tenantId]
+            );
+            resolvedPeriodId = pRes.rows[0]?.id || '00000000-0000-0000-0000-000000000003';
+          }
+        } finally {
+          client.release();
+        }
+      }
+
+      const periodId: string = resolvedPeriodId || '00000000-0000-0000-0000-000000000003';
+
       const repo = new LedgerRepository(pool);
 
       const vatReturn = await repo.generateVat201FromLedger(
@@ -25,24 +49,48 @@ export const GET = withAuth(Permission.LEDGER_READ)(
         trn
       );
 
-      // Map return structure to UI expectation
-      const boxes = vatReturn.boxes.map((b) => ({
-        boxNumber: b.boxNumber.toString(),
-        titleEn: b.boxTitleEn,
-        titleAr: b.boxTitleAr,
-        netAmountMinorUnits: b.amountBase.toString(),
-        vatAmountMinorUnits: b.vatAmountBase.toString(),
-        adjustmentMinorUnits: b.adjustmentAmountBase.toString(),
-        drilldownLines: b.drillDownRecords.map((r: any) => ({
-          voucherNumber: r.voucherNumber || r.entryNumber || 'JV-2026-0001',
-          date: r.date || r.postingDate || '2026-01-15',
-          counterparty: r.counterparty || 'Counterparty',
-          counterpartyTrn: r.counterpartyTrn || trn,
-          description: r.description || r.memo || 'VAT Supply Transaction',
-          netMinorUnits: (r.netMinorUnits || r.amountBase || 0n).toString(),
-          vatMinorUnits: (r.vatMinorUnits || r.vatAmountBase || 0n).toString()
-        }))
-      }));
+      // In UAE VAT 201, Box 1 is broken down into Box 1a to 1g (Abu Dhabi to Fujairah)
+      const emirateBoxes = vatReturn.emirateBreakdown
+        ? Object.values(vatReturn.emirateBreakdown).map((eb) => ({
+            boxNumber: eb.boxId,
+            titleEn: eb.boxTitleEn,
+            titleAr: eb.boxTitleAr,
+            netAmountMinorUnits: eb.amountBase.toString(),
+            vatAmountMinorUnits: eb.vatAmountBase.toString(),
+            adjustmentMinorUnits: eb.adjustmentAmountBase.toString(),
+            drilldownLines: eb.drillDownRecords.map((r: any) => ({
+              voucherNumber: r.voucherNumber || r.documentNumber || 'JV-2026-0001',
+              date: r.date || r.transactionDate || '2026-01-15',
+              counterparty: r.counterparty || r.counterpartyName || 'Counterparty',
+              counterpartyTrn: r.counterpartyTrn || trn,
+              description: r.description || 'VAT Supply Transaction',
+              netMinorUnits: (r.netMinorUnits || r.netAmountBase || 0n).toString(),
+              vatMinorUnits: (r.vatMinorUnits || r.vatAmountBase || 0n).toString()
+            }))
+          }))
+        : [];
+
+      const remainingBoxes = vatReturn.boxes
+        .filter((b) => b.boxNumber > 1)
+        .map((b) => ({
+          boxNumber: b.boxNumber.toString(),
+          titleEn: b.boxTitleEn,
+          titleAr: b.boxTitleAr,
+          netAmountMinorUnits: b.amountBase.toString(),
+          vatAmountMinorUnits: b.vatAmountBase.toString(),
+          adjustmentMinorUnits: b.adjustmentAmountBase.toString(),
+          drilldownLines: b.drillDownRecords.map((r: any) => ({
+            voucherNumber: r.voucherNumber || r.documentNumber || 'JV-2026-0001',
+            date: r.date || r.transactionDate || '2026-01-15',
+            counterparty: r.counterparty || r.counterpartyName || 'Counterparty',
+            counterpartyTrn: r.counterpartyTrn || trn,
+            description: r.description || 'VAT Supply Transaction',
+            netMinorUnits: (r.netMinorUnits || r.netAmountBase || 0n).toString(),
+            vatMinorUnits: (r.vatMinorUnits || r.vatAmountBase || 0n).toString()
+          }))
+        }));
+
+      const boxes = [...emirateBoxes, ...remainingBoxes];
 
       const responseData = {
         trn: vatReturn.taxRegistrationNumber,

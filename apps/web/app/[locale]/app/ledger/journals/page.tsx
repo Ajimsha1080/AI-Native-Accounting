@@ -187,7 +187,7 @@ function JournalsView({ params }: { params: Promise<{ locale: string }> }) {
       }
       setFormSuccess(
         action === 'POST'
-          ? `Journal ${data.journal.voucherNumber} successfully posted to General Ledger!`
+          ? `Journal ${data.journal.voucherNumber || data.journal.entryNumber || 'entry'} successfully posted to General Ledger!`
           : action === 'VALIDATE'
           ? `Double-entry invariant verified: 0 fils variance.`
           : `Saved as draft voucher.`

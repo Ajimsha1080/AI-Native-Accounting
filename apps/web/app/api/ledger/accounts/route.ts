@@ -19,6 +19,13 @@ export const GET = withAuth(Permission.LEDGER_READ)(
     try {
       const { searchParams } = new URL(request.url);
       const search = searchParams.get('q')?.toLowerCase();
+      const entityIdParam = searchParams.get('entityId');
+      const targetEntityId =
+        entityIdParam === 'ent-mainland'
+          ? '00000000-0000-0000-0000-000000000001'
+          : entityIdParam === 'ent-dmcc'
+          ? '00000000-0000-0000-0000-000000000002'
+          : entityIdParam || session.entityId || '00000000-0000-0000-0000-000000000001';
 
       const pool = getDatabasePool();
       const tenantSession = new TenantDatabaseSession(pool);
@@ -46,10 +53,10 @@ export const GET = withAuth(Permission.LEDGER_READ)(
              ) as balance_minor_units
            FROM chart_of_accounts c
            LEFT JOIN journal_lines l ON l.account_id = c.id AND l.tenant_id = c.tenant_id
-           WHERE c.tenant_id = $1 AND c.legal_entity_id = $2
+           WHERE c.tenant_id = $1 AND ($2::uuid IS NULL OR c.legal_entity_id = $2::uuid)
            GROUP BY c.id, c.code, c.name_en, c.name_ar, c.type, c.is_active
            ORDER BY c.code ASC`,
-          [session.tenantId, session.entityId]
+          [session.tenantId, targetEntityId]
         );
 
 
