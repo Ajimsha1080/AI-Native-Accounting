@@ -17,9 +17,21 @@ const { Client } = pg;
 import fs from 'fs';
 import path from 'path';
 
-const PG_BIN_DIR = 'C:\\Program Files\\PostgreSQL\\16\\bin';
-const PG_DUMP = path.join(PG_BIN_DIR, 'pg_dump.exe');
-const PSQL = path.join(PG_BIN_DIR, 'psql.exe');
+function findPgBin(binName) {
+  if (process.env.PG_BIN_DIR) {
+    const candidate = path.join(process.env.PG_BIN_DIR, binName + (process.platform === 'win32' ? '.exe' : ''));
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  const defaultWinDir = 'C:\\Program Files\\PostgreSQL\\16\\bin';
+  if (process.platform === 'win32' && fs.existsSync(path.join(defaultWinDir, binName + '.exe'))) {
+    return path.join(defaultWinDir, binName + '.exe');
+  }
+  return binName;
+}
+
+const PG_DUMP = findPgBin('pg_dump');
+const PG_RESTORE = findPgBin('pg_restore');
+const PSQL = findPgBin('psql');
 
 const PG_HOST = process.env.PGHOST || 'localhost';
 const PG_PORT = process.env.PGPORT || '9527';
@@ -86,7 +98,6 @@ async function runRealPostgresRestoreDrill() {
   // Step 3: Restore backup into target database using pg_restore
   console.log('\n[STEP 3/5] Restoring snapshot into drill database...');
   const restoreStart = Date.now();
-  const PG_RESTORE = path.join(PG_BIN_DIR, 'pg_restore.exe');
   try {
     execFileSync(
       PG_RESTORE,

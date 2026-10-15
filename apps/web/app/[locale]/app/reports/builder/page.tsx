@@ -85,8 +85,12 @@ export default function ReportBuilderPage() {
       {/* Filter Toolbar */}
       <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl flex items-center gap-4">
         <Filter className="w-4 h-4 text-emerald-400" />
-        <span className="text-sm font-semibold text-slate-300">{isAr ? 'تصنيف الحسابات:' : 'Account Category:'}</span>
+        <label htmlFor="category-select" className="text-sm font-semibold text-slate-300">
+          {isAr ? 'تصنيف الحسابات:' : 'Account Category:'}
+        </label>
         <select
+          id="category-select"
+          aria-label={isAr ? 'تصنيف الحسابات' : 'Account Category'}
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
           className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500"

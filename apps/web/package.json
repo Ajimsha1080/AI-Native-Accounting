@@ -9,7 +9,8 @@
     "start": "next start -p 3005",
     "typecheck": "tsc --noEmit",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:axe": "playwright test e2e/accessibility-axe.spec.ts -c playwright.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -30,6 +31,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@playwright/test": "^1.64.0",
     "@types/node": "^22.13.0",
     "@types/react": "19.3.0",

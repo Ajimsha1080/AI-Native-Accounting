@@ -129,8 +129,10 @@ export function AppShell({ children, locale }: AppShellProps) {
           <div className="hidden lg:flex items-center gap-3 text-xs">
             {/* Tenant Selector */}
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400">{t('tenant')}:</span>
+              <label htmlFor="tenant-select" className="text-slate-400">{t('tenant')}:</label>
               <select
+                id="tenant-select"
+                aria-label={t('tenant')}
                 value={tenant.id}
                 onChange={(e) => {
                   const found = availableTenants.find((t) => t.id === e.target.value);
@@ -148,8 +150,10 @@ export function AppShell({ children, locale }: AppShellProps) {
 
             {/* Entity Selector */}
             <div className="flex items-center gap-1.5">
-              <span className="text-slate-400">{t('entity')}:</span>
+              <label htmlFor="entity-select" className="text-slate-400">{t('entity')}:</label>
               <select
+                id="entity-select"
+                aria-label={t('entity')}
                 value={entity.id}
                 onChange={(e) => {
                   const found = availableEntities.find((ent) => ent.id === e.target.value);
@@ -174,6 +178,7 @@ export function AppShell({ children, locale }: AppShellProps) {
             <Search className="w-3.5 h-3.5 absolute start-2.5 top-2.5 text-slate-500" />
             <input
               type="text"
+              aria-label={t('searchPlaceholder')}
               placeholder={t('searchPlaceholder')}
               className="w-full bg-slate-950 border border-slate-800 rounded-lg ps-8 pe-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />

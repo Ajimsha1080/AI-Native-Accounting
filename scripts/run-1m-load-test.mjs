@@ -52,13 +52,20 @@ async function runOneMillionLinesLoadTest() {
   ];
 
   try {
-    console.log(`[SETUP] Using existing verified fixtures:`);
+    console.log(`[SETUP] Ensuring verified fixtures exist in database:`);
     console.log(`  * Tenant:  ${benchTenantId}`);
     console.log(`  * Entity:  ${entityId}`);
     console.log(`  * Book:    ${bookId}`);
     console.log(`  * Period:  ${periodId}`);
     console.log(`  * Acc 1:   ${userAccounts[0]}`);
     console.log(`  * Acc 2:   ${userAccounts[1]}`);
+
+    await client.query(`INSERT INTO tenants (id, name, slug) VALUES ('${benchTenantId}', 'Bench Tenant', 'bench-tenant') ON CONFLICT (id) DO NOTHING`);
+    await client.query(`INSERT INTO legal_entities (id, tenant_id, legal_name_en, legal_name_ar, trade_license_number, jurisdiction_type, base_currency, address_emirate) VALUES ('${entityId}', '${benchTenantId}', 'Bench Entity', 'كيان الاختبار', 'TL-BENCH-001', 'MAINLAND', 'AED', 'DUBAI') ON CONFLICT (id) DO NOTHING`);
+    await client.query(`INSERT INTO books (id, tenant_id, legal_entity_id, book_code, currency, is_primary) VALUES ('${bookId}', '${benchTenantId}', '${entityId}', 'STATUTORY_IFRS', 'AED', true) ON CONFLICT (id) DO NOTHING`);
+    await client.query(`INSERT INTO accounting_periods (id, tenant_id, legal_entity_id, fiscal_year, period_number, start_date, end_date) VALUES ('${periodId}', '${benchTenantId}', '${entityId}', 2026, 1, '2026-01-01', '2026-01-31') ON CONFLICT (id) DO NOTHING`);
+    await client.query(`INSERT INTO chart_of_accounts (id, tenant_id, legal_entity_id, code, name_en, name_ar, type, sub_type, normal_balance) VALUES ('${userAccounts[0]}', '${benchTenantId}', '${entityId}', '1010-B', 'Bench Cash', 'نقد', 'ASSET', 'CASH', 'DEBIT') ON CONFLICT (id) DO NOTHING`);
+    await client.query(`INSERT INTO chart_of_accounts (id, tenant_id, legal_entity_id, code, name_en, name_ar, type, sub_type, normal_balance) VALUES ('${userAccounts[1]}', '${benchTenantId}', '${entityId}', '4010-B', 'Bench Rev', 'إيراد', 'REVENUE', 'OPERATING', 'CREDIT') ON CONFLICT (id) DO NOTHING`);
 
     // 2. High-Speed Bulk Generation of 1,000,000 Lines using PostgreSQL unnest
     console.log('[STEP 1/3] Bulk generating and inserting 1,000,000 double-entry ledger lines...');

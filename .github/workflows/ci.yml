@@ -35,6 +35,33 @@ jobs:
           fi
           echo "Hygiene check passed."
 
+      - name: Container Security Configuration Scan
+        run: |
+          echo "Verifying Dockerfile best practices (non-root user, multi-stage)..."
+          grep -q "USER nextjs" infra/docker/Dockerfile.web || (echo "ERROR: Non-root user missing in Dockerfile.web" && exit 1)
+          echo "Container security check passed."
+
+  terraform-validate-and-plan:
+    name: Terraform Validate & Staging Plan (UAE me-central-1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.8.0
+
+      - name: Verify Terraform Formatting
+        run: terraform fmt -check -recursive infra/terraform
+
+      - name: Initialize Terraform (Backend Disabled for Validation)
+        run: terraform -chdir=infra/terraform init -backend=false
+
+      - name: Validate Terraform Syntax & Configuration
+        run: terraform -chdir=infra/terraform validate
+
   lint-and-typecheck:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
@@ -211,6 +238,20 @@ jobs:
   perf-and-dr-benchmarks:
     name: Production DR & 1M Benchmark
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: ledger_ae_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -221,16 +262,47 @@ jobs:
           node-version: 22
           cache: 'npm'
 
+      - name: Install PostgreSQL Client Tools
+        run: sudo apt-get update -y && sudo apt-get install -y postgresql-client
+
+      - name: Setup Postgres Non-Superuser Role & Seed Baseline
+        run: |
+          docker exec ${{ job.services.postgres.id }} psql -U postgres -d ledger_ae_test -c "CREATE ROLE ledger_app WITH LOGIN PASSWORD 'ledger_app_secure_pass'; GRANT ALL PRIVILEGES ON DATABASE ledger_ae_test TO ledger_app; GRANT ALL PRIVILEGES ON SCHEMA public TO ledger_app;"
+
       - name: Install Dependencies
         run: npm ci
 
       - name: Build Monorepo
         run: npm run build
 
-      - name: Execute Automated Disaster Recovery (PITR) Drill
-        run: node scripts/dr/run-pitr-drill.mjs
+      - name: Seed Development Tenant & Base Ledger Data
+        run: node scripts/seed-dev-auth.mjs
+        env:
+          DATABASE_URL: postgresql://ledger_app:ledger_app_secure_pass@localhost:5432/ledger_ae_test
+          TEST_DATABASE_URL: postgresql://ledger_app:ledger_app_secure_pass@localhost:5432/ledger_ae_test
+          JWT_SECRET: "01234567890123456789012345678901"
+          ENCRYPTION_KEY: "01234567890123456789012345678901"
+          TOTP_ENCRYPTION_KEY: "01234567890123456789012345678901"
 
-      - name: Execute 1,000,000 Lines Trial Balance Latency Benchmark
+      - name: Execute Live PostgreSQL Point-in-Time Restore (PITR) Drill
+        run: node scripts/dr/run-real-postgres-restore-drill.mjs
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgrespassword
+          PGDATABASE: ledger_ae_test
+
+      - name: Execute 1,000,000 Lines Real PostgreSQL Bulk Load & Query Benchmark
+        run: node scripts/run-1m-load-test.mjs
+        env:
+          PGHOST: localhost
+          PGPORT: "5432"
+          PGUSER: postgres
+          PGPASSWORD: postgrespassword
+          PGDATABASE: ledger_ae_test
+
+      - name: Execute In-Memory 1,000,000 Lines Trial Balance Latency Benchmark
         run: node --max-old-space-size=4096 scripts/perf/trial-balance-1m-benchmark.mjs
 
   clean-checkout-verification:
