@@ -83,6 +83,46 @@ describe('Procure to Pay: Three-Way Matching Engine', () => {
     assert.equal(result.status, ThreeWayMatchStatus.QUANTITY_MISMATCH);
     assert.equal(result.isApprovedForPayment, false);
   });
+
+  test('Matched within tolerance approves payment with variance note', () => {
+    const sampleGRN: GoodsReceiptItem = {
+      itemId: 'LAPTOP-M3',
+      quantityReceived: 10n,
+      receiptDate: '2026-02-10'
+    };
+    // 5,000 AED unit price ordered vs 5,002 AED unit price billed (2 AED / 200 fils diff * 10 = 2,000 fils <= 5,000 fils tolerance)
+    const toleranceBill: VendorBillItem = {
+      itemId: 'LAPTOP-M3',
+      quantityBilled: 10n,
+      unitPriceFils: 500200n,
+      totalFils: 5002000n
+    };
+
+    const result = evaluateThreeWayMatch(samplePO, sampleGRN, toleranceBill);
+    assert.equal(result.status, ThreeWayMatchStatus.MATCHED_WITHIN_TOLERANCE);
+    assert.equal(result.isApprovedForPayment, true);
+    assert.equal(result.varianceFils, 2000n);
+  });
+
+  test('Price variance exceeding allowable tolerance rejects payment', () => {
+    const sampleGRN: GoodsReceiptItem = {
+      itemId: 'LAPTOP-M3',
+      quantityReceived: 10n,
+      receiptDate: '2026-02-10'
+    };
+    // 5,000 AED unit price ordered vs 6,000 AED unit price billed (1,000 AED variance * 10 = 10,000 AED diff > 50 AED / 1% tolerance)
+    const overpricedBill: VendorBillItem = {
+      itemId: 'LAPTOP-M3',
+      quantityBilled: 10n,
+      unitPriceFils: 600000n,
+      totalFils: 6000000n
+    };
+
+    const result = evaluateThreeWayMatch(samplePO, sampleGRN, overpricedBill);
+    assert.equal(result.status, ThreeWayMatchStatus.PRICE_MISMATCH);
+    assert.equal(result.isApprovedForPayment, false);
+    assert.ok(result.reasons[0].includes('Price variance'));
+  });
 });
 
 describe('Procure to Pay: Tiered Approval Workflows', () => {
@@ -106,6 +146,28 @@ describe('Procure to Pay: Tiered Approval Workflows', () => {
     assert.match(result.reason, /Segregation of duties/);
   });
 
+  test('Junior Accountant lacks Tier 1 bill approval permission', () => {
+    const result = engine.evaluateBillApproval({
+      billId: 'bill-001a',
+      amountFils: 500000n, // 5k AED -> Tier 1
+      creatorUserId: 'usr-junior-1',
+      approverUserId: 'usr-junior-2',
+      approverRole: UserRole.JUNIOR_ACCOUNTANT
+    });
+    assert.equal(result.isApproved, false);
+  });
+
+  test('Senior Accountant can approve Tier 1 bills (<= 10k AED)', () => {
+    const result = engine.evaluateBillApproval({
+      billId: 'bill-001b',
+      amountFils: 500000n, // 5k AED -> Tier 1
+      creatorUserId: 'usr-junior',
+      approverUserId: 'usr-senior',
+      approverRole: UserRole.SENIOR_ACCOUNTANT
+    });
+    assert.equal(result.isApproved, true);
+  });
+
   test('Senior accountant cannot approve Tier 2 bills (> 10k AED)', () => {
     const result = engine.evaluateBillApproval({
       billId: 'bill-002',
@@ -124,6 +186,28 @@ describe('Procure to Pay: Tiered Approval Workflows', () => {
       creatorUserId: 'usr-junior',
       approverUserId: 'usr-controller',
       approverRole: UserRole.FINANCIAL_CONTROLLER
+    });
+    assert.equal(result.isApproved, true);
+  });
+
+  test('Financial Controller cannot approve Tier 3 Executive bills (> 50k AED)', () => {
+    const result = engine.evaluateBillApproval({
+      billId: 'bill-004',
+      amountFils: 7500000n, // 75,000 AED -> Requires Tier 3 Executive
+      creatorUserId: 'usr-junior',
+      approverUserId: 'usr-controller',
+      approverRole: UserRole.FINANCIAL_CONTROLLER
+    });
+    assert.equal(result.isApproved, false);
+  });
+
+  test('CFO can approve Tier 3 Executive bills (> 50k AED)', () => {
+    const result = engine.evaluateBillApproval({
+      billId: 'bill-005',
+      amountFils: 7500000n, // 75,000 AED -> Tier 3
+      creatorUserId: 'usr-junior',
+      approverUserId: 'usr-cfo',
+      approverRole: UserRole.CFO
     });
     assert.equal(result.isApproved, true);
   });

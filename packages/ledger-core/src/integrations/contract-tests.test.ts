@@ -123,6 +123,47 @@ describe('Phase 7: Integrations Behind Interfaces with Contract Tests', () => {
       assert.equal(result.mlsStatusCode, 'IP');
       assert.match(result.rejectionReason!, /HTTP 503/);
     });
+
+    test('Contract: checkClearanceStatus queries ASP and returns clearance status', async () => {
+      const mockStatusFetch = async (url: any) => {
+        assert.ok(String(url).includes('/invoices/ASP-TX-9988/status'));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            transmissionId: 'ASP-TX-9988',
+            status: 'ACCEPTED',
+            clearanceReference: 'FTA-CLR-9988-FINAL',
+            clearedAt: '2026-03-15T10:05:00Z'
+          })
+        } as any;
+      };
+
+      const client = new PintAeAspClient({ customFetch: mockStatusFetch });
+      const statusRes = await client.checkClearanceStatus('ASP-TX-9988');
+      assert.equal(statusRes.status, 'ACCEPTED');
+      assert.equal(statusRes.clearanceReference, 'FTA-CLR-9988-FINAL');
+    });
+
+    test('Contract: checkClearanceStatus handles gateway error or network failure gracefully', async () => {
+      const mockFailFetch = async () => ({
+        ok: false,
+        status: 500
+      } as any);
+
+      const client = new PintAeAspClient({ customFetch: mockFailFetch });
+      const statusRes = await client.checkClearanceStatus('ASP-TX-FAIL');
+      assert.equal(statusRes.status, 'IN_PROCESS');
+      assert.match(statusRes.rejectionReason!, /HTTP 500/);
+
+      const mockNetErrFetch = async () => {
+        throw new Error('Connection refused');
+      };
+      const clientErr = new PintAeAspClient({ customFetch: mockNetErrFetch });
+      const statusNetRes = await clientErr.checkClearanceStatus('ASP-TX-NET');
+      assert.equal(statusNetRes.status, 'IN_PROCESS');
+      assert.match(statusNetRes.rejectionReason!, /Connection refused/);
+    });
   });
 
   // =========================================================================

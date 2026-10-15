@@ -405,14 +405,20 @@ Total: AED 73,500.00`,
       const TEST_DATABASE_URL =
         process.env.TEST_DATABASE_URL ||
         process.env.DATABASE_URL ||
-        'postgresql://ledger_app:ledger_app_secure_pass_9988@localhost:9527/ledger_ae_test';
+        'postgresql://ledger_app:ledger_app_secure_pass@localhost:9527/ledger_ae_test';
 
       const pool = new Pool({ connectionString: TEST_DATABASE_URL });
       const tenantSession = new TenantDatabaseSession(pool);
-      const tenantId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
+      const tenantId = '9a9a9a9a-9a9a-9a9a-9a9a-9a9a9a9a9a9a';
 
       try {
         await tenantSession.withTenant(tenantId, async (client) => {
+          // Self-contained tenant fixture: never rely on prior external seeding
+          await client.query(
+            `INSERT INTO tenants (id, name, slug) VALUES ($1, 'AI Eval Self-Seeded Tenant', 'ai-eval-self-seeded') ON CONFLICT (id) DO NOTHING`,
+            [tenantId]
+          );
+
           const logRes = await AiActionLogger.logActionToDatabase(client, {
             tenantId,
             actionType: 'DOCUMENT_EXTRACTION',

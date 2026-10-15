@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3005",
     "typecheck": "tsc --noEmit",
-    "test": "node --test --experimental-strip-types src/index.test.ts src/lib/money.test.ts",
+    "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:e2e": "playwright test"
   },
   "dependencies": {
