@@ -44,72 +44,9 @@ export const GET = withAuth(Permission.BANK_RECONCILE)(
           [session.tenantId]
         );
 
-        let statements = stmtRes.rows;
-        let ledgerTransactions = ledgerRes.rows;
-        let suggestions = aiRes.rows;
-
-        // Baseline fallback for demo/e2e testing when DB has not received bank feed lines
-        if (statements.length === 0) {
-          statements = [
-            {
-              id: 'stmt-001',
-              date: '2026-03-15',
-              reference: 'TXN-984321',
-              description: 'Al-Futtaim Group - Cust Pmt Inv 2026-001',
-              amountMinorUnits: '1050000',
-              currency: 'AED',
-              matchedStatus: 'UNMATCHED',
-              matchedLedgerEntryId: undefined
-            },
-            {
-              id: 'stmt-002',
-              date: '2026-03-14',
-              reference: 'CHQ-002391',
-              description: 'DEWA Utilities Auto-Debit',
-              amountMinorUnits: '-142000',
-              currency: 'AED',
-              matchedStatus: 'MATCHED',
-              matchedLedgerEntryId: 'ledg-002'
-            }
-          ];
-        }
-
-        if (ledgerTransactions.length === 0) {
-          ledgerTransactions = [
-            {
-              id: 'ledg-001',
-              voucherNumber: 'JV-2026-0042',
-              date: '2026-03-15',
-              description: 'Al-Futtaim Group settlement',
-              amountMinorUnits: '1050000',
-              accountCode: '1020',
-              isReconciled: false
-            },
-            {
-              id: 'ledg-002',
-              voucherNumber: 'JV-2026-0038',
-              date: '2026-03-14',
-              description: 'DEWA electricity and water payment',
-              amountMinorUnits: '-142000',
-              accountCode: '1020',
-              isReconciled: true
-            }
-          ];
-        }
-
-        if (suggestions.length === 0) {
-          suggestions = [
-            {
-              id: 'sugg-001',
-              statementLineId: 'stmt-001',
-              ledgerLineId: 'ledg-001',
-              confidence: 0.99,
-              explanationEn: 'Exact amount match (10,500.00 AED) and reference to Al-Futtaim Group matches customer invoice JV-2026-0042.',
-              explanationAr: 'تطابق تام في المبلغ (10,500.00 درهم) ومطابقة اسم العميل مجموعة الفطيم مع الفاتورة رقم JV-2026-0042.',
-              matchType: 'EXACT_AMOUNT_CUSTOMER'
-            }
-          ];
-        }
+        const statements = stmtRes.rows;
+        const ledgerTransactions = ledgerRes.rows;
+        const suggestions = aiRes.rows;
 
         const bankBalanceMinorUnits = statements.reduce(
           (acc: bigint, l: any) => acc + BigInt(l.amountMinorUnits || '0'),
@@ -134,7 +71,7 @@ export const GET = withAuth(Permission.BANK_RECONCILE)(
         });
       });
     } catch (err: any) {
-      return NextResponse.json({ error: 'Database query failed: ' + err.message }, { status: 500 });
+      return NextResponse.json({ error: 'Database query failed: ' + err.message, code: 'DB_ERROR' }, { status: 500 });
     }
   }
 );
@@ -149,31 +86,27 @@ export const POST = withAuth(Permission.BANK_RECONCILE)(
 
       return await tenantSession.withTenant(session.tenantId, async (client) => {
         if (action === 'MATCH') {
-          if (typeof statementLineId === 'string' && statementLineId.startsWith('stmt-')) {
-            return NextResponse.json({
-              success: true,
-              stmt: {
-                id: statementLineId,
-                matched_journal_line_id: ledgerLineId,
-                reconciliation_status: 'MATCHED'
-              }
-            });
-          }
-
-          // Update statement line
+          // Update statement line in database
           const stmtRes = await client.query(
             `UPDATE bank_statement_lines
              SET is_reconciled = true, reconciled_journal_line_id = $1
              WHERE id = $2 AND tenant_id = $3
-             RETURNING *`,
+             RETURNING id, is_reconciled, reconciled_journal_line_id`,
             [ledgerLineId, statementLineId, session.tenantId]
           );
 
           if (stmtRes.rows.length === 0) {
-            return NextResponse.json({ error: 'Statement line not found' }, { status: 404 });
+            return NextResponse.json({ error: 'Statement line not found or not owned by tenant', code: 'NOT_FOUND' }, { status: 404 });
           }
 
-          return NextResponse.json({ success: true, stmt: stmtRes.rows[0] });
+          return NextResponse.json({
+            success: true,
+            stmt: {
+              id: stmtRes.rows[0].id,
+              matched_journal_line_id: stmtRes.rows[0].reconciled_journal_line_id,
+              reconciliation_status: 'MATCHED'
+            }
+          });
         }
 
         if (action === 'START_BANK_SYNC') {
@@ -192,10 +125,10 @@ export const POST = withAuth(Permission.BANK_RECONCILE)(
           return NextResponse.json({ success: true, workflowId, status: 'RUNNING' });
         }
 
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        return NextResponse.json({ error: 'Invalid action', code: 'INVALID_ACTION' }, { status: 400 });
       });
     } catch (err: any) {
-      return NextResponse.json({ error: 'Server error: ' + err.message }, { status: 500 });
+      return NextResponse.json({ error: 'Server error: ' + err.message, code: 'INTERNAL_SERVER_ERROR' }, { status: 500 });
     }
   }
 );

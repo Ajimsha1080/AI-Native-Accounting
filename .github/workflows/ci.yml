@@ -57,6 +57,9 @@ jobs:
       - name: Strict Typecheck
         run: npm run typecheck
 
+      - name: Check No Mock Fallbacks in Production API Routes
+        run: node scripts/check-no-mock-fallbacks.mjs
+
       - name: Linter Check
         run: npm run lint
 

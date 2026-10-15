@@ -57,17 +57,44 @@ export class LedgerRepository {
       throw new Error(`Double-entry invariant violation: ${invariantResult.errors.join('; ')}`);
     }
 
+    // Cross-tenant validation
+    if (candidate.tenantId !== ctx.tenantId) {
+      throw new Error(`Cross-tenant violation: candidate tenant ${candidate.tenantId} does not match context tenant ${ctx.tenantId}`);
+    }
+
     // 2. Cryptographic Hash
     const entryHash = computeVoucherHash(candidate);
 
     return await this.tenantSession.withTenant(ctx.tenantId, async (client: PoolClient) => {
-      // 3. Check period lock in database
+      // 3. Check period existence and lock in database
       const periodRes = await client.query(
         `SELECT is_hard_locked, is_soft_locked FROM accounting_periods WHERE id = $1 AND tenant_id = $2`,
         [candidate.periodId, ctx.tenantId]
       );
-      if (periodRes.rows.length > 0 && periodRes.rows[0].is_hard_locked) {
+      if (periodRes.rows.length === 0) {
+        throw new Error(`Foreign key or cross-tenant violation: accounting period ${candidate.periodId} not found in tenant ${ctx.tenantId}`);
+      }
+      if (periodRes.rows[0].is_hard_locked) {
         throw new PeriodLockedException(candidate.periodId, PeriodLockStatus.HARD_LOCKED);
+      }
+
+      // Check book existence
+      const bookRes = await client.query(
+        `SELECT id FROM books WHERE id = $1 AND tenant_id = $2`,
+        [candidate.bookId, ctx.tenantId]
+      );
+      if (bookRes.rows.length === 0) {
+        throw new Error(`Foreign key or cross-tenant violation: book ${candidate.bookId} not found in tenant ${ctx.tenantId}`);
+      }
+
+      // Check accounts existence within tenant
+      const accountIds = Array.from(new Set(candidate.lines.map((l) => l.accountId)));
+      const accountsRes = await client.query(
+        `SELECT id FROM chart_of_accounts WHERE tenant_id = $1 AND id = ANY($2::uuid[])`,
+        [ctx.tenantId, accountIds]
+      );
+      if (accountsRes.rows.length !== accountIds.length) {
+        throw new Error(`Foreign key or cross-tenant violation: one or more accounts do not exist in tenant ${ctx.tenantId}`);
       }
 
       // 4. Insert Journal Entry Header

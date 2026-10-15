@@ -87,7 +87,7 @@ export async function POST(request: Request) {
       client.release();
     }
 
-    // NO hardcoded TOTP codes (code === '123456') or simulated bypasses permitted
+    // Strict validation: No hardcoded codes or unauthorized bypasses permitted
     if (!isTotpValid && !isRecoveryCodeValid) {
       return NextResponse.json(
         { error: 'Invalid verification code or recovery code already used.' },

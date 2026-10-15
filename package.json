@@ -14,7 +14,8 @@
     "test:eval": "node scripts/run-ai-evals.mjs",
     "test:dr": "node scripts/dr/run-real-postgres-restore-drill.mjs",
     "test:load": "node scripts/run-1m-load-test.mjs",
-    "lint": "node scripts/lint-zero-float-money.mjs && npm run lint --workspaces --if-present",
+    "lint": "node scripts/check-no-mock-fallbacks.mjs && node scripts/lint-zero-float-money.mjs && npm run lint --workspaces --if-present",
+    "lint:fallbacks": "node scripts/check-no-mock-fallbacks.mjs",
     "lint:money": "node scripts/lint-zero-float-money.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },

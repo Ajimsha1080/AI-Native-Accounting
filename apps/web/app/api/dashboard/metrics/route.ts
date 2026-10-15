@@ -62,35 +62,10 @@ export const GET = withAuth(Permission.LEDGER_READ)(
         const isDMCC = entityId === 'ent-dmcc';
         const isJAFZA = entityId === 'ent-jafza';
 
-        const cashMinorUnits = dbCash !== 0n
-          ? dbCash
-          : isMainland
-          ? 845000000n
-          : isDMCC
-          ? 420000000n
-          : isJAFZA
-          ? 580000000n
-          : 1845000000n;
-
-        const arTotalMinorUnits = dbAr !== 0n
-          ? dbAr
-          : isMainland
-          ? 320000000n
-          : 624000000n;
-
-        const apTotalMinorUnits = dbAp !== 0n
-          ? dbAp
-          : isMainland
-          ? 180000000n
-          : 412000000n;
-
-        const vatLiabilityMinorUnits = dbVat !== 0n
-          ? dbVat
-          : isMainland
-          ? 21500000n
-          : isJAFZA
-          ? 0n
-          : 34250000n;
+        const cashMinorUnits = dbCash;
+        const arTotalMinorUnits = dbAr;
+        const apTotalMinorUnits = dbAp;
+        const vatLiabilityMinorUnits = dbVat;
 
         return NextResponse.json({
           tenantId: session.tenantId,

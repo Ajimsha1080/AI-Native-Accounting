@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth, AuthenticatedRequestContext } from '@/lib/auth';
 import { Permission } from '@ledger-ae/shared-types';
-import { LedgerRepository, JournalEntryCandidate, Direction } from '@ledger-ae/ledger-core';
+import { LedgerRepository, JournalEntryCandidate, Direction, PeriodLockedException } from '@ledger-ae/ledger-core';
 import { getDatabasePool } from '@/lib/db';
 
 export const GET = withAuth(Permission.LEDGER_READ)(
@@ -15,53 +15,17 @@ export const GET = withAuth(Permission.LEDGER_READ)(
         userId: session.userId
       });
 
-      let formattedJournals: any[] = journals.map((j) => ({
+      const formattedJournals = journals.map((j) => ({
         id: j.id,
         voucherNumber: j.entryNumber,
         date: j.postingDate,
         period: 'FY2026-P01',
         status: j.status,
         description: j.memoEn || 'Journal Entry',
-        totalDebitMinorUnits: '0',
-        totalCreditMinorUnits: '0',
+        totalDebitMinorUnits: j.totalDebitsBase,
+        totalCreditMinorUnits: j.totalCreditsBase,
         lines: [] as any[]
       }));
-
-      if (formattedJournals.length === 0) {
-        formattedJournals = [
-          {
-            id: 'jv-2026-001',
-            voucherNumber: 'JV-2026-0001',
-            date: '2026-01-15',
-            period: 'FY2026-P01',
-            status: 'POSTED' as any,
-            description: 'Commercial sales invoice with 5% VAT to Al-Futtaim Group',
-            totalDebitMinorUnits: '10500000',
-            totalCreditMinorUnits: '10500000',
-            lines: [
-              { accountId: 'acc-1200', accountCode: '1200', accountName: 'Trade Accounts Receivable', description: 'Due from Al-Futtaim Group', debitMinorUnits: '10500000', creditMinorUnits: '0' },
-              { accountId: 'acc-4010', accountCode: '4010', accountName: 'Commercial Sales Revenue (Standard 5%)', description: 'Base tax supply (Dubai)', debitMinorUnits: '0', creditMinorUnits: '10000000' },
-              { accountId: 'acc-2110', accountCode: '2110', accountName: 'Output VAT Payable (Box 1)', description: '5% Output VAT', debitMinorUnits: '0', creditMinorUnits: '500000' }
-            ]
-          },
-          {
-            id: 'jv-2026-002',
-            voucherNumber: 'JV-2026-0002',
-            date: '2026-01-20',
-            period: 'FY2026-P01',
-            status: 'POSTED' as any,
-            description: 'Cloud IT Infrastructure services with Reverse Charge (Art. 48)',
-            totalDebitMinorUnits: '2100000',
-            totalCreditMinorUnits: '2100000',
-            lines: [
-              { accountId: 'acc-5010', accountCode: '5010', accountName: 'Cost of Goods Sold (COGS)', description: 'AWS Cloud Hosting', debitMinorUnits: '2000000', creditMinorUnits: '0' },
-              { accountId: 'acc-1300', accountCode: '1300', accountName: 'Input VAT Recoverable (Box 9)', description: 'RCM Input VAT Recovery', debitMinorUnits: '100000', creditMinorUnits: '0' },
-              { accountId: 'acc-2010', accountCode: '2010', accountName: 'Trade Accounts Payable (AP)', description: 'Due to Amazon Web Services', debitMinorUnits: '0', creditMinorUnits: '2000000' },
-              { accountId: 'acc-2110', accountCode: '2110', accountName: 'Output VAT Payable (Box 1)', description: 'RCM Output VAT (Box 3)', debitMinorUnits: '0', creditMinorUnits: '100000' }
-            ]
-          }
-        ];
-      }
 
       return NextResponse.json({
         journals: formattedJournals,
@@ -69,7 +33,7 @@ export const GET = withAuth(Permission.LEDGER_READ)(
       });
     } catch (err: any) {
       return NextResponse.json(
-        { error: `Database query failed: ${err.message}` },
+        { error: `Database query failed: ${err.message}`, code: 'DB_ERROR' },
         { status: 500 }
       );
     }
@@ -93,17 +57,15 @@ export const POST = withAuth(Permission.LEDGER_POST)(
       if (action === 'REVERSE') {
         const { journalId } = body;
         if (!journalId) {
-          return NextResponse.json({ error: 'Missing journalId to reverse' }, { status: 400 });
+          return NextResponse.json({ error: 'Missing journalId to reverse', code: 'INVALID_INPUT' }, { status: 400 });
         }
 
-        // Fetch original journal within tenant session
         const existingEntries = await repo.listJournalEntries(ctx);
         const target = existingEntries.find((j) => j.id === journalId);
         if (!target) {
-          return NextResponse.json({ error: 'Target journal not found' }, { status: 404 });
+          return NextResponse.json({ error: 'Target journal not found', code: 'NOT_FOUND' }, { status: 404 });
         }
 
-        // Query lines to build reversal
         const linesRes = await pool.query(
           `SELECT account_id, currency, amount_txn, amount_base, fx_rate, direction, vat_code, vat_rate_bps, vat_amount_base
            FROM journal_lines WHERE journal_entry_id = $1 AND tenant_id = $2 ORDER BY line_order ASC`,
@@ -126,7 +88,7 @@ export const POST = withAuth(Permission.LEDGER_POST)(
           tenantId: session.tenantId,
           entityId: session.entityId,
           createdBy: session.userId,
-          bookId: body.bookId || target.periodId, // defaults to book associated with period
+          bookId: body.bookId || target.periodId,
           periodId: target.periodId,
           entryNumber: `REV-${target.entryNumber}-${Date.now().toString().slice(-4)}`,
           postingDate: new Date().toISOString().split('T')[0],
@@ -140,10 +102,18 @@ export const POST = withAuth(Permission.LEDGER_POST)(
         return NextResponse.json({ success: true, journal: result });
       }
 
+      // Check cross-tenant payload attempt
+      if (journal && journal.tenantId && journal.tenantId !== session.tenantId) {
+        return NextResponse.json(
+          { error: 'Cannot post journal entries for a different tenant', code: 'CROSS_TENANT_VIOLATION' },
+          { status: 403 }
+        );
+      }
+
       // Standard Journal Voucher Handling
       if (!journal || !journal.lines || journal.lines.length < 2) {
         return NextResponse.json(
-          { error: 'A journal voucher must contain at least 2 double-entry lines' },
+          { error: 'A journal voucher must contain at least 2 double-entry lines', code: 'INVALID_INPUT' },
           { status: 400 }
         );
       }
@@ -155,7 +125,7 @@ export const POST = withAuth(Permission.LEDGER_POST)(
 
       if (!isBalanced) {
         return NextResponse.json(
-          { error: `Journal is out of balance. Debits: ${totalDebits}, Credits: ${totalCredits}` },
+          { error: `Journal is out of balance. Debits: ${totalDebits}, Credits: ${totalCredits}`, code: 'UNBALANCED_ENTRY' },
           { status: 400 }
         );
       }
@@ -183,7 +153,7 @@ export const POST = withAuth(Permission.LEDGER_POST)(
             if (bRes.rows.length > 0) bookId = bRes.rows[0].id;
           }
           if (!periodId) {
-            const pRes = await client.query('SELECT id FROM accounting_periods WHERE tenant_id = $1 LIMIT 1', [session.tenantId]);
+            const pRes = await client.query('SELECT id FROM accounting_periods WHERE tenant_id = $1 AND is_hard_locked = false ORDER BY period_number ASC LIMIT 1', [session.tenantId]);
             if (pRes.rows.length > 0) periodId = pRes.rows[0].id;
           }
           await client.query('COMMIT');
@@ -194,12 +164,38 @@ export const POST = withAuth(Permission.LEDGER_POST)(
         }
       }
 
+      if (!bookId) {
+        return NextResponse.json(
+          { error: 'No accounting book found for tenant', code: 'FK_VIOLATION' },
+          { status: 400 }
+        );
+      }
+
+      if (!periodId) {
+        return NextResponse.json(
+          { error: 'No open accounting period found for tenant', code: 'PERIOD_NOT_FOUND' },
+          { status: 400 }
+        );
+      }
+
+      // Resolve account IDs for tenant
+      const accListRes = await pool.query(
+        `SELECT id, code FROM chart_of_accounts WHERE tenant_id = $1`,
+        [session.tenantId]
+      );
+      const accMap = new Map<string, string>();
+      for (const row of accListRes.rows) {
+        accMap.set(row.id, row.id);
+        accMap.set(row.code, row.id);
+        accMap.set(`acc-${row.code}`, row.id);
+      }
+
       const candidate: JournalEntryCandidate = {
         tenantId: session.tenantId,
         entityId: session.entityId,
         createdBy: session.userId,
-        bookId: bookId || '00000000-0000-0000-0000-000000000001',
-        periodId: periodId || '00000000-0000-0000-0000-000000000001',
+        bookId,
+        periodId,
         entryNumber: journal.voucherNumber || `JV-${Date.now().toString().slice(-6)}`,
         postingDate: journal.date || new Date().toISOString().split('T')[0],
         documentDate: journal.date || new Date().toISOString().split('T')[0],
@@ -210,8 +206,10 @@ export const POST = withAuth(Permission.LEDGER_POST)(
           const credit = BigInt(l.creditMinorUnits || '0');
           const isDebit = debit > 0n;
           const amount = isDebit ? debit : credit;
+          const resolvedAccountId = accMap.get(l.accountId) || accMap.get(l.accountCode) || l.accountId;
+
           return {
-            accountId: l.accountId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(l.accountId) ? l.accountId : '00000000-0000-0000-0000-000000000001',
+            accountId: resolvedAccountId,
             currency: l.currency || 'AED',
             amountTxn: amount,
             amountBase: amount,
@@ -226,25 +224,57 @@ export const POST = withAuth(Permission.LEDGER_POST)(
 
       try {
         const result = await repo.postJournalEntry(ctx, candidate);
-        return NextResponse.json({ success: true, journal: result, isBalanced: true });
-      } catch {
-        // Return successful simulated posted voucher when schema foreign key constraints require seeded entities
-        return NextResponse.json({
-          success: true,
-          journal: {
-            id: 'jv-' + Date.now(),
-            voucherNumber: candidate.entryNumber,
-            status: 'POSTED',
-            date: candidate.postingDate,
-            totalDebitMinorUnits: totalDebits.toString(),
-            totalCreditMinorUnits: totalCredits.toString(),
-            lines: journal.lines
-          },
-          isBalanced: true
-        });
+        return NextResponse.json({ success: true, journal: result, isBalanced: true }, { status: 201 });
+      } catch (err: any) {
+        if (
+          err instanceof PeriodLockedException ||
+          err.name === 'PeriodLockedException' ||
+          err.message?.includes('HARD_LOCKED') ||
+          err.message?.includes('SOFT_LOCKED') ||
+          err.message?.includes('is locked')
+        ) {
+          return NextResponse.json(
+            { error: err.message, code: 'PERIOD_LOCKED' },
+            { status: 400 }
+          );
+        }
+        if (
+          err.message?.includes('Double-entry invariant violation') ||
+          err.message?.includes('out of balance')
+        ) {
+          return NextResponse.json(
+            { error: err.message, code: 'UNBALANCED_ENTRY' },
+            { status: 400 }
+          );
+        }
+        if (
+          err.message?.includes('Cross-tenant') ||
+          err.code === '42501'
+        ) {
+          return NextResponse.json(
+            { error: err.message || 'Cross-tenant access forbidden', code: 'CROSS_TENANT_VIOLATION' },
+            { status: 403 }
+          );
+        }
+        if (
+          err.code === '23503' ||
+          err.code === '22P02' ||
+          err.message?.includes('Foreign key') ||
+          err.message?.includes('violates foreign key') ||
+          err.message?.includes('not found')
+        ) {
+          return NextResponse.json(
+            { error: err.message, code: 'FK_VIOLATION' },
+            { status: 400 }
+          );
+        }
+        return NextResponse.json(
+          { error: `Database error: ${err.message}`, code: 'DB_ERROR' },
+          { status: 500 }
+        );
       }
     } catch (err: any) {
-      return NextResponse.json({ error: 'Server error processing journal: ' + err.message }, { status: 500 });
+      return NextResponse.json({ error: 'Server error processing journal: ' + err.message, code: 'INTERNAL_SERVER_ERROR' }, { status: 500 });
     }
   }
 );
