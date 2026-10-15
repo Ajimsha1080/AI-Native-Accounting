@@ -38,7 +38,7 @@ describe('Phase 1: Persistence & Multi-Tenant RLS Integration Tests', () => {
 
     // 1. Initial Migration Run
     const appliedFirst = await runner.runMigrations({ migrationsDir });
-    assert.equal(appliedFirst.length, 8, 'Should apply 8 migrations on first run');
+    assert.equal(appliedFirst.length, 9, 'Should apply 9 migrations on first run');
     assert.deepEqual(appliedFirst, [
       '0001_core_ledger.sql',
       '0002_operations_schema.sql',
@@ -47,7 +47,8 @@ describe('Phase 1: Persistence & Multi-Tenant RLS Integration Tests', () => {
       '0005_auth_sessions_and_lockout.sql',
       '0006_force_rls_and_policies.sql',
       '0007_mcp_nonces_and_tickets.sql',
-      '0008_ai_telemetry_and_evals.sql'
+      '0008_ai_telemetry_and_evals.sql',
+      '0009_enterprise_features.sql'
     ]);
 
     // 2. Idempotent Second Migration Run

@@ -277,6 +277,17 @@ async function seed() {
       [bill5502Id, targetTenantId, mainlandEntityId, vendorCiscoId]
     );
 
+    const bill5503Id = 'b0000000-0000-0000-0000-000000005503';
+    await client.query(
+      `INSERT INTO bills (
+        id, tenant_id, legal_entity_id, vendor_id, bill_number, vendor_invoice_number,
+        bill_date, due_date, currency, subtotal_txn, vat_total_txn, total_txn, subtotal_base, vat_total_base, total_base,
+        status, match_status
+      ) VALUES ($1, $2, $3, $4, 'BILL-2026-5503', 'ETISALAT-FEB26', '2026-02-01', '2026-03-01', 'AED', 12000000, 600000, 12600000, 12000000, 600000, 12600000, 'PENDING_APPROVAL', 'MATCHED_3WAY')
+      ON CONFLICT (id) DO NOTHING`,
+      [bill5503Id, targetTenantId, mainlandEntityId, vendorEtisalatId]
+    );
+
     // 9. Bank Statements & Lines
     const stmtParentId = 'e0000000-0000-0000-0000-000000000000';
     const accBankId = '10200000-0000-0000-0000-000000000001';
@@ -682,6 +693,132 @@ async function seed() {
       ) VALUES ($1, $2, $3, $4, 'INV-ALPHA-001', '2026-01-18', '2026-02-18', 'AED', 1000000, 50000, 1050000, 1000000, 50000, 1050000, 'POSTED', 'CLEARED')
       ON CONFLICT (id) DO NOTHING`,
       [tenantBInvId, tenantBId, tenantBEntityId, tenantBCustId]
+    );
+
+    // 13. Phase 5 Enterprise Fixtures for Tenant A
+    await client.query("SELECT set_config('app.current_tenant_id', $1, true)", [targetTenantId]);
+
+    // Bill Approvals for pending bill
+    const approvalId = 'f0000000-0000-0000-0000-000000000001';
+    await client.query(
+      `INSERT INTO bill_approvals (id, tenant_id, bill_id, approver_id, approval_status, tier, notes)
+       VALUES ($1, $2, $3, $4, 'PENDING', 'TIER2', 'Quarterly CISCO networking equipment expansion - Pending Financial Controller approval')
+       ON CONFLICT (id) DO NOTHING`,
+      [approvalId, targetTenantId, bill5502Id, userId]
+    );
+
+    const approvalTier1Id = 'f0000000-0000-0000-0000-000000000003';
+    await client.query(
+      `INSERT INTO bill_approvals (id, tenant_id, bill_id, approver_id, approval_status, tier, notes)
+       VALUES ($1, $2, $3, $4, 'PENDING', 'TIER1', 'Monthly telecom link - Pending approval')
+       ON CONFLICT (id) DO NOTHING`,
+      [approvalTier1Id, targetTenantId, bill5503Id, userId]
+    );
+
+    // Payments & Payment Allocations
+    const paymentCustId = 'a1000000-0000-0000-0000-000000000001';
+    await client.query(
+      `INSERT INTO payments (id, tenant_id, legal_entity_id, payment_number, payment_type, partner_id, payment_date, amount_txn, currency, amount_base)
+       VALUES ($1, $2, $3, 'PAY-2026-0001', 'INBOUND_CUSTOMER', $4, '2026-01-15', 52500000, 'AED', 52500000)
+       ON CONFLICT (id) DO NOTHING`,
+      [paymentCustId, targetTenantId, mainlandEntityId, customerEmaarId]
+    );
+
+    await client.query(
+      `INSERT INTO payment_allocations (id, tenant_id, payment_id, invoice_id, allocated_amount_base)
+       VALUES (gen_random_uuid(), $1, $2, $3, 52500000)`,
+      [targetTenantId, paymentCustId, inv101Id]
+    );
+
+    // Fixed Assets & Schedules
+    const assetId = 'fa000000-0000-0000-0000-000000000001';
+    await client.query(
+      `INSERT INTO fixed_assets (id, tenant_id, legal_entity_id, asset_number, name_en, acquisition_date, acquisition_cost_base, useful_life_months, salvage_value_base, accumulated_depreciation_base)
+       VALUES ($1, $2, $3, 'FA-SRV-2026-01', 'Enterprise AI High-Compute GPU Cluster', '2026-01-01', 36000000, 36, 0, 1000000)
+       ON CONFLICT (id) DO NOTHING`,
+      [assetId, targetTenantId, mainlandEntityId]
+    );
+
+    await client.query(
+      `INSERT INTO fixed_asset_schedules (id, tenant_id, asset_id, period_date, depreciation_amount_base, accumulated_depreciation_base, net_book_value_base, is_posted)
+       VALUES (gen_random_uuid(), $1, $2, '2026-01-31', 1000000, 1000000, 35000000, true),
+              (gen_random_uuid(), $1, $2, '2026-02-28', 1000000, 2000000, 34000000, false)`,
+      [targetTenantId, assetId]
+    );
+
+    // IFRS 16 Leases & Schedules
+    const leaseId = '1c000000-0000-0000-0000-000000000001';
+    await client.query(
+      `INSERT INTO lease_contracts (id, tenant_id, legal_entity_id, contract_number, commencement_date, lease_term_months, monthly_payment_base, annual_discount_rate_bps, rou_asset_initial_base, lease_liability_initial_base)
+       VALUES ($1, $2, $3, 'LC-DXB-MARINA-01', '2026-01-01', 24, 5000000, 500, 114000000, 114000000)
+       ON CONFLICT (id) DO NOTHING`,
+      [leaseId, targetTenantId, mainlandEntityId]
+    );
+
+    await client.query(
+      `INSERT INTO lease_schedules (id, tenant_id, contract_id, period_month, payment_base, principal_base, interest_base, closing_liability_base, rou_depreciation_base, is_posted)
+       VALUES (gen_random_uuid(), $1, $2, 1, 5000000, 4525000, 475000, 109475000, 4750000, true),
+              (gen_random_uuid(), $1, $2, 2, 5000000, 4543854, 456146, 104931146, 4750000, false)
+       ON CONFLICT (contract_id, period_month) DO NOTHING`,
+      [targetTenantId, leaseId]
+    );
+
+    // IFRS 15 Revenue Contracts & Milestones
+    const ifrs15Id = 'c1500000-0000-0000-0000-000000000001';
+    await client.query(
+      `INSERT INTO ifrs15_contracts (id, tenant_id, legal_entity_id, customer_id, contract_number, contract_name, start_date, end_date, total_contract_value_base, recognized_revenue_base, deferred_revenue_base, status)
+       VALUES ($1, $2, $3, $4, 'CNT-2026-EMAAR-01', 'Bilingual ERP & Autonomous Tax Agent Deployment', '2026-01-01', '2026-12-31', 150000000, 50000000, 100000000, 'ACTIVE')
+       ON CONFLICT (id) DO NOTHING`,
+      [ifrs15Id, targetTenantId, mainlandEntityId, customerEmaarId]
+    );
+
+    await client.query(
+      `INSERT INTO ifrs15_milestones (id, tenant_id, contract_id, milestone_name, milestone_value_base, completion_percentage, is_satisfied, satisfied_date)
+       VALUES (gen_random_uuid(), $1, $2, 'Milestone 1: Architectural Blueprint & Statutory Co-design', 50000000, 100, true, '2026-01-20'),
+              (gen_random_uuid(), $1, $2, 'Milestone 2: Real-time Ingestion & Central Bank WPS Connector', 50000000, 60, false, null),
+              (gen_random_uuid(), $1, $2, 'Milestone 3: Auditor Read-only Sign-off & Production Handoff', 50000000, 0, false, null)`,
+      [targetTenantId, ifrs15Id]
+    );
+
+    // Payroll Runs & Employees
+    const payrollRunId = '90000000-0000-0000-0000-000000000001';
+    await client.query(
+      `INSERT INTO payroll_runs (id, tenant_id, legal_entity_id, period_year, period_month, total_employees, total_gross_base, total_net_base, sif_file_name, sif_content, status)
+       VALUES ($1, $2, $3, 2026, 1, 3, 6500000, 6250000, 'SIF_100011122200003_20260131.sif', 'SCR,100011122200003,ENBD,2026-01-31,3,62500.00,AED\nEDR,1001,EBIL001,AE030330000000123456789,35000.00,0,0,30,0\nEDR,1002,EBIL002,AE030330000000123456790,17500.00,0,0,30,0\nEDR,1003,EBIL003,AE030330000000123456791,10000.00,0,0,30,0', 'SIF_GENERATED')
+       ON CONFLICT (id) DO NOTHING`,
+      [payrollRunId, targetTenantId, mainlandEntityId]
+    );
+
+    await client.query(
+      `INSERT INTO payroll_employees (id, tenant_id, payroll_run_id, employee_id, employee_name, labor_card_number, iban, fixed_salary_base, variable_salary_base, deductions_base, net_salary_base, eosg_accrued_base)
+       VALUES (gen_random_uuid(), $1, $2, 'EMP-001', 'Tariq Al-Mansoor', 'LC-78912', 'AE030330000000123456789', 3500000, 0, 0, 3500000, 291666),
+              (gen_random_uuid(), $1, $2, 'EMP-002', 'Fatima Al-Zahra', 'LC-78913', 'AE030330000000123456790', 1750000, 0, 0, 1750000, 145833),
+              (gen_random_uuid(), $1, $2, 'EMP-003', 'Zaid Bin Rashid', 'LC-78914', 'AE030330000000123456791', 1000000, 0, 0, 1000000, 83333)`,
+      [targetTenantId, payrollRunId]
+    );
+
+    // Migration Imports
+    await client.query(
+      `INSERT INTO migration_imports (id, tenant_id, legal_entity_id, source_system, import_type, filename, raw_payload, status, records_imported, records_failed)
+       VALUES (gen_random_uuid(), $1, $2, 'ZOHO', 'COA', 'zoho_chart_of_accounts_2026.csv', '{"source":"Zoho Books","accounts":48,"mapped":48}'::jsonb, 'COMPLETED', 48, 0),
+              (gen_random_uuid(), $1, $2, 'QUICKBOOKS', 'VENDORS', 'quickbooks_vendors_export.json', '{"source":"QuickBooks Online","vendors":24,"imported":24}'::jsonb, 'COMPLETED', 24, 0),
+              (gen_random_uuid(), $1, $2, 'TALLY', 'BALANCES', 'tally_trial_balance_opening.xml', '{"source":"Tally Prime 4.0","balanced":true,"records":62}'::jsonb, 'COMPLETED', 62, 0)`,
+      [targetTenantId, mainlandEntityId]
+    );
+
+    // Subscriptions & Usage Metering
+    await client.query(
+      `INSERT INTO tenant_subscriptions (id, tenant_id, plan_tier, is_sandbox, max_entities, max_monthly_invoices, billing_cycle_start, billing_cycle_end, status)
+       VALUES (gen_random_uuid(), $1, 'ENTERPRISE', false, 25, 50000, '2026-01-01', '2026-12-31', 'ACTIVE')
+       ON CONFLICT (tenant_id) DO UPDATE SET plan_tier = EXCLUDED.plan_tier, is_sandbox = EXCLUDED.is_sandbox`,
+      [targetTenantId]
+    );
+
+    await client.query(
+      `INSERT INTO usage_metering (id, tenant_id, period_month, invoices_created, ai_tokens_consumed, api_calls_count, wps_transmissions_count)
+       VALUES (gen_random_uuid(), $1, '2026-01', 24, 84200, 1420, 1)
+       ON CONFLICT (tenant_id, period_month) DO UPDATE SET invoices_created = EXCLUDED.invoices_created, ai_tokens_consumed = EXCLUDED.ai_tokens_consumed`,
+      [targetTenantId]
     );
 
     await client.query('COMMIT');

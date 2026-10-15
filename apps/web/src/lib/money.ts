@@ -88,3 +88,12 @@ export function formatMinorUnits(
 
   return `${currency} ${signedNumeric}`;
 }
+
+/**
+ * Convenience zero-float money formatter used across UI pages.
+ */
+export function formatZeroFloatMoney(amount: bigint | string | number, locale: string = 'en'): string {
+  const val = typeof amount === 'string' ? BigInt(amount) : amount;
+  return formatMinorUnits(val, { locale: locale === 'ar' ? 'ar' : 'en', numeralSystem: 'latn' });
+}
+

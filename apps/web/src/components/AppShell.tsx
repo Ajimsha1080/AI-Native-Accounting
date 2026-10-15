@@ -19,7 +19,14 @@ import {
   ChevronDown,
   Search,
   Clock,
-  ShieldAlert
+  ShieldAlert,
+  CreditCard,
+  Users,
+  Boxes,
+  FileCheck,
+  ShieldCheck,
+  Layers,
+  Sliders
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -47,11 +54,21 @@ export function AppShell({ children, locale }: AppShellProps) {
     { href: `/${locale}/app/dashboard`, label: t('navDashboard'), icon: LayoutDashboard },
     { href: `/${locale}/app/ledger/accounts`, label: t('navLedger'), icon: BookOpen },
     { href: `/${locale}/app/invoicing/sales`, label: t('navInvoices'), icon: Receipt },
+    { href: `/${locale}/app/payables/bills`, label: t('navPayables'), icon: CreditCard },
+    { href: `/${locale}/app/receivables/payments`, label: t('navReceivables'), icon: Receipt },
     { href: `/${locale}/app/tax/vat201`, label: t('navTax'), icon: FileSpreadsheet },
     { href: `/${locale}/app/banking/reconciliation`, label: t('navBankRecon'), icon: Landmark },
     { href: `/${locale}/app/ai/proposals`, label: t('navAiProposals'), icon: Bot, badge: '3' },
+    { href: `/${locale}/app/assets`, label: t('navAssets'), icon: Boxes },
+    { href: `/${locale}/app/payroll`, label: t('navPayroll'), icon: Users },
+    { href: `/${locale}/app/einvoicing`, label: t('navEinvoicing'), icon: FileCheck },
     { href: `/${locale}/app/reports`, label: t('navReports'), icon: FileSpreadsheet },
-    { href: `/${locale}/app/close`, label: t('navClose'), icon: CalendarCheck2 }
+    { href: `/${locale}/app/reports/builder`, label: t('navReportBuilder'), icon: FileSpreadsheet },
+    { href: `/${locale}/app/close`, label: t('navClose'), icon: CalendarCheck2 },
+    { href: `/${locale}/app/audit`, label: t('navAuditRoles'), icon: ShieldCheck },
+    { href: `/${locale}/app/onboarding`, label: t('navOnboarding'), icon: Layers },
+    { href: `/${locale}/app/auditor`, label: t('navAuditor'), icon: ShieldAlert },
+    { href: `/${locale}/app/ops`, label: t('navOps'), icon: Sliders }
   ];
 
   const handleSignOut = async () => {

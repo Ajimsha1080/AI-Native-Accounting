@@ -34,9 +34,11 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.BILL_APPROVE_TIER1,
     Permission.BILL_APPROVE_TIER2,
     Permission.BANK_RECONCILE,
+    Permission.PAYMENT_RUN_EXECUTE,
     Permission.TAX_SUBMIT,
     Permission.EINVOICE_TRANSMIT,
-    Permission.AUDIT_READ
+    Permission.AUDIT_READ,
+    Permission.TENANT_MANAGE
   ],
   [UserRole.SENIOR_ACCOUNTANT]: [
     Permission.LEDGER_POST,
