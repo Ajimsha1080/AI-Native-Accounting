@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "node --test \"dist/**/*.test.js\"",
     "test:coverage": "node --experimental-test-coverage --test-coverage-lines=85 --test-coverage-include=\"**/uae-tax-engine/dist/**\" --test-coverage-exclude=\"**/*.test.js\" --test \"dist/**/*.test.js\""
   },

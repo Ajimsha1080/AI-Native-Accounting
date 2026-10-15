@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc -b",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "node --test \"dist/**/*.test.js\""
   },
   "devDependencies": {

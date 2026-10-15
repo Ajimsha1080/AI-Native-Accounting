@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start -p 3005",
     "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "node --test --experimental-strip-types \"src/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "test:axe": "playwright test e2e/accessibility-axe.spec.ts -c playwright.config.ts"
