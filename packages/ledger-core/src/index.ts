@@ -36,3 +36,4 @@ export * from './integrations/contracts.js';
 export * from './integrations/einvoicing-asp.js';
 export * from './integrations/bank-aggregator.js';
 export * from './integrations/stripe-gateway.js';
+export * from './ai-model-config.js';

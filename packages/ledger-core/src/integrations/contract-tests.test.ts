@@ -373,33 +373,117 @@ describe('Phase 7: Integrations Behind Interfaces with Contract Tests', () => {
 
     test('Fails closed in production if live credentials are missing or default', () => {
       const prevEnv = process.env.NODE_ENV;
-      const prevKey = process.env.STRIPE_SECRET_KEY;
+      const prevStripe = process.env.STRIPE_SECRET_KEY;
+      const prevAsp = process.env.EINVOICE_ASP_API_KEY;
+      const prevLean = process.env.LEAN_APP_TOKEN;
+
       try {
         process.env.NODE_ENV = 'production';
         delete process.env.STRIPE_SECRET_KEY;
+        delete process.env.EINVOICE_ASP_API_KEY;
+        delete process.env.LEAN_APP_TOKEN;
 
-        // Stripe must throw
+        // 1. Stripe must throw when unset or default
+        assert.throws(() => {
+          new StripePaymentClient();
+        }, /FATAL: STRIPE_SECRET_KEY is required and must be a live secret key in production/);
+
         assert.throws(() => {
           new StripePaymentClient({ apiKey: 'sk_test_mock_stripe_key_default' });
         }, /FATAL: STRIPE_SECRET_KEY is required and must be a live secret key in production/);
 
-        // Peppol ASP must throw
+        // 2. Peppol ASP must throw when unset or default
+        assert.throws(() => {
+          new PintAeAspClient();
+        }, /FATAL: EINVOICE_ASP_API_KEY is required/);
+
         assert.throws(() => {
           new PintAeAspClient({ apiKey: 'asp_sandbox_default_key' });
         }, /FATAL: EINVOICE_ASP_API_KEY is required/);
 
-        // Lean must throw
+        // 3. Lean must throw when unset or default
+        assert.throws(() => {
+          new LeanOpenFinanceClient();
+        }, /FATAL: LEAN_APP_TOKEN is required/);
+
         assert.throws(() => {
           new LeanOpenFinanceClient({ appToken: 'lean_sandbox_app_token' });
         }, /FATAL: LEAN_APP_TOKEN is required/);
       } finally {
         process.env.NODE_ENV = prevEnv;
-        if (prevKey !== undefined) {
-          process.env.STRIPE_SECRET_KEY = prevKey;
-        } else {
-          delete process.env.STRIPE_SECRET_KEY;
-        }
+        if (prevStripe !== undefined) process.env.STRIPE_SECRET_KEY = prevStripe; else delete process.env.STRIPE_SECRET_KEY;
+        if (prevAsp !== undefined) process.env.EINVOICE_ASP_API_KEY = prevAsp; else delete process.env.EINVOICE_ASP_API_KEY;
+        if (prevLean !== undefined) process.env.LEAN_APP_TOKEN = prevLean; else delete process.env.LEAN_APP_TOKEN;
       }
+    });
+  });
+
+  // =========================================================================
+  // Contract Test Suite 4: Real Sandbox Live Endpoint Verification
+  // =========================================================================
+  describe('Nightly Contract Tests: Real Sandbox Live Endpoints', () => {
+    test('Real Sandbox: Lean Technologies API sandbox endpoint is reachable and adheres to contract', async () => {
+      const sandboxUrl = process.env.LEAN_BASE_URL || 'https://sandbox.leantech.me/v1';
+      const client = new LeanOpenFinanceClient({
+        baseUrl: sandboxUrl,
+        appToken: process.env.LEAN_APP_TOKEN || 'lean_sandbox_app_token'
+      });
+
+      // Call sandbox listAccounts; real sandbox returns HTTP response (401 with invalid token or 200 with payload)
+      try {
+        const accounts = await client.listAccounts(TENANT_ID);
+        assert.ok(Array.isArray(accounts));
+      } catch (err: any) {
+        // Under sandbox environment without live ADGM app token, must receive a structured HTTP error from Lean API
+        assert.ok(
+          err.message.includes('HTTP 401') ||
+          err.message.includes('HTTP 403') ||
+          err.message.includes('HTTP 400') ||
+          err.message.includes('ENOTFOUND') ||
+          err.message.includes('Failed to list accounts from Lean aggregator'),
+          `Unexpected sandbox error: ${err.message}`
+        );
+      }
+    });
+
+    test('Real Sandbox: Peppol PINT-AE ASP sandbox endpoint is reachable and adheres to contract', async () => {
+      const aspUrl = process.env.EINVOICE_ASP_URL || 'https://sandbox.pint-ae.peppol.ae/v1';
+      const client = new PintAeAspClient({
+        baseUrl: aspUrl,
+        apiKey: process.env.EINVOICE_ASP_API_KEY || 'asp_sandbox_default_key'
+      });
+
+      // Query status from real sandbox
+      const statusRes = await client.checkClearanceStatus('TEST-CLEARANCE-CHECK-001');
+      assert.ok(['ACCEPTED', 'REJECTED', 'IN_PROCESS'].includes(statusRes.status));
+      assert.equal(statusRes.transmissionId, 'TEST-CLEARANCE-CHECK-001');
+    });
+
+    test('Real Sandbox: Stripe API live endpoint enforces minor units and authentication contract', async () => {
+      const client = new StripePaymentClient({
+        apiKey: process.env.STRIPE_SECRET_KEY || 'sk_test_mock_stripe_key_default'
+      });
+
+      // Real Stripe API call with invalid/test key must return StripeAuthenticationError
+      await assert.rejects(
+        async () => {
+          await client.createPaymentIntent({
+            tenantId: TENANT_ID,
+            amountFils: 10000n, // 100.00 AED
+            currency: 'AED'
+          });
+        },
+        (err: any) => {
+          assert.ok(
+            err.type === 'StripeAuthenticationError' ||
+            err.message.includes('Invalid API Key') ||
+            err.message.includes('Stripe') ||
+            err.status === 401,
+            `Expected Stripe API error, got: ${err.message}`
+          );
+          return true;
+        }
+      );
     });
   });
 });

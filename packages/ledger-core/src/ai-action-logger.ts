@@ -1,4 +1,9 @@
 import { UUID } from '@ledger-ae/shared-types';
+import {
+  calculateAiCostUsd,
+  calculateAiCostFils,
+  getValidatedAnthropicModel
+} from './ai-model-config.js';
 
 export type AiActionType =
   | 'ASSISTANT_QUERY'
@@ -12,11 +17,12 @@ export interface AiActionLog {
   tenantId: UUID;
   userId: UUID;
   actionType: AiActionType;
-  model: string; // e.g. 'claude-3-5-sonnet-20241022'
+  model: string; // e.g. 'claude-3-7-sonnet-20250219' or 'claude-3-5-sonnet-20241022'
   promptVersion: string;
   inputTokens: number;
   outputTokens: number;
   estimatedCostUsd: number; // e.g. input $3/Mtok, output $15/Mtok
+  costFils: bigint; // Integer fils at statutory peg
   inputSummary: string;
   outputSummary: string;
   executionLatencyMs: number;
@@ -78,11 +84,8 @@ export class AiActionLogger {
     outputSummary: string;
     latencyMs: number;
   }): AiActionLog {
-    const pricing = MODEL_PRICING_PER_MTOK[params.model] || { input: 3.0, output: 15.0 };
-    const cost =
-      (params.inputTokens / 1_000_000) * pricing.input +
-      (params.outputTokens / 1_000_000) * pricing.output;
-    const roundedCost = Math.round(cost * 1_000_000) / 1_000_000;
+    const costUsd = calculateAiCostUsd(params.model, params.inputTokens, params.outputTokens);
+    const costFils = calculateAiCostFils(params.model, params.inputTokens, params.outputTokens);
 
     const logEntry: AiActionLog = {
       id: `ai-log-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
@@ -93,7 +96,8 @@ export class AiActionLogger {
       promptVersion: params.promptVersion,
       inputTokens: params.inputTokens,
       outputTokens: params.outputTokens,
-      estimatedCostUsd: roundedCost,
+      estimatedCostUsd: costUsd,
+      costFils,
       inputSummary: params.inputSummary,
       outputSummary: params.outputSummary,
       executionLatencyMs: params.latencyMs,
@@ -105,7 +109,7 @@ export class AiActionLogger {
     // Update tenant budget
     const budget = this.tenantBudgets.get(params.tenantId);
     if (budget) {
-      budget.currentSpendUsd += roundedCost;
+      budget.currentSpendUsd += costUsd;
       const spendPercent = (budget.currentSpendUsd / budget.monthlyBudgetUsd) * 100;
       if (spendPercent >= budget.alertThresholdPercent) {
         budget.alertTriggered = true;
@@ -115,22 +119,19 @@ export class AiActionLogger {
       }
     }
 
+    // Log model, prompt version and cost per action to telemetry
+    console.info(
+      `[AI_TELEMETRY] action=${params.actionType} model=${params.model} promptVersion=${params.promptVersion} tokens=${params.inputTokens}+${params.outputTokens} costUsd=$${costUsd} costFils=${costFils}n latency=${params.latencyMs}ms`
+    );
+
     return logEntry;
   }
 
   /**
    * Calculates cost in fils (AED minor units, assuming 3.6725 USD/AED peg)
-   * e.g. input $3.0/Mtok = 3.0 * 3.6725 * 100 fils / 1_000_000 tok
    */
   static calculateCostFils(model: string, inputTokens: number, outputTokens: number): bigint {
-    const pricing = MODEL_PRICING_PER_MTOK[model] || { input: 3.0, output: 15.0 };
-    // Cost in USD cents: (in * p_in + out * p_out) / 10,000
-    // Pegged at 3.6725 AED/USD: cost in AED fils = cost_usd * 367.25 fils
-    const costUsd =
-      (inputTokens / 1_000_000) * pricing.input +
-      (outputTokens / 1_000_000) * pricing.output;
-    const costFils = Math.round(costUsd * 367.25);
-    return BigInt(Math.max(1, costFils));
+    return calculateAiCostFils(model, inputTokens, outputTokens);
   }
 
   /**

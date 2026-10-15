@@ -18,10 +18,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
@@ -30,14 +30,15 @@ jobs:
       - name: Build Packages
         run: npm run build:packages
 
-      - name: Run Provider Contract Test Suite
+      - name: Run Provider Contract Test Suite Against Sandboxes
         run: npm run test:contract
         env:
           NODE_ENV: test
-          EINVOICE_ASP_URL: https://sandbox.pint-ae.peppol.ae/v1
-          EINVOICE_ASP_API_KEY: asp_sandbox_default_key
-          LEAN_BASE_URL: https://sandbox.leantech.me/v1
-          LEAN_APP_TOKEN: lean_sandbox_app_token
-          LEAN_WEBHOOK_SECRET: lean_sandbox_wh_secret
-          STRIPE_SECRET_KEY: sk_test_mock_stripe_key_default
-          STRIPE_WEBHOOK_SECRET: whsec_test_mock_stripe_secret
+          EINVOICE_ASP_URL: ${{ secrets.PINT_AE_SANDBOX_URL || 'https://sandbox.pint-ae.peppol.ae/v1' }}
+          EINVOICE_ASP_API_KEY: ${{ secrets.PINT_AE_SANDBOX_KEY || 'asp_sandbox_default_key' }}
+          LEAN_BASE_URL: ${{ secrets.LEAN_SANDBOX_URL || 'https://sandbox.leantech.me/v1' }}
+          LEAN_APP_TOKEN: ${{ secrets.LEAN_SANDBOX_APP_TOKEN || 'lean_sandbox_app_token' }}
+          LEAN_WEBHOOK_SECRET: ${{ secrets.LEAN_SANDBOX_WEBHOOK_SECRET || 'lean_sandbox_wh_secret' }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SANDBOX_SECRET_KEY || 'sk_test_mock_stripe_key_default' }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_SANDBOX_WEBHOOK_SECRET || 'whsec_test_mock_stripe_secret' }}
+          ANTHROPIC_MODEL_ID: ${{ secrets.ANTHROPIC_MODEL_ID || 'claude-3-7-sonnet-20250219' }}

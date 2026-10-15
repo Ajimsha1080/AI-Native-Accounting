@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import Anthropic from '@anthropic-ai/sdk';
-import { parseDecimalToMinorUnits, formatMinorUnitsToDecimal } from '@ledger-ae/shared-types';
+import { parseDecimalToMinorUnits, formatMinorUnitsToDecimal, UUID } from '@ledger-ae/shared-types';
 import { isValidUaeTrn } from '../../uae-tax-engine/dist/trn-validator.js';
+import { getValidatedAnthropicModel } from './ai-model-config.js';
+import { AiActionLogger } from './ai-action-logger.js';
 
 /**
  * Strict Zod Schema for Claude Structured Invoice Extraction
@@ -87,10 +89,7 @@ export class ClaudeDocumentIntelligenceService {
     if (key) {
       this.client = new Anthropic({ apiKey: key });
     }
-    this.model =
-      modelOverride ||
-      process.env.ANTHROPIC_MODEL ||
-      'claude-3-5-sonnet-20241022';
+    this.model = getValidatedAnthropicModel(modelOverride);
   }
 
   /**
@@ -147,8 +146,15 @@ export class ClaudeDocumentIntelligenceService {
   /**
    * Processes raw document text or OCR via Claude Tool Calling
    */
-  async extractInvoiceFromText(documentId: string, rawText: string): Promise<ProcessedInvoiceResult> {
+  async extractInvoiceFromText(
+    documentId: string,
+    rawText: string,
+    context?: { tenantId?: UUID; userId?: UUID }
+  ): Promise<ProcessedInvoiceResult> {
+    const startTime = Date.now();
     let rawToolPayload: unknown;
+    let inputTokens = Math.max(50, Math.round(rawText.length / 4));
+    let outputTokens = 180;
 
     if (this.client) {
       // Call Claude with Tool Use
@@ -161,6 +167,11 @@ export class ClaudeDocumentIntelligenceService {
         tools: [this.getExtractionToolDefinition()],
         tool_choice: { type: 'tool', name: 'extract_uae_tax_invoice' }
       });
+
+      if (response.usage) {
+        inputTokens = response.usage.input_tokens;
+        outputTokens = response.usage.output_tokens;
+      }
 
       const toolUseBlock = response.content.find((c) => c.type === 'tool_use');
       if (toolUseBlock && toolUseBlock.type === 'tool_use') {
@@ -207,7 +218,7 @@ export class ClaudeDocumentIntelligenceService {
       proposedTaxCode: l.proposedTaxCode
     }));
 
-    return {
+    const result: ProcessedInvoiceResult = {
       documentId,
       vendorName: parsed.vendorName,
       vendorTrn: parsed.vendorTrn,
@@ -228,6 +239,23 @@ export class ClaudeDocumentIntelligenceService {
       modelUsed: this.model,
       rawText
     };
+
+    // Log AI telemetry: model, prompt version and cost per action
+    const latencyMs = Date.now() - startTime;
+    AiActionLogger.logAction({
+      tenantId: context?.tenantId ?? 'tenant-system-default',
+      userId: context?.userId ?? 'user-system',
+      actionType: 'OCR_DOCUMENT_EXTRACTION',
+      model: this.model,
+      promptVersion: 'v2.2.0-claude-bilingual-uae-tooluse',
+      inputTokens,
+      outputTokens,
+      inputSummary: `Invoice extraction for doc ${documentId}`,
+      outputSummary: `Extracted ${parsed.vendorName}, TRN: ${parsed.vendorTrn ?? 'None'}, Total: ${totalFils} fils`,
+      latencyMs
+    });
+
+    return result;
   }
 
   /**

@@ -2,6 +2,7 @@ import { UUID, formatMinorUnitsToDecimal } from '@ledger-ae/shared-types';
 import Anthropic from '@anthropic-ai/sdk';
 import { formatMoney } from './money.js';
 import { AiActionLogger } from './ai-action-logger.js';
+import { getValidatedAnthropicModel } from './ai-model-config.js';
 
 export interface QueryCitation {
   voucherNumber: string;
@@ -57,10 +58,7 @@ export class ClaudeAccountingAssistantService {
     if (key) {
       this.client = new Anthropic({ apiKey: key });
     }
-    this.model =
-      modelOverride ||
-      process.env.ANTHROPIC_MODEL ||
-      'claude-3-5-sonnet-20241022';
+    this.model = getValidatedAnthropicModel(modelOverride);
   }
 
   /**
@@ -443,7 +441,7 @@ export class AccountingAssistantService {
         break;
     }
 
-    const model = context?.model ?? (process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022');
+    const model = getValidatedAnthropicModel(context?.model);
     const log = AiActionLogger.logAction({
       tenantId: context?.tenantId ?? 'tenant-system-default',
       userId: context?.userId ?? 'user-system',

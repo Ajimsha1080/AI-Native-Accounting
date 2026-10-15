@@ -2,6 +2,7 @@ import { UUID, parseDecimalToMinorUnits } from '@ledger-ae/shared-types';
 import { isValidUaeTrn } from '../../uae-tax-engine/dist/trn-validator.js';
 import { AiActionLogger } from './ai-action-logger.js';
 import { ClaudeDocumentIntelligenceService } from './claude-ai-service.js';
+import { getValidatedAnthropicModel } from './ai-model-config.js';
 
 export interface ExtractedInvoiceLine {
   lineNumber: number;
@@ -48,7 +49,7 @@ export class DocumentIntelligenceService {
     context?: { tenantId?: UUID; userId?: UUID; model?: string }
   ): ExtractedInvoiceDocument {
     const startTime = Date.now();
-    const model = context?.model || process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+    const model = getValidatedAnthropicModel(context?.model);
     const claudeService = new ClaudeDocumentIntelligenceService(undefined, model);
 
     // Synchronous execution using internal fallback for local test harnesses,
