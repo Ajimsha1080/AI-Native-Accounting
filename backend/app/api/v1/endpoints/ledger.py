@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -90,9 +90,9 @@ async def post_journal(
     user_uuid = uuid.UUID(claims["sub"])
 
     try:
-        entry_dt = datetime.strptime(req.entry_date, "%Y-%m-%d").date()
+        entry_dt = date.fromisoformat(req.entry_date)
     except ValueError:
-        entry_dt = date.today()
+        entry_dt = datetime.now(UTC).date()
 
     try:
         result = await repo.post_journal_entry(

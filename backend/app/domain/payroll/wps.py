@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Any
 
 
@@ -63,7 +63,7 @@ def generate_wps_sif_file(
 
     # Format header SCR record
     # Format: SCR,EmployerRoutingCode,EmployerCRN,FileCreationDate,FileCreationTime,SalaryMonth,TotalSalary,Count
-    today = date.today().strftime("%Y%m%d")
+    today = datetime.now(UTC).strftime("%Y%m%d")
     total_salary_aed = f"{total_salary_fils / 100:.2f}"
     header = f"SCR,{employer_routing_code},{employer_crn},{today},1200,{salary_month},{total_salary_aed},{total_count},AED\n"
 
