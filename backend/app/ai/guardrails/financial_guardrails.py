@@ -21,14 +21,20 @@ class FinancialGuardrailViolation(Exception):
 def validate_rag_retrieval_query(query: str, tenant_id: str) -> None:
     """Enforces non-empty, safe query parameters scoped strictly to tenant context."""
     if not tenant_id or tenant_id == "00000000-0000-0000-0000-000000000000":
-        raise FinancialGuardrailViolation("Invalid tenant context for RAG retrieval", "INVALID_TENANT")
+        raise FinancialGuardrailViolation(
+            "Invalid tenant context for RAG retrieval", "INVALID_TENANT"
+        )
 
     cleaned = query.strip()
     if len(cleaned) < 3:
-        raise FinancialGuardrailViolation("Query too short for statutory guidance retrieval", "QUERY_TOO_SHORT")
+        raise FinancialGuardrailViolation(
+            "Query too short for statutory guidance retrieval", "QUERY_TOO_SHORT"
+        )
 
     if len(cleaned) > 1000:
-        raise FinancialGuardrailViolation("Query exceeds maximum allowed length of 1000 chars", "QUERY_TOO_LONG")
+        raise FinancialGuardrailViolation(
+            "Query exceeds maximum allowed length of 1000 chars", "QUERY_TOO_LONG"
+        )
 
 
 def verify_no_vector_arithmetic(response_payload: dict[str, Any]) -> None:

@@ -81,7 +81,9 @@ class StatutoryRagEngine:
 
         Mandatory Rule: Arithmetic amounts are never hallucinated.
         """
-        citations = self.search_guidance(query=question, tenant_id=tenant_id, top_k=2, category=category)
+        citations = self.search_guidance(
+            query=question, tenant_id=tenant_id, top_k=2, category=category
+        )
 
         if not citations:
             return {

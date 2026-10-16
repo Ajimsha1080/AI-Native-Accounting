@@ -327,18 +327,78 @@ async def get_close_status(
     periods = res.scalars().all()
 
     checklist = [
-        {"id": "step-1", "nameEn": "Bank Feeds Reconciled", "nameAr": "تسوية كشوف الحسابات البنكية", "completed": True},
-        {"id": "step-2", "nameEn": "Accounts Receivable Aging Cleared", "nameAr": "مراجعة تقادم الذمم المدينة", "completed": True},
-        {"id": "step-3", "nameEn": "Accounts Payable Invoices Approved", "nameAr": "اعتماد فواتير الموردين", "completed": True},
-        {"id": "step-4", "nameEn": "VAT 201 Tax Return Reconciled", "nameAr": "مطابقة إقرار ضريبة القيمة المضافة 201", "completed": True},
-        {"id": "step-5", "nameEn": "WPS Payroll & SIF Dispatched", "nameAr": "إرسال ملفات حماية الأجور والرواتب", "completed": True},
-        {"id": "step-6", "nameEn": "Fixed Assets Depreciation Posted", "nameAr": "ترحيل إهلاك الأصول الثابتة", "completed": True},
-        {"id": "step-7", "nameEn": "IFRS 15 Revenue Milestones Recognized", "nameAr": "الاعتراف بالإيرادات وفق معيار 15", "completed": True},
-        {"id": "step-8", "nameEn": "Intercompany Eliminations Executed", "nameAr": "استبعاد المعاملات بين الشركات الشقيقة", "completed": True},
-        {"id": "step-9", "nameEn": "Corporate Tax CT201 Accrual Calculated", "nameAr": "احتساب مخصص ضريبة الشركات 201", "completed": True},
-        {"id": "step-10", "nameEn": "Trial Balance Debits Equal Credits Verified", "nameAr": "التحقق من توازن ميزان المراجعة (صفر تباين)", "completed": True},
-        {"id": "step-11", "nameEn": "Audit Trail Hash Chain Verified", "nameAr": "التحقق من سلامة سلسلة التشفير لسجل التدقيق", "completed": True},
-        {"id": "step-12", "nameEn": "Lock Accounting Period", "nameAr": "إقفال وتأمين الفترة المحاسبية", "completed": False},
+        {
+            "id": "step-1",
+            "nameEn": "Bank Feeds Reconciled",
+            "nameAr": "تسوية كشوف الحسابات البنكية",
+            "completed": True,
+        },
+        {
+            "id": "step-2",
+            "nameEn": "Accounts Receivable Aging Cleared",
+            "nameAr": "مراجعة تقادم الذمم المدينة",
+            "completed": True,
+        },
+        {
+            "id": "step-3",
+            "nameEn": "Accounts Payable Invoices Approved",
+            "nameAr": "اعتماد فواتير الموردين",
+            "completed": True,
+        },
+        {
+            "id": "step-4",
+            "nameEn": "VAT 201 Tax Return Reconciled",
+            "nameAr": "مطابقة إقرار ضريبة القيمة المضافة 201",
+            "completed": True,
+        },
+        {
+            "id": "step-5",
+            "nameEn": "WPS Payroll & SIF Dispatched",
+            "nameAr": "إرسال ملفات حماية الأجور والرواتب",
+            "completed": True,
+        },
+        {
+            "id": "step-6",
+            "nameEn": "Fixed Assets Depreciation Posted",
+            "nameAr": "ترحيل إهلاك الأصول الثابتة",
+            "completed": True,
+        },
+        {
+            "id": "step-7",
+            "nameEn": "IFRS 15 Revenue Milestones Recognized",
+            "nameAr": "الاعتراف بالإيرادات وفق معيار 15",
+            "completed": True,
+        },
+        {
+            "id": "step-8",
+            "nameEn": "Intercompany Eliminations Executed",
+            "nameAr": "استبعاد المعاملات بين الشركات الشقيقة",
+            "completed": True,
+        },
+        {
+            "id": "step-9",
+            "nameEn": "Corporate Tax CT201 Accrual Calculated",
+            "nameAr": "احتساب مخصص ضريبة الشركات 201",
+            "completed": True,
+        },
+        {
+            "id": "step-10",
+            "nameEn": "Trial Balance Debits Equal Credits Verified",
+            "nameAr": "التحقق من توازن ميزان المراجعة (صفر تباين)",
+            "completed": True,
+        },
+        {
+            "id": "step-11",
+            "nameEn": "Audit Trail Hash Chain Verified",
+            "nameAr": "التحقق من سلامة سلسلة التشفير لسجل التدقيق",
+            "completed": True,
+        },
+        {
+            "id": "step-12",
+            "nameEn": "Lock Accounting Period",
+            "nameAr": "إقفال وتأمين الفترة المحاسبية",
+            "completed": False,
+        },
     ]
 
     return {
@@ -379,7 +439,12 @@ async def execute_close_action(
         )
         await db.execute(stmt)
         await db.flush()
-        return {"success": True, "action": "LOCK_PERIOD", "periodId": str(period_uuid), "status": "LOCKED"}
+        return {
+            "success": True,
+            "action": "LOCK_PERIOD",
+            "periodId": str(period_uuid),
+            "status": "LOCKED",
+        }
 
     if req.action == "START_CLOSE_WORKFLOW":
         return {
@@ -552,7 +617,9 @@ async def list_einvoicing_queue(
     db: AsyncSession = Depends(get_tenant_db),
 ):
     tenant_uuid = uuid.UUID(claims["tenant_id"])
-    stmt = select(Invoice).where(Invoice.tenant_id == tenant_uuid).order_by(desc(Invoice.issue_date))
+    stmt = (
+        select(Invoice).where(Invoice.tenant_id == tenant_uuid).order_by(desc(Invoice.issue_date))
+    )
     res = await db.execute(stmt)
     invoices = res.scalars().all()
     return {

@@ -56,7 +56,16 @@ STATUTORY_GUIDANCE_CORPUS: list[GuidanceChunk] = [
             "and shall be responsible for all Tax obligations. Output tax is declared in Box 3 and eligible input tax is recovered in Box 10."
         ),
         category="VAT",
-        keywords=("reverse charge", "rcm", "imported services", "foreign", "aws", "microsoft", "box 3", "box 10"),
+        keywords=(
+            "reverse charge",
+            "rcm",
+            "imported services",
+            "foreign",
+            "aws",
+            "microsoft",
+            "box 3",
+            "box 10",
+        ),
     ),
     GuidanceChunk(
         chunk_id="vat-art-53-blocked",
@@ -109,7 +118,15 @@ STATUTORY_GUIDANCE_CORPUS: list[GuidanceChunk] = [
             "Total gratuity cannot exceed two years basic salary."
         ),
         category="PAYROLL",
-        keywords=("eosg", "gratuity", "severance", "end of service", "21 days", "30 days", "article 51"),
+        keywords=(
+            "eosg",
+            "gratuity",
+            "severance",
+            "end of service",
+            "21 days",
+            "30 days",
+            "article 51",
+        ),
     ),
     GuidanceChunk(
         chunk_id="cbuae-wps-sif",
@@ -135,6 +152,13 @@ STATUTORY_GUIDANCE_CORPUS: list[GuidanceChunk] = [
             "at the interest rate implicit in the lease or lessee incremental borrowing rate, and recognize an equal ROU asset adjusted for prepayments."
         ),
         category="IFRS",
-        keywords=("ifrs 16", "lease", "rou asset", "lease liability", "discount rate", "amortization"),
+        keywords=(
+            "ifrs 16",
+            "lease",
+            "rou asset",
+            "lease liability",
+            "discount rate",
+            "amortization",
+        ),
     ),
 ]
