@@ -1,0 +1,57 @@
+[project]
+name = "ledger-ae-backend"
+version = "1.0.0"
+description = "LedgerAE: Enterprise-Grade AI-Native Double-Entry Accounting Platform (FastAPI / Python)"
+authors = [{ name = "LedgerAE Architecture Team" }]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic[email]>=2.9.0",
+    "email-validator>=2.2.0",
+    "pydantic-settings>=2.5.0",
+    "sqlalchemy[asyncio]>=2.0.35",
+    "greenlet>=3.1.1",
+    "asyncpg>=0.29.0",
+    "psycopg2-binary>=2.9.9",
+    "alembic>=1.13.3",
+    "argon2-cffi>=23.1.0",
+    "pyjwt>=2.9.0",
+    "cryptography>=43.0.1",
+    "pyotp>=2.9.0",
+    "anthropic>=0.36.0",
+    "httpx>=0.27.2",
+    "python-multipart>=0.0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.6.9",
+    "mypy>=1.11.2",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001", "DTZ003"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+disallow_untyped_defs = false

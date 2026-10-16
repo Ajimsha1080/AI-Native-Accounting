@@ -99,6 +99,33 @@ services:
       - miniodata:/data
 
   # ============================================================================
+  # Python FastAPI Application Backend
+  # ============================================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ledger-ae-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-ledger_admin}:${POSTGRES_PASSWORD:-LedgerSecure_2026!}@postgres:5432/${POSTGRES_DB:-ledger_ae}
+      JWT_SECRET: ${JWT_SECRET:-01234567890123456789012345678901}
+      TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:-01234567890123456789012345678901}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL_ID: ${ANTHROPIC_MODEL_ID:-claude-3-7-sonnet-20250219}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ============================================================================
   # LedgerAE Next.js ERP Web Application
   # ============================================================================
   web:
@@ -125,6 +152,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      backend:
+        condition: service_started
 
   # ============================================================================
   # LedgerAE Background Accounting Temporal Worker

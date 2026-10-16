@@ -18,8 +18,10 @@
     "test:load": "node scripts/run-1m-load-test.mjs",
     "lint": "node scripts/check-no-mock-fallbacks.mjs && node scripts/lint-zero-float-money.mjs && npm run lint --workspaces --if-present",
     "lint:fallbacks": "node scripts/check-no-mock-fallbacks.mjs",
-    "lint:money": "node scripts/lint-zero-float-money.mjs",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "backend:dev": "python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload",
+    "backend:test": "cd backend && pytest -v",
+    "backend:lint": "cd backend && ruff check . && mypy app tests"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
