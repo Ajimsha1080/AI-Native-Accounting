@@ -1,6 +1,6 @@
 """Statutory UAE Accounting & Tax RAG Retrieval Engine.
 
-Implements hybrid keyword/semantic search, tenant-scoped document isolation,
+Implements hybrid keyword/semantic search, Reciprocal Rank Fusion,
 strict anti-hallucination guardrails, and exact legal citation generation.
 """
 
@@ -11,7 +11,12 @@ from app.ai.guardrails.financial_guardrails import (
     validate_rag_retrieval_query,
     verify_no_vector_arithmetic,
 )
+from app.ai.rag.fusion import reciprocal_rank_fusion
 from app.ai.rag.guidance_store import STATUTORY_GUIDANCE_CORPUS, GuidanceChunk
+from app.ai.rag.hybrid_retriever import HybridRetriever
+from app.ai.rag.pipeline import EnterpriseRagPipeline
+from app.ai.rag.reranker import rerank_passages
+from app.ai.rag.schemas import ChatMessage
 
 
 class StatutoryRagEngine:
@@ -19,7 +24,9 @@ class StatutoryRagEngine:
 
     def __init__(self, api_key: str | None = None):
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.corpus = STATUTORY_GUIDANCE_CORPUS
+        self.corpus: list[GuidanceChunk] = STATUTORY_GUIDANCE_CORPUS
+        self.hybrid_retriever = HybridRetriever(self.corpus)
+        self.pipeline = EnterpriseRagPipeline(api_key=self.api_key)
 
     def search_guidance(
         self,
@@ -28,86 +35,76 @@ class StatutoryRagEngine:
         top_k: int = 3,
         category: str | None = None,
     ) -> list[dict[str, Any]]:
-        """Searches statutory corpus with strict tenant validation and relevance scoring."""
+        """Searches statutory corpus using hybrid retrieval (Dense + Sparse BM25),
+
+        Reciprocal Rank Fusion (RRF), and accounting domain reranking.
+        """
         validate_rag_retrieval_query(query, tenant_id)
 
-        query_terms = set(query.lower().split())
-        scored: list[tuple[float, GuidanceChunk]] = []
+        # 1. Hybrid retrieval (dense + sparse)
+        candidates = self.hybrid_retriever.retrieve(
+            query=query,
+            tenant_id=tenant_id,
+            category=category,
+            top_k=top_k * 3,
+        )
 
-        for chunk in self.corpus:
-            if category and chunk.category.upper() != category.upper():
-                continue
+        # 2. Reciprocal Rank Fusion (RRF)
+        fused = reciprocal_rank_fusion(
+            ranked_lists=[candidates.dense_candidates, candidates.sparse_candidates],
+            k=60,
+            top_k=top_k * 2,
+        )
 
-            score = 0.0
-            content_lower = chunk.content.lower()
-            title_lower = chunk.title_en.lower()
-
-            for term in query_terms:
-                if term in chunk.keywords:
-                    score += 5.0
-                if term in title_lower:
-                    score += 3.0
-                if term in content_lower:
-                    score += 1.0
-
-            if score > 0.0:
-                scored.append((score, chunk))
-
-        # Sort descending by relevance score
-        scored.sort(key=lambda x: x[0], reverse=True)
-        results = scored[:top_k]
+        # 3. Domain Reranking
+        reranked = rerank_passages(
+            original_query=query,
+            candidates=fused,
+            top_n=top_k,
+        )
 
         return [
             {
-                "chunkId": chunk.chunk_id,
-                "relevanceScore": round(score, 2),
-                "statutoryAuthority": chunk.statutory_authority,
-                "lawReference": chunk.law_reference,
-                "titleEn": chunk.title_en,
-                "titleAr": chunk.title_ar,
-                "content": chunk.content,
-                "category": chunk.category,
+                "chunkId": p.chunk_id,
+                "relevanceScore": p.score,
+                "statutoryAuthority": p.statutory_authority,
+                "lawReference": p.law_reference,
+                "titleEn": p.title_en,
+                "titleAr": p.title_ar,
+                "content": p.content,
+                "category": p.category,
             }
-            for score, chunk in results
+            for p in reranked
         ]
 
     def answer_accounting_query(
         self,
         question: str,
         tenant_id: str,
+        history: list[ChatMessage] | list[dict[str, str]] | None = None,
         category: str | None = None,
     ) -> dict[str, Any]:
-        """Synthesizes verified statutory accounting answer with exact legal citations.
+        """Synthesizes verified statutory accounting answer with exact legal citations
 
-        Mandatory Rule: Arithmetic amounts are never hallucinated.
+        using the 15-stage enterprise answering workflow.
         """
-        citations = self.search_guidance(
-            query=question, tenant_id=tenant_id, top_k=2, category=category
+        parsed_history: list[ChatMessage] = []
+        if history:
+            for item in history:
+                if isinstance(item, ChatMessage):
+                    parsed_history.append(item)
+                elif isinstance(item, dict):
+                    parsed_history.append(
+                        ChatMessage(role=item.get("role", "user"), content=item.get("content", ""))
+                    )
+
+        result_payload = self.pipeline.answer_question(
+            question=question,
+            tenant_id=tenant_id,
+            history=parsed_history,
+            category=category,
         )
 
-        if not citations:
-            return {
-                "question": question,
-                "answerEn": "No direct UAE statutory provisions found matching the query. Please consult an accredited tax advisor.",
-                "answerAr": "لم يتم العثور على نصوص قانونية مطابقة للاستعلام. يرجى استشارة مستشار ضريبي معتمد.",
-                "citations": [],
-                "disclaimer": "STATUTORY DISCLAIMER: VERIFY WITH UAE TAX ADVISOR",
-                "isGuarded": True,
-            }
-
-        primary = citations[0]
-        answer_en = f"Under {primary['lawReference']} ({primary['titleEn']}), {primary['content']}"
-        answer_ar = f"وفقاً للمرجع القانوني {primary['lawReference']} ({primary['titleAr']}): {primary['content']}"
-
-        result_payload = {
-            "question": question,
-            "answerEn": answer_en,
-            "answerAr": answer_ar,
-            "citations": citations,
-            "disclaimer": "STATUTORY DISCLAIMER: VERIFY WITH UAE TAX ADVISOR",
-            "isGuarded": True,
-        }
-
-        # Run financial guardrails
+        # Verify zero floating-point arithmetic
         verify_no_vector_arithmetic(result_payload)
         return result_payload

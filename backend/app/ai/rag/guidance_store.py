@@ -71,14 +71,24 @@ STATUTORY_GUIDANCE_CORPUS: list[GuidanceChunk] = [
         chunk_id="vat-art-53-blocked",
         statutory_authority="UAE Federal Tax Authority",
         law_reference="Cabinet Decision No. 52 of 2017, Article 53",
-        title_en="Non-Recoverable Blocked Input Tax (Entertainment Services)",
-        title_ar="ضريبة المدخلات غير القابلة للاسترداد (خدمات الترفيه)",
+        title_en="Non-Recoverable Blocked Input Tax on Client Entertainment Services",
+        title_ar="ضريبة المدخلات غير القابلة للاسترداد لخدمات الترفيه",
         content=(
-            "Input Tax shall not be recovered on expenditure incurred on entertainment services provided to any person who is not an employee, "
-            "including hospitality, food, beverages, and recreational events for prospective or existing customers."
+            "Input Tax (VAT) shall not be recovered on expenditure incurred on entertainment services provided to any person who is not an employee, "
+            "including hospitality, food, beverages, and recreational events for prospective or existing clients or customers."
         ),
         category="VAT",
-        keywords=("blocked", "entertainment", "non-recoverable", "hospitality", "meals", "client"),
+        keywords=(
+            "blocked",
+            "entertainment",
+            "non-recoverable",
+            "hospitality",
+            "meals",
+            "client",
+            "vat",
+            "tax",
+            "rate",
+        ),
     ),
     GuidanceChunk(
         chunk_id="ct-art-03-rates",

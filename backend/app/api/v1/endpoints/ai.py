@@ -18,6 +18,7 @@ class RagSearchRequest(BaseModel):
 class AssistantQueryRequest(BaseModel):
     question: str = Field(min_length=3, max_length=1000)
     category: str | None = None
+    history: list[dict[str, str]] | None = None
 
 
 @router.post("/rag/search")
@@ -50,6 +51,7 @@ async def query_ai_assistant(
     answer = engine.answer_accounting_query(
         question=req.question,
         tenant_id=claims["tenant_id"],
+        history=req.history,
         category=req.category,
     )
     return {
