@@ -82,6 +82,7 @@ async def auth_exception_handler(request: Request, exc: AuthException):
 
 
 @app.get("/health")
+@app.get("/api/health")
 @app.get("/api/v1/health")
 async def health_check():
     return {

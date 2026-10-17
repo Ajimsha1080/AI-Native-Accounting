@@ -12,9 +12,11 @@ export async function proxyToPythonBackend(request: NextRequest): Promise<NextRe
   const targetUrl = new URL(request.nextUrl.pathname + request.nextUrl.search, BACKEND_BASE_URL);
 
   const headers = new Headers(request.headers);
-  // Forward host correctly
-  headers.set('X-Forwarded-Host', request.headers.get('host') || 'localhost:3000');
+  // Forward host correctly and strip original host header to allow target resolution
+  const clientHost = request.headers.get('host') || 'localhost:3005';
+  headers.set('X-Forwarded-Host', clientHost);
   headers.set('X-Forwarded-Proto', 'http');
+  headers.delete('host');
 
   const method = request.method.toUpperCase();
   const init: RequestInit = {
