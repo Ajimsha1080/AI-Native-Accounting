@@ -296,7 +296,7 @@ class LedgerRepository:
                 cash_debits = tot or 0
             elif direction == "CREDIT":
                 cash_credits = tot or 0
-        cash_balance_fils = cash_debits - cash_credits
+        cash_balance_fils = int(cash_debits - cash_credits)
 
         # Invoices / Receivables total
         inv_stmt = select(func.sum(Invoice.total_fils)).where(
@@ -306,7 +306,7 @@ class LedgerRepository:
                 Invoice.status != "CANCELLED",
             )
         )
-        inv_total = (await self.session.execute(inv_stmt)).scalar() or 0
+        inv_total = int((await self.session.execute(inv_stmt)).scalar() or 0)
 
         # Vendor bills / Payables total
         bill_stmt = select(func.sum(VendorBill.total_fils)).where(
@@ -316,7 +316,7 @@ class LedgerRepository:
                 VendorBill.status != "REJECTED",
             )
         )
-        bill_total = (await self.session.execute(bill_stmt)).scalar() or 0
+        bill_total = int((await self.session.execute(bill_stmt)).scalar() or 0)
 
         # Open proposals count
         prop_stmt = select(func.count(AiProposal.id)).where(

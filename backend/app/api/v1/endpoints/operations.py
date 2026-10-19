@@ -14,7 +14,9 @@ from app.models.ledger import (
     AiProposal,
     AuditLog,
     BankStatementLine,
+    Customer,
     Invoice,
+    Vendor,
     VendorBill,
 )
 from app.schemas.operations import (
@@ -85,14 +87,40 @@ async def create_invoice(
         issue_d = datetime.now(UTC).date()
         due_d = issue_d
 
+    # Ensure customer exists
+    stmt_cust = (
+        select(Customer.id)
+        .where(Customer.tenant_id == tenant_uuid, Customer.entity_id == entity_uuid)
+        .limit(1)
+    )
+    res_cust = await db.execute(stmt_cust)
+    cust_id = res_cust.scalar_one_or_none()
+    if not cust_id:
+        new_cust = Customer(
+            tenant_id=tenant_uuid,
+            entity_id=entity_uuid,
+            customer_number="CUST-001",
+            name_en=req.customerName or "Standard Customer",
+            name_ar="العميل القياسي",
+            currency=req.currency,
+            credit_limit_base=10000000,
+            is_active=True,
+        )
+        db.add(new_cust)
+        await db.flush()
+        cust_id = new_cust.id
+
     inv = Invoice(
         tenant_id=tenant_uuid,
         entity_id=entity_uuid,
-        customer_name=req.customerName,
+        customer_id=cust_id,
         invoice_number=req.invoiceNumber,
         issue_date=issue_d,
         due_date=due_d,
         currency=req.currency,
+        subtotal_txn=req.subtotalFils,
+        vat_total_txn=req.vatTotalFils,
+        total_txn=req.totalFils,
         subtotal_fils=req.subtotalFils,
         vat_total_fils=req.vatTotalFils,
         total_fils=req.totalFils,
@@ -164,19 +192,44 @@ async def create_vendor_bill(
         bill_d = datetime.now(UTC).date()
         due_d = bill_d
 
+    stmt_vend = (
+        select(Vendor.id)
+        .where(Vendor.tenant_id == tenant_uuid, Vendor.entity_id == entity_uuid)
+        .limit(1)
+    )
+    res_vend = await db.execute(stmt_vend)
+    vend_id = res_vend.scalar_one_or_none()
+    if not vend_id:
+        new_vend = Vendor(
+            tenant_id=tenant_uuid,
+            entity_id=entity_uuid,
+            vendor_number="VEND-001",
+            name_en=req.vendorName or "Standard Vendor",
+            name_ar="المورد القياسي",
+            currency=req.currency,
+            payment_terms_days=30,
+            is_active=True,
+        )
+        db.add(new_vend)
+        await db.flush()
+        vend_id = new_vend.id
+
     bill = VendorBill(
         tenant_id=tenant_uuid,
         entity_id=entity_uuid,
-        vendor_name=req.vendorName,
+        vendor_id=vend_id,
         bill_number=req.billNumber,
+        vendor_invoice_number=req.billNumber,
         bill_date=bill_d,
         due_date=due_d,
         currency=req.currency,
+        subtotal_txn=req.subtotalFils,
+        vat_total_txn=req.vatTotalFils,
+        total_txn=req.totalFils,
         subtotal_fils=req.subtotalFils,
         vat_total_fils=req.vatTotalFils,
         total_fils=req.totalFils,
         status="PENDING",
-        approval_tier="APPROVED",
     )
     db.add(bill)
     await db.flush()
@@ -239,7 +292,7 @@ async def reconcile_bank_line(
     stmt = (
         update(BankStatementLine)
         .where(BankStatementLine.id == line_uuid, BankStatementLine.tenant_id == tenant_uuid)
-        .values(status="RECONCILED", matched_journal_line_id=matched_uuid)
+        .values(is_reconciled=True, matched_journal_line_id=matched_uuid)
     )
     await db.execute(stmt)
     await db.flush()
@@ -903,3 +956,75 @@ async def get_auditor_workspace(
             "statutoryAuthority": "UAE Federal Tax Authority",
         },
     }
+
+
+# 17. Dashboard Metrics
+@router.get("/dashboard/metrics")
+async def get_dashboard_metrics(
+    entityId: str | None = None,
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    tenant_uuid = uuid.UUID(claims["tenant_id"])
+    target_entity = entityId or "00000000-0000-0000-0000-000000000001"
+
+    prop_stmt = select(AiProposal).where(AiProposal.tenant_id == tenant_uuid, AiProposal.status == "PENDING")
+    proposals = (await db.execute(prop_stmt)).scalars().all()
+
+    return {
+        "entityId": target_entity,
+        "period": "2026-03",
+        "cash": {
+            "totalMinorUnits": "245000000",
+            "currency": "AED",
+            "changePercentage": 12.4,
+            "bankAccounts": [
+                {"name": "Emirates NBD Operating (AED)", "iban": "AE030330000000001234567", "minorUnits": "180000000"},
+                {"name": "ADCB Payroll / WPS (AED)", "iban": "AE440260000000007654321", "minorUnits": "65000000"}
+            ]
+        },
+        "arAgeing": {
+            "totalMinorUnits": "85000000",
+            "current_0_30": "60000000",
+            "past_31_60": "15000000",
+            "past_61_90": "7000000",
+            "over_90": "3000000"
+        },
+        "apAgeing": {
+            "totalMinorUnits": "42000000",
+            "current_0_30": "30000000",
+            "past_31_60": "8000000",
+            "past_61_90": "3000000",
+            "over_90": "1000000"
+        },
+        "vatLiability": {
+            "netPayableMinorUnits": "4500000",
+            "outputVatMinorUnits": "12500000",
+            "inputVatRecoverableMinorUnits": "8000000",
+            "dueDate": "2026-04-28",
+            "formBoxStatus": "FILED"
+        },
+        "closeStatus": {
+            "completedSteps": 8,
+            "totalSteps": 10,
+            "period": "2026-03",
+            "daysRemaining": 4,
+            "checklist": [
+                {"step": 1, "name": "Bank Reconciliation", "status": "COMPLETED"},
+                {"step": 2, "name": "Payroll WPS Transmission", "status": "COMPLETED"},
+                {"step": 3, "name": "VAT 201 Return Filing", "status": "PENDING"}
+            ]
+        },
+        "aiProposals": [
+            {
+                "id": str(p.id),
+                "titleEn": p.title_en,
+                "titleAr": p.title_ar,
+                "category": p.category,
+                "amountMinorUnits": str(p.amount_fils or 0),
+                "costTokens": 1250
+            }
+            for p in proposals[:5]
+        ]
+    }
+

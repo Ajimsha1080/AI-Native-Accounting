@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String
+from sqlalchemy import JSON, BigInteger, Boolean, Date, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -37,7 +37,7 @@ class Account(Base):
     entity_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
     )
-    account_code: Mapped[str] = mapped_column(String(50), nullable=False)
+    account_code: Mapped[str] = mapped_column("code", String(50), nullable=False)
     account_name_en: Mapped[str] = mapped_column(String(255), nullable=False)
     account_name_ar: Mapped[str] = mapped_column(String(255), nullable=False)
     account_type: Mapped[str] = mapped_column(
@@ -57,7 +57,7 @@ class JournalEntry(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
     )
     period_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("accounting_periods.id"), nullable=False
@@ -86,7 +86,7 @@ class JournalLine(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     journal_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False
+        "journal_entry_id", UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False
     )
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("chart_of_accounts.id"), nullable=False
@@ -95,7 +95,7 @@ class JournalLine(Base):
     description: Mapped[str] = mapped_column(String(500), nullable=False)
     direction: Mapped[str] = mapped_column(String(10), nullable=False)  # DEBIT, CREDIT
     amount_fils: Mapped[int] = mapped_column(
-        BigInteger, nullable=False
+        "amount_base", BigInteger, nullable=False
     )  # Strict integer minor units
     vat_rate: Mapped[str | None] = mapped_column(
         String(20), nullable=True
@@ -134,48 +134,68 @@ class Invoice(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
     )
     customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    customer_name: Mapped[str] = mapped_column(String(255), default="Standard Customer")
     invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
     issue_date: Mapped[date] = mapped_column(Date, nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="AED")
-    subtotal_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    vat_total_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    total_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    subtotal_txn: Mapped[int] = mapped_column(BigInteger, default=0)
+    vat_total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
+    total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
+    subtotal_fils: Mapped[int] = mapped_column("subtotal_base", BigInteger, nullable=False, default=0)
+    vat_total_fils: Mapped[int] = mapped_column("vat_total_base", BigInteger, nullable=False, default=0)
+    total_fils: Mapped[int] = mapped_column("total_base", BigInteger, nullable=False, default=0)
     status: Mapped[str] = mapped_column(
         String(20), default="ISSUED"
     )  # DRAFT, ISSUED, PAID, CANCELLED
     einvoice_status: Mapped[str] = mapped_column(String(50), default="CLEARED")
+    ubl_xml_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    journal_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def customer_name(self) -> str:
+        return "Standard Customer"
 
 
 class VendorBill(Base):
-    __tablename__ = "vendor_bills"
+    __tablename__ = "bills"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
     )
     vendor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
-    vendor_name: Mapped[str] = mapped_column(String(255), nullable=False)
     bill_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    vendor_invoice_number: Mapped[str] = mapped_column(String(100), default="")
     bill_date: Mapped[date] = mapped_column(Date, nullable=False)
     due_date: Mapped[date] = mapped_column(Date, nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="AED")
-    subtotal_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    vat_total_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    total_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    subtotal_txn: Mapped[int] = mapped_column(BigInteger, default=0)
+    vat_total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
+    total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
+    subtotal_fils: Mapped[int] = mapped_column("subtotal_base", BigInteger, nullable=False, default=0)
+    vat_total_fils: Mapped[int] = mapped_column("vat_total_base", BigInteger, nullable=False, default=0)
+    total_fils: Mapped[int] = mapped_column("total_base", BigInteger, nullable=False, default=0)
     status: Mapped[str] = mapped_column(
         String(20), default="PENDING"
     )  # PENDING, APPROVED, PAID, REJECTED
-    approval_tier: Mapped[str] = mapped_column(String(50), default="APPROVED")
+    match_status: Mapped[str] = mapped_column(String(50), default="UNMATCHED")
+    journal_entry_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def vendor_name(self) -> str:
+        return "Standard Vendor"
+
+    @property
+    def approval_tier(self) -> str:
+        return "APPROVED"
 
 
 class BankStatementLine(Base):
@@ -185,19 +205,21 @@ class BankStatementLine(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
-    )
-    line_date: Mapped[date] = mapped_column(Date, nullable=False)
-    description: Mapped[str] = mapped_column(String(500), nullable=False)
-    amount_fils: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    statement_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    line_date: Mapped[date] = mapped_column("booking_date", Date, nullable=False)
+    description: Mapped[str] = mapped_column("narrative", Text, nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    amount_fils: Mapped[int] = mapped_column("amount_txn", BigInteger, nullable=False)
     direction: Mapped[str] = mapped_column(String(10), nullable=False)  # DEBIT, CREDIT
-    status: Mapped[str] = mapped_column(
-        String(20), default="UNMATCHED"
-    )  # UNMATCHED, MATCHED, RECONCILED
+    is_reconciled: Mapped[bool] = mapped_column(Boolean, default=False)
     matched_journal_line_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), nullable=True
+        "reconciled_journal_line_id", UUID(as_uuid=True), nullable=True
     )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def status(self) -> str:
+        return "RECONCILED" if self.is_reconciled else "UNMATCHED"
 
 
 class AiProposal(Base):
@@ -208,17 +230,66 @@ class AiProposal(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
     )
     proposal_type: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # INVOICE_EXTRACTION, RECONCILIATION, ADJUSTING_ENTRY
-    proposed_entry: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    explanation_en: Mapped[str] = mapped_column(String(2000), nullable=False)
-    explanation_ar: Mapped[str] = mapped_column(String(2000), nullable=False)
-    confidence_score: Mapped[int] = mapped_column(Integer, default=95)
-    statutory_citation: Mapped[str] = mapped_column(String(500), nullable=False)
+    category: Mapped[str] = mapped_column(String(50), default="GENERAL")
     status: Mapped[str] = mapped_column(
         String(20), default="PENDING"
     )  # PENDING, APPROVED, REJECTED
+    confidence_score: Mapped[int] = mapped_column(Integer, default=95)
+    statutory_citation: Mapped[str | None] = mapped_column("statutory_basis", Text, nullable=True)
+    proposed_entry: Mapped[dict[str, Any]] = mapped_column("proposal_payload", JSON, default=dict)
+    reasoning_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def explanation_en(self) -> str:
+        return self.reasoning_summary or ""
+
+    @property
+    def explanation_ar(self) -> str:
+        return self.reasoning_summary or ""
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+    )
+    customer_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    name_en: Mapped[str] = mapped_column(String(255), nullable=False)
+    name_ar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    trn: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="AED")
+    credit_limit_base: Mapped[int] = mapped_column(BigInteger, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Vendor(Base):
+    __tablename__ = "vendors"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+    )
+    vendor_number: Mapped[str] = mapped_column(String(100), nullable=False)
+    name_en: Mapped[str] = mapped_column(String(255), nullable=False)
+    name_ar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    trn: Mapped[str | None] = mapped_column(String(15), nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="AED")
+    payment_terms_days: Mapped[int] = mapped_column(Integer, default=30)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+

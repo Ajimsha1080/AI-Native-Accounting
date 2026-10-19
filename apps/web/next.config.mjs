@@ -23,6 +23,25 @@ const nextConfig = {
       }
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/en/login',
+        permanent: false
+      },
+      {
+        source: '/en',
+        destination: '/en/login',
+        permanent: false
+      },
+      {
+        source: '/ar',
+        destination: '/ar/login',
+        permanent: false
+      }
+    ];
+  },
   async rewrites() {
     const backendUrl = process.env.BACKEND_API_URL || 'http://127.0.0.1:8000';
     return [

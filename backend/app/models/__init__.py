@@ -6,9 +6,11 @@ from app.models.ledger import (
     AiProposal,
     AuditLog,
     BankStatementLine,
+    Customer,
     Invoice,
     JournalEntry,
     JournalLine,
+    Vendor,
     VendorBill,
 )
 
@@ -19,6 +21,7 @@ __all__ = [
     "AuditLog",
     "BankStatementLine",
     "Base",
+    "Customer",
     "Invoice",
     "JournalEntry",
     "JournalLine",
@@ -26,5 +29,6 @@ __all__ = [
     "SessionRecord",
     "Tenant",
     "User",
+    "Vendor",
     "VendorBill",
 ]

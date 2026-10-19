@@ -26,7 +26,24 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(req: LoginRequest, db: AsyncSession = Depends(get_db_session)):
+async def login(req: LoginRequest, response: Response, db: AsyncSession = Depends(get_db_session)):
+    from sqlalchemy import text
+    from app.models.auth import Tenant
+
+    target_tenant_id = None
+    if req.tenantSlug:
+        t_stmt = select(Tenant).where(Tenant.slug == req.tenantSlug)
+        tenant = (await db.execute(t_stmt)).scalar_one_or_none()
+        if tenant:
+            target_tenant_id = str(tenant.id)
+
+    if not target_tenant_id:
+        # Default or fallback tenant
+        target_tenant_id = "00000000-0000-0000-0000-000000000001"
+
+    # Set PostgreSQL RLS tenant context for this session
+    await db.execute(text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": target_tenant_id})
+
     stmt = select(User).where(User.email == req.email)
     res = await db.execute(stmt)
     user = res.scalar_one_or_none()
@@ -39,6 +56,40 @@ async def login(req: LoginRequest, db: AsyncSession = Depends(get_db_session)):
     if not verify_password(req.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password."
+        )
+
+    if not user.is_2fa_enabled:
+        # User has 2FA disabled - issue full session cookie directly
+        session_token = create_session_jwt(
+            user_id=str(user.id), tenant_id=str(user.tenant_id), email=user.email, role=user.role
+        )
+        token_hash = hashlib.sha256(session_token.encode("utf-8")).hexdigest()
+        session_rec = SessionRecord(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            session_token_hash=token_hash,
+            role=user.role,
+            expires_at=datetime.utcnow() + timedelta(hours=8),
+            issued_at=datetime.utcnow(),
+        )
+        db.add(session_rec)
+        await db.commit()
+
+        response.set_cookie(
+            key="ledger_session",
+            value=session_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=28800,
+            path="/",
+        )
+        return LoginResponse(
+            success=True,
+            requires2FA=False,
+            tempToken=session_token,
+            message="Login successful.",
         )
 
     # Issue a short-lived 2FA challenge token (5 minutes)
@@ -63,8 +114,12 @@ async def verify_2fa(
     req: Verify2FaRequest, response: Response, db: AsyncSession = Depends(get_db_session)
 ):
     from app.core.security import verify_session_jwt
+    from sqlalchemy import text
 
     claims = verify_session_jwt(req.tempToken)
+    tenant_id = claims.get("tenant_id", "00000000-0000-0000-0000-000000000001")
+    await db.execute(text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": tenant_id})
+
     user_id = uuid.UUID(claims["sub"])
 
     stmt = select(User).where(User.id == user_id)
@@ -89,8 +144,10 @@ async def verify_2fa(
         id=uuid.uuid4(),
         user_id=user.id,
         tenant_id=user.tenant_id,
-        token_hash=token_hash,
-        expires_at=datetime.now(UTC) + timedelta(hours=8),
+        session_token_hash=token_hash,
+        role=user.role,
+        expires_at=datetime.utcnow() + timedelta(hours=8),
+        issued_at=datetime.utcnow(),
     )
     db.add(session_rec)
     await db.commit()
@@ -111,7 +168,7 @@ async def verify_2fa(
         user=UserDto(
             id=str(user.id),
             email=user.email,
-            fullName=user.full_name,
+            fullName=user.full_name_en,
             role=user.role,
             tenantId=str(user.tenant_id),
         ),

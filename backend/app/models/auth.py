@@ -45,14 +45,14 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
-    full_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name_en: Mapped[str] = mapped_column(String(255), nullable=False)
+    full_name_ar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     role: Mapped[str] = mapped_column(
         String(50), default="accountant"
     )  # owner, cfo, tax_agent, accountant, auditor
     totp_secret_encrypted: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
-    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    is_2fa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -66,7 +66,9 @@ class SessionRecord(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
-    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    session_token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    role: Mapped[str] = mapped_column(String(50), default="accountant")
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    issued_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

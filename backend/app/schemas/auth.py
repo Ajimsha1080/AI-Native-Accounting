@@ -3,13 +3,14 @@ from pydantic import BaseModel, EmailStr, Field
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str = Field(min_length=8)
+    password: str = Field(min_length=6)
+    tenantSlug: str | None = None
 
 
 class LoginResponse(BaseModel):
     success: bool
     requires2FA: bool = True
-    tempToken: str
+    tempToken: str | None = None
     message: str = "Please verify your 2FA OTP code."
 
 
