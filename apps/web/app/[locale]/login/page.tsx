@@ -58,7 +58,7 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
       });
       const json = await res.json();
       if (!res.ok) {
-        setApiError(json.error || 'Authentication failed');
+        setApiError(json.detail || json.error || 'Authentication failed');
         return;
       }
       if (json.requires2FA) {

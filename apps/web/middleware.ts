@@ -8,35 +8,65 @@ const intlMiddleware = createMiddleware({
 });
 
 /**
- * Edge-compatible HMAC-SHA256 session token verification using Web Crypto API
+ * Edge-compatible HMAC-SHA256 session token verification using Web Crypto API.
+ * Supports standard 3-part JWTs (header.payload.signature) as well as 2-part tokens.
  */
 async function verifySessionTokenEdge(token: string, secret: string): Promise<boolean> {
   try {
     const parts = token.split('.');
-    if (parts.length !== 2) return false;
-    const [dataString, providedSignature] = parts;
+    if (parts.length === 3) {
+      const [headerB64, payloadB64, providedSignature] = parts;
+      const dataString = `${headerB64}.${payloadB64}`;
 
-    const enc = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      enc.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
 
-    const signatureBuf = await crypto.subtle.sign('HMAC', key, enc.encode(dataString));
-    const expectedBase64Url = btoa(String.fromCharCode(...new Uint8Array(signatureBuf)))
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
+      const signatureBuf = await crypto.subtle.sign('HMAC', key, enc.encode(dataString));
+      const expectedBase64Url = btoa(String.fromCharCode(...new Uint8Array(signatureBuf)))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
 
-    if (providedSignature !== expectedBase64Url) return false;
+      if (providedSignature !== expectedBase64Url) return false;
 
-    // Decode payload
-    const jsonStr = atob(dataString.replace(/-/g, '+').replace(/_/g, '/'));
-    const payload = JSON.parse(jsonStr);
-    return Boolean(payload && payload.expiresAt && Date.now() <= payload.expiresAt);
+      const jsonStr = atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/'));
+      const payload = JSON.parse(jsonStr);
+      const expMs = payload.exp ? payload.exp * 1000 : payload.expiresAt;
+      return Boolean(expMs && Date.now() <= expMs);
+    }
+
+    if (parts.length === 2) {
+      const [dataString, providedSignature] = parts;
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(secret),
+        { name: 'HMAC', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+
+      const signatureBuf = await crypto.subtle.sign('HMAC', key, enc.encode(dataString));
+      const expectedBase64Url = btoa(String.fromCharCode(...new Uint8Array(signatureBuf)))
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+
+      if (providedSignature !== expectedBase64Url) return false;
+
+      const jsonStr = atob(dataString.replace(/-/g, '+').replace(/_/g, '/'));
+      const payload = JSON.parse(jsonStr);
+      const expMs = payload.expiresAt || (payload.exp ? payload.exp * 1000 : null);
+      return Boolean(expMs && Date.now() <= expMs);
+    }
+
+    return false;
   } catch {
     return false;
   }

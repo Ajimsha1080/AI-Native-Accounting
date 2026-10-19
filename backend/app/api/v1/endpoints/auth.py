@@ -32,8 +32,9 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
     from app.models.auth import Tenant
 
     target_tenant_id = None
-    if req.tenantSlug:
-        t_stmt = select(Tenant).where(Tenant.slug == req.tenantSlug)
+    slug = req.tenantSlug or req.orgSlug
+    if slug:
+        t_stmt = select(Tenant).where(Tenant.slug == slug)
         tenant = (await db.execute(t_stmt)).scalar_one_or_none()
         if tenant:
             target_tenant_id = str(tenant.id)
@@ -44,7 +45,7 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
 
     # Set PostgreSQL RLS tenant context for this session
     await db.execute(
-        text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": target_tenant_id}
+        text("SELECT set_config('app.current_tenant_id', :tid, false)"), {"tid": target_tenant_id}
     )
 
     stmt = select(User).where(User.email == req.email)
@@ -123,7 +124,7 @@ async def verify_2fa(
     claims = verify_session_jwt(req.tempToken)
     tenant_id = claims.get("tenant_id", "00000000-0000-0000-0000-000000000001")
     await db.execute(
-        text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": tenant_id}
+        text("SELECT set_config('app.current_tenant_id', :tid, false)"), {"tid": tenant_id}
     )
 
     user_id = uuid.UUID(claims["sub"])
