@@ -38,7 +38,7 @@
                                              ▼
                           ┌─────────────────────────────────────┐
                           │      FastAPI Python Backend         │
-                          │      http://127.0.0.1:8000          │
+                          │      http://127.0.0.1:8080          │
                           └──────┬───────────┬───────────┬──────┘
                                  │           │           │
                      AsyncPG RLS │           │ LiteLLM   │ LangSmith Traces
@@ -51,7 +51,7 @@
 | Service | Port | Description |
 | :--- | :--- | :--- |
 | **Web Frontend** | `http://localhost:3005` | Next.js 16 App Router, Turbopack, Tailwind CSS, Arabic RTL, TanStack Table |
-| **Backend API** | `http://127.0.0.1:8000` | FastAPI, Pydantic v2, Python 3.11, OpenAPI Swagger at `/docs` |
+| **Backend API** | `http://127.0.0.1:8080` | FastAPI, Pydantic v2, Python 3.11, OpenAPI Swagger at `/docs` |
 | **Database** | `localhost:9527` | PostgreSQL 16 with Row-Level Security (`app.current_tenant_id`) |
 | **Multi-Model Gateway** | Internal | LiteLLM orchestrator (Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro, deterministic fallback) |
 | **Observability** | Cloud/Local | LangSmith enterprise telemetry and trace streaming |
@@ -100,8 +100,8 @@ source .venv/bin/activate
 
 pip install -r requirements.txt
 
-# Start backend server on port 8000
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# Start backend server on port 8080
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
 ```
 
 ### Step 4: Install & Start Next.js Frontend

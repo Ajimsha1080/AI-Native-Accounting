@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     )
 
     ENVIRONMENT: str = Field(default="development", alias="NODE_ENV")
-    PORT: int = Field(default=8000)
+    PORT: int = Field(default=8080)
     HOST: str = Field(default="0.0.0.0")
 
     # PostgreSQL Database
