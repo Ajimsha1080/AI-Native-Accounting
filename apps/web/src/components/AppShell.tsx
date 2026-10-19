@@ -93,6 +93,13 @@ export function AppShell({ children, locale }: AppShellProps) {
           badge: '3 LIVE', 
           badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 animate-pulse font-bold' 
         },
+        { 
+          href: `/${locale}/app/ai/guardrails-memory`, 
+          label: t('navGuardrailsMemory'), 
+          icon: ShieldCheck, 
+          badge: 'ENFORCING', 
+          badgeColor: 'bg-indigo-500/10 text-indigo-300 border-indigo-500/30 font-medium' 
+        },
         { href: `/${locale}/app/assets`, label: t('navAssets'), icon: Boxes },
         { href: `/${locale}/app/close`, label: t('navClose'), icon: CalendarCheck2 },
       ]

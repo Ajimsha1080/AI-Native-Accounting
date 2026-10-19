@@ -57,6 +57,7 @@ const AVAILABLE_ACCOUNTS = [
 ];
 
 import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
 function JournalsView({ params }: { params: Promise<{ locale: string }> }) {
   const [locale, setLocale] = useState<'en' | 'ar'>('en');

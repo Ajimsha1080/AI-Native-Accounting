@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy import desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.memory import AgentMemoryEngine
 from app.api.deps import get_current_user_claims, get_tenant_db
 from app.domain.payroll.wps import generate_wps_sif_file
 from app.models.auth import LegalEntity
@@ -1146,7 +1147,20 @@ async def handle_ai_proposal(
     except ValueError:
         pass
 
-    return {"success": True, "proposalId": req.proposalId, "status": new_status}
+    # Feed decision into Autonomous AI Agent Memory Engine
+    try:
+        mem_engine = AgentMemoryEngine()
+        mem_engine.record_proposal_decision_feedback(
+            tenant_id=claims["tenant_id"],
+            proposal_id=req.proposalId,
+            proposal_type="TAX_OR_JOURNAL_ADJUSTMENT",
+            decision=new_status,
+            rationale=f"User {decision} through AI Governance Console",
+        )
+    except Exception as e:
+        logger.warning(f"Failed to record memory feedback: {e}")
+
+    return {"success": True, "proposalId": req.proposalId, "status": new_status, "memoryLearned": True}
 
 
 # 8. Audit Log Viewer
