@@ -7,7 +7,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { ShieldCheck, Lock, Mail, Building, KeyRound, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
+import {
+  ShieldCheck,
+  Lock,
+  Mail,
+  Building,
+  KeyRound,
+  ArrowRight,
+  Loader2,
+  AlertCircle,
+  Sparkles,
+  CheckCircle2,
+  Zap
+} from 'lucide-react';
 
 const loginSchema = z.object({
   tenantSlug: z.string().min(2, 'Organization slug is required'),
@@ -36,13 +48,14 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors }
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
       tenantSlug: 'al-noor-group',
-      email: '',
-      password: '',
+      email: 'ajimshaptm16@gmail.com',
+      password: 'Password@123',
       rememberMe: true
     }
   });
@@ -101,36 +114,80 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
     }
   };
 
+  const handleQuickFill = (email: string, slug: string) => {
+    setValue('email', email);
+    setValue('password', 'Password@123');
+    setValue('tenantSlug', slug);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100 p-4 sm:p-6">
-      {/* Top bar with language switcher */}
-      <header className="flex justify-between items-center max-w-4xl w-full mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white shadow-md">
+    <div className="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100 p-4 sm:p-6 relative overflow-hidden">
+      {/* Ambient Lighting Accents */}
+      <div className="absolute -top-40 start-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 end-10 w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+
+      {/* Top Header */}
+      <header className="flex justify-between items-center max-w-4xl w-full mx-auto relative z-10">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-700 flex items-center justify-center font-black text-white text-base shadow-[0_0_25px_-3px_rgba(16,185,129,0.5)]">
             AE
           </div>
-          <span className="font-extrabold text-base tracking-tight">LedgerAE</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-black text-lg tracking-tight text-white">LedgerAE</span>
+              <span className="text-[10px] text-emerald-400 font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+                PROD
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 font-medium">UAE Autonomous Financial OS</p>
+          </div>
         </div>
         <LanguageToggle locale={resolvedLocale} />
       </header>
 
-      {/* Main Auth Card */}
-      <main className="w-full max-w-md mx-auto my-auto py-8">
-        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl shadow-emerald-950/20">
-          {/* Header */}
+      {/* Main Glassmorphic Auth Card */}
+      <main className="w-full max-w-md mx-auto my-auto py-8 relative z-10">
+        <div className="bg-slate-900/80 backdrop-blur-2xl border border-white/[0.1] rounded-3xl p-7 sm:p-9 shadow-2xl shadow-emerald-950/30 relative">
+          {/* Card Header */}
           <div className="text-center mb-6">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+            <h1 className="text-2xl font-black tracking-tight text-white">
               {step === 'LOGIN' ? t('loginTitle') : t('twoFactorTitle')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto">
               {step === 'LOGIN' ? t('loginSubtitle') : t('twoFactorSubtitle')}
             </p>
           </div>
 
+          {/* Quick Demo Accounts Toolbar */}
+          {step === 'LOGIN' && (
+            <div className="mb-6 p-2.5 rounded-2xl bg-slate-950/60 border border-white/[0.06] flex items-center justify-between gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 ps-1 flex items-center gap-1">
+                <Zap className="w-3 h-3 text-amber-400" />
+                <span>Demo Pass:</span>
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('ajimshaptm16@gmail.com', 'al-noor-group')}
+                  className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-[10px] font-bold transition"
+                >
+                  Ajimsha (Owner)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('admin@alnoor.ae', 'al-noor-group')}
+                  className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-[10px] font-bold transition"
+                >
+                  Admin
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Error Banner */}
           {apiError && (
             <div
-              className="mb-5 p-3 rounded-xl bg-rose-950/40 border border-rose-800/80 text-rose-300 text-xs flex items-center gap-2"
+              className="mb-5 p-3.5 rounded-xl bg-rose-950/50 border border-rose-800/80 text-rose-300 text-xs flex items-center gap-2.5"
               role="alert"
             >
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
@@ -142,14 +199,14 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
             <form onSubmit={handleSubmit(onLoginSubmit)} className="space-y-4">
               {/* Tenant Slug */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   {t('tenantLabel')}
                 </label>
                 <div className="relative">
-                  <Building className="w-4 h-4 absolute start-3 top-3 text-slate-500" />
+                  <Building className="w-4 h-4 absolute start-3 top-3 text-slate-500 pointer-events-none" />
                   <input
                     {...register('tenantSlug')}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl ps-9 pe-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                    className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl ps-9 pe-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition shadow-inner font-mono text-xs"
                     placeholder="e.g. al-noor-group"
                   />
                 </div>
@@ -160,15 +217,15 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
 
               {/* Email */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   {t('emailLabel')}
                 </label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute start-3 top-3 text-slate-500" />
+                  <Mail className="w-4 h-4 absolute start-3 top-3 text-slate-500 pointer-events-none" />
                   <input
                     {...register('email')}
                     type="email"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl ps-9 pe-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                    className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl ps-9 pe-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition shadow-inner"
                     placeholder="name@company.ae"
                   />
                 </div>
@@ -179,15 +236,15 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
 
               {/* Password */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                   {t('passwordLabel')}
                 </label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute start-3 top-3 text-slate-500" />
+                  <Lock className="w-4 h-4 absolute start-3 top-3 text-slate-500 pointer-events-none" />
                   <input
                     {...register('password')}
                     type="password"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl ps-9 pe-3 py-2 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                    className="w-full bg-slate-950/80 border border-white/[0.08] rounded-xl ps-9 pe-3 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition shadow-inner"
                     placeholder="••••••••••••"
                   />
                 </div>
@@ -213,11 +270,11 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full mt-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50 text-slate-950 font-black text-sm transition-all duration-200 flex items-center justify-center gap-2 shadow-xl shadow-emerald-950 focus:outline-none cursor-pointer"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
                     <span>{t('signingIn')}</span>
                   </>
                 ) : (
@@ -235,7 +292,7 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
                   {t('codeLabel')}
                 </label>
                 <div className="relative">
-                  <KeyRound className="w-4 h-4 absolute start-3 top-3 text-slate-500" />
+                  <KeyRound className="w-4 h-4 absolute start-3 top-3.5 text-slate-500 pointer-events-none" />
                   <input
                     type="text"
                     maxLength={20}
@@ -243,10 +300,10 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
                     onChange={(e) => setTotpCode(e.target.value.trim())}
                     autoFocus
                     placeholder="123456"
-                    className="w-full text-center tracking-widest text-lg font-mono font-bold bg-slate-950 border border-slate-800 rounded-xl py-2 px-8 text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full text-center tracking-widest text-xl font-mono font-bold bg-slate-950 border border-white/[0.1] rounded-xl py-3 px-8 text-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
-                <p className="text-[11px] text-slate-500 text-center mt-2">
+                <p className="text-[11px] text-slate-500 text-center mt-2.5">
                   Enter the 6-digit code from your authenticator app or an 8-character recovery code.
                 </p>
               </div>
@@ -254,11 +311,11 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-sm transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-950 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 disabled:opacity-50 text-slate-950 font-black text-sm transition flex items-center justify-center gap-2 shadow-xl shadow-emerald-950"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
                     <span>{t('verifying')}</span>
                   </>
                 ) : (
@@ -284,8 +341,12 @@ export default function LoginPage({ params }: { params: Promise<{ locale: string
       </main>
 
       {/* Footer */}
-      <footer className="text-center text-[11px] text-slate-500">
-        LedgerAE UAE Compliance Core · OWASP ASVS Level 2 · Strict AES-256 Auth Session
+      <footer className="text-center text-[11px] text-slate-500 relative z-10 flex flex-wrap items-center justify-center gap-3">
+        <span>OWASP ASVS Level 2</span>
+        <span>•</span>
+        <span>Argon2id Memory Hardened</span>
+        <span>•</span>
+        <span>UAE Federal Decree-Law No. 47 Compliant</span>
       </footer>
     </div>
   );
