@@ -159,7 +159,7 @@ function Vat201View({ params }: { params: Promise<{ locale: string }> }) {
               <div>
                 <span className="text-slate-500 block text-[10px]">NET FTA LIABILITY (BOX 14)</span>
                 <strong className="text-emerald-400 text-base font-black">
-                  {formatMinorUnits(BigInt(vatData.summary.netPayableTaxMinorUnits), { locale })}
+                  {formatMinorUnits(vatData?.summary?.netPayableTaxMinorUnits, { locale })}
                 </strong>
               </div>
             </div>
@@ -177,14 +177,14 @@ function Vat201View({ params }: { params: Promise<{ locale: string }> }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60">
-                  {vatData.boxes.map((box) => (
+                  {(vatData?.boxes || []).map((box) => (
                     <tr
                       key={box.boxNumber}
-                      onClick={() => box.drilldownLines.length > 0 && setSelectedBox(box)}
+                      onClick={() => box.drilldownLines && box.drilldownLines.length > 0 && setSelectedBox(box)}
                       className={`transition ${
                         box.isTotalBox
                           ? 'bg-slate-950/70 font-bold border-t-2 border-slate-700'
-                          : box.drilldownLines.length > 0
+                          : box.drilldownLines && box.drilldownLines.length > 0
                           ? 'hover:bg-slate-800/50 cursor-pointer'
                           : 'opacity-70'
                       }`}
@@ -210,11 +210,11 @@ function Vat201View({ params }: { params: Promise<{ locale: string }> }) {
                       </td>
                       <td className="p-3.5 text-end font-mono text-slate-200">
                         {box.netAmountMinorUnits !== '0'
-                          ? formatMinorUnits(BigInt(box.netAmountMinorUnits), { locale })
+                          ? formatMinorUnits(box.netAmountMinorUnits, { locale })
                           : 'AED 0.00'}
                       </td>
                       <td className="p-3.5 text-end font-mono font-bold text-emerald-400">
-                        {formatMinorUnits(BigInt(box.vatAmountMinorUnits), { locale })}
+                        {formatMinorUnits(box.vatAmountMinorUnits, { locale })}
                       </td>
                       <td className="p-3.5 pe-5 text-center">
                         {box.drilldownLines.length > 0 ? (
@@ -310,10 +310,10 @@ function Vat201View({ params }: { params: Promise<{ locale: string }> }) {
                             </td>
                             <td className="p-2.5 text-slate-300">{line.description}</td>
                             <td className="p-2.5 text-end font-mono text-slate-200">
-                              {formatMinorUnits(BigInt(line.netMinorUnits), { locale })}
+                              {formatMinorUnits(line.netMinorUnits, { locale })}
                             </td>
                             <td className="p-2.5 pe-3 text-end font-mono font-bold text-emerald-400">
-                              {formatMinorUnits(BigInt(line.vatMinorUnits), { locale })}
+                              {formatMinorUnits(line.vatMinorUnits, { locale })}
                             </td>
                           </tr>
                         ))}
@@ -324,7 +324,7 @@ function Vat201View({ params }: { params: Promise<{ locale: string }> }) {
                   {/* Modal Footer */}
                   <div className="p-3 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-xs">
                     <span className="text-slate-400">
-                      Total Box VAT Amount: <strong className="text-white font-mono">{formatMinorUnits(BigInt(selectedBox.vatAmountMinorUnits), { locale })}</strong>
+                      Total Box VAT Amount: <strong className="text-white font-mono">{formatMinorUnits(selectedBox?.vatAmountMinorUnits, { locale })}</strong>
                     </span>
                     <button
                       onClick={() => setSelectedBox(null)}

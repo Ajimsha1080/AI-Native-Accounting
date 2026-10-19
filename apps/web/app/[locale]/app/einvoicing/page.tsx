@@ -107,7 +107,7 @@ export default function EinvoicingQueuePage() {
                         </td>
                         <td className="py-3.5 px-4 font-mono text-xs text-indigo-400">{m.messageType}</td>
                         <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
-                          {formatZeroFloatMoney(BigInt(m.totalBase), locale)}
+                          {formatZeroFloatMoney(m.totalBase ?? '0', locale)}
                         </td>
                         <td className="py-3.5 px-4">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${

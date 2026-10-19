@@ -130,18 +130,18 @@ export default function PayrollWpsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 text-slate-200">
-                    {run.employees.map((e: any) => (
-                      <tr key={e.id} className="hover:bg-slate-800/30 transition">
-                        <td className="py-3 px-4 font-semibold text-white">{e.employeeName}</td>
+                    {(run.employees || []).map((e: any, idx: number) => (
+                      <tr key={e.id || idx} className="hover:bg-slate-800/30 transition">
+                        <td className="py-3 px-4 font-semibold text-white">{e.employeeName || `Employee ${e.person_id?.slice(-4) || idx + 1}`}</td>
                         <td className="py-3 px-4 font-mono text-xs text-slate-300">{e.iban}</td>
                         <td className="py-3 px-4 text-right font-mono text-white">
-                          {formatZeroFloatMoney(BigInt(e.fixedSalaryBase), locale)}
+                          {formatZeroFloatMoney(e.fixedSalaryBase ?? e.fixed_salary_fils ?? '0', locale)}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-emerald-400">
-                          {formatZeroFloatMoney(BigInt(e.netSalaryBase), locale)}
+                          {formatZeroFloatMoney(e.netSalaryBase ?? e.total_salary_fils ?? '0', locale)}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-amber-400">
-                          {formatZeroFloatMoney(BigInt(e.eosgAccruedBase), locale)}
+                          {formatZeroFloatMoney(e.eosgAccruedBase ?? '0', locale)}
                         </td>
                       </tr>
                     ))}

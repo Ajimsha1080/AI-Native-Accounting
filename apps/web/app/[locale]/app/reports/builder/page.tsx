@@ -127,13 +127,13 @@ export default function ReportBuilderPage() {
                     <td className="py-3.5 px-4 font-semibold text-white">{isAr ? r.nameAr || r.nameEn : r.nameEn}</td>
                     <td className="py-3.5 px-4 font-mono text-xs text-slate-400">{r.category}</td>
                     <td className="py-3.5 px-4 text-right font-mono text-white">
-                      {formatZeroFloatMoney(BigInt(r.debitMinorUnits), locale)}
+                      {formatZeroFloatMoney(r.debitMinorUnits ?? '0', locale)}
                     </td>
                     <td className="py-3.5 px-4 text-right font-mono text-white">
-                      {formatZeroFloatMoney(BigInt(r.creditMinorUnits), locale)}
+                      {formatZeroFloatMoney(r.creditMinorUnits ?? '0', locale)}
                     </td>
                     <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400">
-                      {formatZeroFloatMoney(BigInt(r.netBalanceMinorUnits), locale)}
+                      {formatZeroFloatMoney(r.netBalanceMinorUnits ?? '0', locale)}
                     </td>
                   </tr>
                 ))}
@@ -144,10 +144,10 @@ export default function ReportBuilderPage() {
           {/* Summary Row */}
           <div className="p-4 bg-slate-950 border-t border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-300 font-mono">
             <div>
-              Total Debits: {formatZeroFloatMoney(BigInt(reportData.summary.totalDebitMinorUnits), locale)} | Total Credits: {formatZeroFloatMoney(BigInt(reportData.summary.totalCreditMinorUnits), locale)}
+              Total Debits: {formatZeroFloatMoney(reportData?.summary?.totalDebitMinorUnits ?? '0', locale)} | Total Credits: {formatZeroFloatMoney(reportData?.summary?.totalCreditMinorUnits ?? '0', locale)}
             </div>
             <div className="text-emerald-400 font-bold">
-              {reportData.summary.isBalanced ? 'Balanced: 0 fils variance' : 'Variance Detected'}
+              {reportData?.summary?.isBalanced ? 'Balanced: 0 fils variance' : 'Variance Detected'}
             </div>
           </div>
         </div>

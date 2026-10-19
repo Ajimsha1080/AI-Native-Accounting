@@ -109,13 +109,13 @@ export default function FixedAssetsPage() {
                       <td className="py-3.5 px-4 font-mono font-medium text-emerald-400">{a.assetNumber}</td>
                       <td className="py-3.5 px-4 font-semibold text-white">{a.nameEn}</td>
                       <td className="py-3.5 px-4 text-right font-mono text-white">
-                        {formatZeroFloatMoney(BigInt(a.acquisitionCostBase), locale)}
+                        {formatZeroFloatMoney(a.acquisitionCostBase ?? '0', locale)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono text-amber-400">
-                        {formatZeroFloatMoney(BigInt(a.accumulatedDepreciationBase), locale)}
+                        {formatZeroFloatMoney(a.accumulatedDepreciationBase ?? '0', locale)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400">
-                        {formatZeroFloatMoney(BigInt(a.netBookValueBase), locale)}
+                        {formatZeroFloatMoney(a.netBookValueBase ?? '0', locale)}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button
@@ -157,13 +157,13 @@ export default function FixedAssetsPage() {
                       <td className="py-3.5 px-4 font-mono font-medium text-indigo-400">{l.contractNumber}</td>
                       <td className="py-3.5 px-4 font-mono text-slate-300">{l.leaseTermMonths}m</td>
                       <td className="py-3.5 px-4 text-right font-mono text-white">
-                        {formatZeroFloatMoney(BigInt(l.monthlyPaymentBase), locale)}
+                        {formatZeroFloatMoney(l.monthlyPaymentBase ?? '0', locale)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-400">
-                        {formatZeroFloatMoney(BigInt(l.rouAssetBase), locale)}
+                        {formatZeroFloatMoney(l.rouAssetBase ?? '0', locale)}
                       </td>
                       <td className="py-3.5 px-4 text-right font-mono font-bold text-amber-400">
-                        {formatZeroFloatMoney(BigInt(l.leaseLiabilityBase), locale)}
+                        {formatZeroFloatMoney(l.leaseLiabilityBase ?? '0', locale)}
                       </td>
                     </tr>
                   ))}

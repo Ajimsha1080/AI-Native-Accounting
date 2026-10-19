@@ -311,7 +311,7 @@ function ProposalsInboxView({ params }: { params: Promise<{ locale: string }> })
                       <div className="flex justify-between items-center pt-1 text-xs">
                         <span className="text-slate-400">Posting Amount (Integer Fils):</span>
                         <strong className="font-mono text-emerald-400 text-sm">
-                          {formatMinorUnits(BigInt(activeProposal.proposedJournal.amountMinorUnits), { locale })}
+                          {formatMinorUnits(activeProposal?.proposedJournal?.amountMinorUnits, { locale })}
                         </strong>
                       </div>
                     </div>
@@ -321,18 +321,18 @@ function ProposalsInboxView({ params }: { params: Promise<{ locale: string }> })
                   <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-[11px] text-slate-400">
                     <div className="flex items-center gap-1.5">
                       <Cpu className="w-3.5 h-3.5 text-cyan-400" />
-                      <span>Model: <strong className="text-slate-200">{activeProposal.costMetrics.model}</strong></span>
+                      <span>Model: <strong className="text-slate-200">{activeProposal?.costMetrics?.model || 'Claude-3.7'}</strong></span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Coins className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Tokens: <strong className="text-slate-200">{activeProposal.costMetrics.totalTokens}</strong> ({activeProposal.costMetrics.promptTokens} in / {activeProposal.costMetrics.completionTokens} out)</span>
+                      <span>Tokens: <strong className="text-slate-200">{activeProposal?.costMetrics?.totalTokens ?? 0}</strong> ({activeProposal?.costMetrics?.promptTokens ?? 0} in / {activeProposal?.costMetrics?.completionTokens ?? 0} out)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Latency: <strong className="text-slate-200">{activeProposal.costMetrics.executionLatencyMs}ms</strong></span>
+                      <span>Latency: <strong className="text-slate-200">{activeProposal?.costMetrics?.executionLatencyMs ?? 0}ms</strong></span>
                     </div>
                     <div>
-                      <span>Cost: <strong className="text-emerald-400 font-mono">{formatMinorUnits(BigInt(activeProposal.costMetrics.estimatedCostAedMinorUnits), { locale })}</strong></span>
+                      <span>Cost: <strong className="text-emerald-400 font-mono">{formatMinorUnits(activeProposal?.costMetrics?.estimatedCostAedMinorUnits, { locale })}</strong></span>
                     </div>
                   </div>
 

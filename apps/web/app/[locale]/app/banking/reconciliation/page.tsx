@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { StateContainer } from '@/components/StateContainer';
-import { formatMinorUnits } from '@/lib/money';
+import { formatMinorUnits, toSafeBigInt } from '@/lib/money';
 import {
   Landmark,
   ArrowRightLeft,
@@ -166,7 +166,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
               <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
                 <span className="text-[11px] text-slate-400 font-semibold block">BANK STATEMENT BALANCE</span>
                 <div className="text-lg font-black text-white mt-1">
-                  {formatMinorUnits(BigInt(data.bankBalanceMinorUnits), { locale })}
+                  {formatMinorUnits(data.bankBalanceMinorUnits, { locale })}
                 </div>
                 <span className="text-[10px] text-slate-500 font-mono">IBAN: {data.iban}</span>
               </div>
@@ -174,7 +174,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
               <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
                 <span className="text-[11px] text-slate-400 font-semibold block">GENERAL LEDGER BALANCE</span>
                 <div className="text-lg font-black text-white mt-1">
-                  {formatMinorUnits(BigInt(data.ledgerBalanceMinorUnits), { locale })}
+                  {formatMinorUnits(data.ledgerBalanceMinorUnits, { locale })}
                 </div>
                 <span className="text-[10px] text-slate-500 font-medium">{data.accountName}</span>
               </div>
@@ -182,7 +182,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
               <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
                 <span className="text-[11px] text-slate-400 font-semibold block">RECONCILIATION VARIANCE</span>
                 <div className={`text-lg font-black mt-1 ${data.differenceMinorUnits === '0' ? 'text-emerald-400' : 'text-amber-400'}`}>
-                  {formatMinorUnits(BigInt(data.differenceMinorUnits), { locale })}
+                  {formatMinorUnits(data.differenceMinorUnits, { locale })}
                 </div>
                 <span className="text-[10px] text-slate-500">
                   {data.differenceMinorUnits === '0' ? 'Zero Variance - Fully Reconciled' : 'Pending Unmatched Items'}
@@ -282,8 +282,8 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                           <span className="text-[10px] text-slate-500 font-mono">Ref: {stmt.reference} · {stmt.date}</span>
                         </div>
                         <div className="text-end">
-                          <div className={`font-mono font-bold ${BigInt(stmt.amountMinorUnits) > 0n ? 'text-emerald-400' : 'text-slate-300'}`}>
-                            {formatMinorUnits(BigInt(stmt.amountMinorUnits), { locale })}
+                          <div className={`font-mono font-bold ${toSafeBigInt(stmt.amountMinorUnits) > 0n ? 'text-emerald-400' : 'text-slate-300'}`}>
+                            {formatMinorUnits(stmt.amountMinorUnits, { locale })}
                           </div>
                           <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${stmt.matchedStatus === 'MATCHED' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-amber-950 border-amber-800 text-amber-300'}`}>
                             {stmt.matchedStatus}
@@ -325,8 +325,8 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                           <span className="text-[10px] text-slate-500 font-mono">Voucher: {ledg.voucherNumber} · {ledg.date}</span>
                         </div>
                         <div className="text-end">
-                          <div className={`font-mono font-bold ${BigInt(ledg.amountMinorUnits) > 0n ? 'text-emerald-400' : 'text-slate-300'}`}>
-                            {formatMinorUnits(BigInt(ledg.amountMinorUnits), { locale })}
+                          <div className={`font-mono font-bold ${toSafeBigInt(ledg.amountMinorUnits) > 0n ? 'text-emerald-400' : 'text-slate-300'}`}>
+                            {formatMinorUnits(ledg.amountMinorUnits, { locale })}
                           </div>
                           <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${ledg.isReconciled ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-amber-950 border-amber-800 text-amber-300'}`}>
                             {ledg.isReconciled ? 'RECONCILED' : 'UNRECONCILED'}

@@ -238,10 +238,10 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                             </span>
                           </td>
                           <td className="p-3.5 text-end font-mono text-emerald-400 font-bold">
-                            {l.debitMinorUnits !== '0' ? formatMinorUnits(BigInt(l.debitMinorUnits), { locale }) : '—'}
+                            {l.debitMinorUnits !== '0' ? formatMinorUnits(l.debitMinorUnits, { locale }) : '—'}
                           </td>
                           <td className="p-3.5 pe-5 text-end font-mono text-amber-400 font-bold">
-                            {l.creditMinorUnits !== '0' ? formatMinorUnits(BigInt(l.creditMinorUnits), { locale }) : '—'}
+                            {l.creditMinorUnits !== '0' ? formatMinorUnits(l.creditMinorUnits, { locale }) : '—'}
                           </td>
                         </tr>
                       ))}
@@ -252,10 +252,10 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                           Total General Ledger Trial Balance:
                         </td>
                         <td className="p-4 text-end font-mono text-emerald-400 text-sm">
-                          {formatMinorUnits(BigInt(data.trialBalance.totalDebitMinorUnits), { locale })}
+                          {formatMinorUnits(data?.trialBalance?.totalDebitMinorUnits, { locale })}
                         </td>
                         <td className="p-4 pe-5 text-end font-mono text-amber-400 text-sm">
-                          {formatMinorUnits(BigInt(data.trialBalance.totalCreditMinorUnits), { locale })}
+                          {formatMinorUnits(data?.trialBalance?.totalCreditMinorUnits, { locale })}
                         </td>
                       </tr>
                     </tfoot>
@@ -271,19 +271,19 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                   <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-[11px] text-slate-400 font-semibold block">TOTAL REVENUE</span>
                     <strong className="text-lg font-black text-emerald-400 mt-1 block">
-                      {formatMinorUnits(BigInt(data.pnl.totalRevenueMinorUnits), { locale })}
+                      {formatMinorUnits(data?.pnl?.totalRevenueMinorUnits, { locale })}
                     </strong>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-[11px] text-slate-400 font-semibold block">TOTAL OPERATING EXPENSES</span>
                     <strong className="text-lg font-black text-rose-400 mt-1 block">
-                      {formatMinorUnits(BigInt(data.pnl.totalExpenseMinorUnits), { locale })}
+                      {formatMinorUnits(data?.pnl?.totalExpenseMinorUnits, { locale })}
                     </strong>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-[11px] text-slate-400 font-semibold block">NET PROFIT BEFORE TAX</span>
                     <strong className="text-lg font-black text-cyan-400 mt-1 block">
-                      {formatMinorUnits(BigInt(data.pnl.netProfitMinorUnits), { locale })}
+                      {formatMinorUnits(data?.pnl?.netProfitMinorUnits, { locale })}
                     </strong>
                   </div>
                 </div>
@@ -295,11 +295,11 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                       Operating Revenues (Commercial & Exports)
                     </h3>
                     <div className="divide-y divide-slate-800 text-xs">
-                      {data.pnl.revenueLines.map((r) => (
+                      {(data?.pnl?.revenueLines || []).map((r) => (
                         <div key={r.accountCode} className="py-2.5 flex justify-between items-center">
                           <span>{locale === 'ar' ? r.nameAr : r.nameEn} ({r.accountCode})</span>
                           <span className="font-mono font-bold text-white">
-                            {formatMinorUnits(BigInt(r.creditMinorUnits), { locale })}
+                            {formatMinorUnits(r.creditMinorUnits, { locale })}
                           </span>
                         </div>
                       ))}
@@ -312,11 +312,11 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                       Cost of Sales & Operating Overheads
                     </h3>
                     <div className="divide-y divide-slate-800 text-xs">
-                      {data.pnl.expenseLines.map((e) => (
+                      {(data?.pnl?.expenseLines || []).map((e) => (
                         <div key={e.accountCode} className="py-2.5 flex justify-between items-center">
                           <span>{locale === 'ar' ? e.nameAr : e.nameEn} ({e.accountCode})</span>
                           <span className="font-mono font-bold text-white">
-                            {formatMinorUnits(BigInt(e.debitMinorUnits), { locale })}
+                            {formatMinorUnits(e.debitMinorUnits, { locale })}
                           </span>
                         </div>
                       ))}
@@ -333,13 +333,13 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                   <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-[11px] text-slate-400 font-semibold block">TOTAL ASSETS</span>
                     <strong className="text-lg font-black text-cyan-400 mt-1 block">
-                      {formatMinorUnits(BigInt(data.balanceSheet.totalAssetsMinorUnits), { locale })}
+                      {formatMinorUnits(data?.balanceSheet?.totalAssetsMinorUnits, { locale })}
                     </strong>
                   </div>
                   <div className="p-4 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-[11px] text-slate-400 font-semibold block">TOTAL LIABILITIES & EQUITY</span>
                     <strong className="text-lg font-black text-amber-400 mt-1 block">
-                      {formatMinorUnits(BigInt(data.balanceSheet.totalLiabilitiesAndEquityMinorUnits), { locale })}
+                      {formatMinorUnits(data?.balanceSheet?.totalLiabilitiesAndEquityMinorUnits, { locale })}
                     </strong>
                   </div>
                 </div>
@@ -349,11 +349,11 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                   <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
                     <h3 className="text-xs font-black text-cyan-400 uppercase tracking-wider">Assets</h3>
                     <div className="divide-y divide-slate-800 text-xs">
-                      {data.balanceSheet.assetLines.map((a) => (
+                      {(data?.balanceSheet?.assetLines || []).map((a) => (
                         <div key={a.accountCode} className="py-2 flex justify-between items-center">
                           <span>{locale === 'ar' ? a.nameAr : a.nameEn}</span>
                           <span className="font-mono font-bold text-white">
-                            {formatMinorUnits(BigInt(a.debitMinorUnits), { locale })}
+                            {formatMinorUnits(a.debitMinorUnits, { locale })}
                           </span>
                         </div>
                       ))}
@@ -365,11 +365,11 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                     <div>
                       <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider">Liabilities</h3>
                       <div className="divide-y divide-slate-800 text-xs mt-2">
-                        {data.balanceSheet.liabilityLines.map((l) => (
+                        {(data?.balanceSheet?.liabilityLines || []).map((l) => (
                           <div key={l.accountCode} className="py-2 flex justify-between items-center">
                             <span>{locale === 'ar' ? l.nameAr : l.nameEn}</span>
                             <span className="font-mono font-bold text-white">
-                              {formatMinorUnits(BigInt(l.creditMinorUnits), { locale })}
+                              {formatMinorUnits(l.creditMinorUnits, { locale })}
                             </span>
                           </div>
                         ))}
@@ -379,11 +379,11 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                     <div>
                       <h3 className="text-xs font-black text-purple-400 uppercase tracking-wider">Equity</h3>
                       <div className="divide-y divide-slate-800 text-xs mt-2">
-                        {data.balanceSheet.equityLines.map((eq) => (
+                        {(data?.balanceSheet?.equityLines || []).map((eq) => (
                           <div key={eq.accountCode} className="py-2 flex justify-between items-center">
                             <span>{locale === 'ar' ? eq.nameAr : eq.nameEn}</span>
                             <span className="font-mono font-bold text-white">
-                              {formatMinorUnits(BigInt(eq.creditMinorUnits), { locale })}
+                              {formatMinorUnits(eq.creditMinorUnits, { locale })}
                             </span>
                           </div>
                         ))}
@@ -405,19 +405,19 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                   <div>
                     <span className="text-slate-400 block text-[10px]">INTERCOMPANY ELIMINATIONS</span>
                     <strong className="text-rose-400 font-mono text-xs">
-                      {formatMinorUnits(BigInt(data.consolidation.intercompanyEliminationsMinorUnits), { locale })}
+                      {formatMinorUnits(data?.consolidation?.intercompanyEliminationsMinorUnits, { locale })}
                     </strong>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-[10px]">CONSOLIDATED GROUP TOTAL</span>
                     <strong className="text-emerald-400 font-mono text-sm font-black">
-                      {formatMinorUnits(BigInt(data.consolidation.consolidatedTotalMinorUnits), { locale })}
+                      {formatMinorUnits(data?.consolidation?.consolidatedTotalMinorUnits, { locale })}
                     </strong>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {data.consolidation.entities.map((ent) => (
+                  {(data?.consolidation?.entities || []).map((ent) => (
                     <div key={ent.entityId} className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-white">
                         <Building2 className="w-3.5 h-3.5 text-emerald-400" />
@@ -425,7 +425,7 @@ function ReportsView({ params }: { params: Promise<{ locale: string }> }) {
                       </div>
                       <div className="text-[11px] text-slate-400 font-mono">Currency: {ent.currency}</div>
                       <div className="text-sm font-black text-cyan-400 font-mono">
-                        {formatMinorUnits(BigInt(ent.debitMinorUnits), { locale })}
+                        {formatMinorUnits(ent.debitMinorUnits, { locale })}
                       </div>
                       <span className="text-[10px] text-emerald-400 block">Audited Legal Subsidiary</span>
                     </div>

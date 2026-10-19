@@ -150,11 +150,11 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                 <Wallet className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-2xl font-black text-white">
-                {formatMinorUnits(BigInt(data.cash.totalMinorUnits), { locale })}
+                {formatMinorUnits(data?.cash?.totalMinorUnits, { locale })}
               </div>
               <div className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
                 <ArrowUpRight className="w-3.5 h-3.5 rtl-mirror" />
-                <span>+{data.cash.changePercentage}% vs prior month</span>
+                <span>+{data?.cash?.changePercentage ?? 0}% vs prior month</span>
               </div>
             </div>
 
@@ -165,10 +165,10 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                 <TrendingUp className="w-4 h-4 text-cyan-400" />
               </div>
               <div className="text-2xl font-black text-cyan-400">
-                {formatMinorUnits(BigInt(data.arAgeing.totalMinorUnits), { locale })}
+                {formatMinorUnits(data?.arAgeing?.totalMinorUnits, { locale })}
               </div>
               <div className="text-[11px] text-slate-400">
-                Current 0–30d: {formatMinorUnits(BigInt(data.arAgeing.current_0_30), { locale })}
+                Current 0–30d: {formatMinorUnits(data?.arAgeing?.current_0_30, { locale })}
               </div>
             </div>
 
@@ -179,11 +179,11 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                 <Receipt className="w-4 h-4 text-amber-400" />
               </div>
               <div className="text-2xl font-black text-amber-400">
-                {formatMinorUnits(BigInt(data.vatLiability.netPayableMinorUnits), { locale })}
+                {formatMinorUnits(data?.vatLiability?.netPayableMinorUnits, { locale })}
               </div>
               <div className="text-[11px] text-slate-400 flex items-center gap-1">
                 <CalendarClock className="w-3 h-3 text-slate-500" />
-                <span>Due: {data.vatLiability.dueDate}</span>
+                <span>Due: {data?.vatLiability?.dueDate || '2026-11-28'}</span>
               </div>
             </div>
 
@@ -194,12 +194,12 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                 <FileCheck2 className="w-4 h-4 text-emerald-400" />
               </div>
               <div className="text-2xl font-black text-white">
-                {data.closeStatus.completedSteps} / {data.closeStatus.totalSteps}
+                {data?.closeStatus?.completedSteps ?? 0} / {data?.closeStatus?.totalSteps ?? 8}
               </div>
               <div className="text-[11px] text-emerald-400 font-semibold">
                 {t('stepsCompleted', {
-                  completed: data.closeStatus.completedSteps,
-                  total: data.closeStatus.totalSteps
+                  completed: data?.closeStatus?.completedSteps ?? 0,
+                  total: data?.closeStatus?.totalSteps ?? 8
                 })}
               </div>
             </div>
@@ -216,32 +216,32 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                   <div className="flex justify-between text-xs text-slate-300 font-semibold mb-1">
                     <span>AR (Receivables)</span>
                     <span className="text-cyan-400">
-                      {formatMinorUnits(BigInt(data.arAgeing.totalMinorUnits), { locale })}
+                      {formatMinorUnits(data?.arAgeing?.totalMinorUnits, { locale })}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-[11px] text-center">
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('current')}</span>
                       <span className="font-semibold text-slate-200">
-                        {formatMinorUnits(BigInt(data.arAgeing.current_0_30), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.arAgeing?.current_0_30, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('days3160')}</span>
                       <span className="font-semibold text-slate-200">
-                        {formatMinorUnits(BigInt(data.arAgeing.past_31_60), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.arAgeing?.past_31_60, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('days6190')}</span>
                       <span className="font-semibold text-slate-200">
-                        {formatMinorUnits(BigInt(data.arAgeing.past_61_90), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.arAgeing?.past_61_90, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('daysOver90')}</span>
                       <span className="font-semibold text-rose-400">
-                        {formatMinorUnits(BigInt(data.arAgeing.over_90), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.arAgeing?.over_90, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                   </div>
@@ -252,32 +252,32 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                   <div className="flex justify-between text-xs text-slate-300 font-semibold mb-1">
                     <span>AP (Payables)</span>
                     <span className="text-amber-400">
-                      {formatMinorUnits(BigInt(data.apAgeing.totalMinorUnits), { locale })}
+                      {formatMinorUnits(data?.apAgeing?.totalMinorUnits, { locale })}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-2 text-[11px] text-center">
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('current')}</span>
                       <span className="font-semibold text-slate-200">
-                        {formatMinorUnits(BigInt(data.apAgeing.current_0_30), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.apAgeing?.current_0_30, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('days3160')}</span>
                       <span className="font-semibold text-slate-200">
-                        {formatMinorUnits(BigInt(data.apAgeing.past_31_60), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.apAgeing?.past_31_60, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('days6190')}</span>
                       <span className="font-semibold text-slate-200">
-                        {formatMinorUnits(BigInt(data.apAgeing.past_61_90), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.apAgeing?.past_61_90, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                     <div className="p-2 rounded-lg bg-slate-950 border border-slate-800">
                       <span className="text-slate-500 block text-[10px]">{t('daysOver90')}</span>
                       <span className="font-semibold text-rose-400">
-                        {formatMinorUnits(BigInt(data.apAgeing.over_90), { locale, showCurrencySymbol: false })}
+                        {formatMinorUnits(data?.apAgeing?.over_90, { locale, showCurrencySymbol: false })}
                       </span>
                     </div>
                   </div>
@@ -289,7 +289,7 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
             <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4">
               <h2 className="text-sm font-bold text-white">{t('bankAccounts')}</h2>
               <div className="space-y-3">
-                {data.cash.bankAccounts.map((acc) => (
+                {(data?.cash?.bankAccounts || []).map((acc) => (
                   <div
                     key={acc.iban}
                     className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between"
@@ -300,7 +300,7 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-emerald-400 text-xs">
-                        {formatMinorUnits(BigInt(acc.minorUnits), { locale })}
+                        {formatMinorUnits(acc.minorUnits, { locale })}
                       </div>
                       <span className="text-[10px] text-slate-500">Live API Ingested</span>
                     </div>

@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { StateContainer } from '@/components/StateContainer';
-import { formatMinorUnits } from '@/lib/money';
+import { formatMinorUnits, toSafeBigInt } from '@/lib/money';
 import {
   useReactTable,
   getCoreRowModel,
@@ -125,8 +124,8 @@ function JournalsView({ params }: { params: Promise<{ locale: string }> }) {
   }, []);
 
   // Compute live debits, credits and variance
-  const totalDebitFils = formLines.reduce((acc, l) => acc + BigInt(l.debitMinorUnits || '0'), 0n);
-  const totalCreditFils = formLines.reduce((acc, l) => acc + BigInt(l.creditMinorUnits || '0'), 0n);
+  const totalDebitFils = formLines.reduce((acc, l) => acc + toSafeBigInt(l.debitMinorUnits), 0n);
+  const totalCreditFils = formLines.reduce((acc, l) => acc + toSafeBigInt(l.creditMinorUnits), 0n);
   const varianceFils = totalDebitFils - totalCreditFils;
   const isBalanced = totalDebitFils > 0n && totalDebitFils === totalCreditFils;
 
@@ -247,7 +246,7 @@ function JournalsView({ params }: { params: Promise<{ locale: string }> }) {
         header: () => <div className="text-end">{locale === 'ar' ? 'إجمالي المدين' : 'Total Debit'}</div>,
         cell: (info) => (
           <div className="text-end font-mono font-bold text-emerald-400 text-xs">
-            {formatMinorUnits(BigInt(info.getValue() as string), { locale })}
+            {formatMinorUnits(info.getValue(), { locale })}
           </div>
         )
       },

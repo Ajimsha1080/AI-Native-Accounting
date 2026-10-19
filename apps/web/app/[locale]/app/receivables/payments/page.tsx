@@ -82,7 +82,7 @@ export default function CustomerPaymentsPage() {
                     </td>
                     <td className="py-3.5 px-4 text-slate-300 font-mono text-xs">{p.paymentDate}</td>
                     <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
-                      {formatZeroFloatMoney(BigInt(p.amountBase), locale)}
+                      {formatZeroFloatMoney(p.amountBase ?? '0', locale)}
                     </td>
                     <td className="py-3.5 px-4">
                       {p.allocation ? (

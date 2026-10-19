@@ -641,6 +641,15 @@ async def run_report_builder(
     }
 
 
+@router.get("/reports/builder")
+async def get_report_builder(
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    default_req = ReportBuilderRequest(categories=[], format="JSON")
+    return await run_report_builder(default_req, claims, db)
+
+
 # 5. Month-End Close & Periods
 @router.get("/close")
 async def get_close_status(
@@ -943,20 +952,30 @@ async def execute_close_action(
 async def get_payroll_wps(claims: dict[str, Any] = Depends(get_current_user_claims)):
     sample_employees = [
         {
+            "id": "emp-001",
+            "employeeName": "Tariq Al-Mansoor",
             "person_id": "784198512345671",
             "agent_code": "CBUAE001",
             "iban": "AE290331234567890123456",
             "fixed_salary_fils": 1500000,
             "total_salary_fils": 1500000,
+            "fixedSalaryBase": "1500000",
+            "netSalaryBase": "1500000",
+            "eosgAccruedBase": "125000",
             "start_date": "2026-03-01",
             "end_date": "2026-03-31",
         },
         {
+            "id": "emp-002",
+            "employeeName": "Fatima Al-Zahra",
             "person_id": "784199012345672",
             "agent_code": "CBUAE001",
             "iban": "AE290331234567890123457",
             "fixed_salary_fils": 2200000,
             "total_salary_fils": 2200000,
+            "fixedSalaryBase": "2200000",
+            "netSalaryBase": "2200000",
+            "eosgAccruedBase": "183333",
             "start_date": "2026-03-01",
             "end_date": "2026-03-31",
         },
@@ -978,6 +997,7 @@ async def get_payroll_wps(claims: dict[str, Any] = Depends(get_current_user_clai
             "totalVariableSalaryBase": "0",
             "totalPayrollBase": "3700000",
             "sifFileName": "MOHRE_SIF_202603.sif",
+            "employees": sample_employees,
         }
     ]
     return {

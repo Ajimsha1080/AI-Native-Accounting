@@ -106,7 +106,7 @@ export default function AccountsPage({ params }: { params: Promise<{ locale: str
         ),
         cell: (info) => (
           <div className="text-end font-mono font-bold text-white text-xs">
-            {formatMinorUnits(BigInt(info.getValue() as string), { locale })}
+            {formatMinorUnits(info.getValue(), { locale })}
           </div>
         )
       },
