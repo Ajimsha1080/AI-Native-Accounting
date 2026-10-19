@@ -16,7 +16,9 @@ from typing import Any
 
 
 class FinancialGuardrailViolation(Exception):
-    def __init__(self, message: str, code: str = "GUARDRAIL_VIOLATION", details: dict[str, Any] | None = None):
+    def __init__(
+        self, message: str, code: str = "GUARDRAIL_VIOLATION", details: dict[str, Any] | None = None
+    ):
         self.message = message
         self.code = code
         self.details = details or {}
@@ -67,7 +69,7 @@ def validate_double_entry_equilibrium(
     proposal_id: str | None = None,
 ) -> dict[str, Any]:
     """Validates that journal lines balance exactly: Sum(Debits) == Sum(Credits).
-    
+
     All amounts must be strictly non-negative integers in fils.
     Returns audit summary with exact debits, credits, and verification token.
     """
@@ -83,7 +85,7 @@ def validate_double_entry_equilibrium(
 
     for idx, line in enumerate(lines):
         amount = line.get("amountMinorUnits") or line.get("amount_fils") or line.get("amount", 0)
-        
+
         # Enforce integer or numeric string convertible to int
         try:
             amount_int = int(amount)
@@ -146,7 +148,7 @@ def validate_fiscal_period_open(
     locked_periods: list[dict[str, Any]],
 ) -> None:
     """Verifies that the transaction date does NOT fall within a locked accounting period.
-    
+
     Prevents AI agents from tampering with past closed periods or filed VAT cycles.
     """
     for period in locked_periods:
@@ -154,13 +156,12 @@ def validate_fiscal_period_open(
         end = period.get("end_date")
         is_locked = period.get("is_hard_locked", False) or period.get("status") == "LOCKED"
 
-        if is_locked and start and end:
-            if start <= entry_date <= end:
-                raise FinancialGuardrailViolation(
-                    f"Fiscal Period Lock Guardrail: Transaction date {entry_date} falls into closed period '{period.get('name', 'Closed Period')}' ({start} to {end}). AI posting rejected.",
-                    "CLOSED_PERIOD_MUTATION",
-                    {"entry_date": str(entry_date), "period": period},
-                )
+        if is_locked and start and end and (start <= entry_date <= end):
+            raise FinancialGuardrailViolation(
+                f"Fiscal Period Lock Guardrail: Transaction date {entry_date} falls into closed period '{period.get('name', 'Closed Period')}' ({start} to {end}). AI posting rejected.",
+                "CLOSED_PERIOD_MUTATION",
+                {"entry_date": str(entry_date), "period": period},
+            )
 
 
 def evaluate_hitl_threshold(
@@ -177,7 +178,11 @@ def evaluate_hitl_threshold(
         "amountFils": amount_fils,
         "thresholdFils": threshold_fils,
         "requiresHumanApproval": requires_approval,
-        "approvalLevel": "CFO_SIGN_OFF" if amount_fils >= (threshold_fils * 5) else "SENIOR_ACCOUNTANT" if requires_approval else "AUTONOMOUS_PERMITTED",
+        "approvalLevel": "CFO_SIGN_OFF"
+        if amount_fils >= (threshold_fils * 5)
+        else "SENIOR_ACCOUNTANT"
+        if requires_approval
+        else "AUTONOMOUS_PERMITTED",
         "reason": (
             f"Amount AED {amount_fils / 100:,.2f} exceeds autonomous limit of AED {threshold_fils / 100:,.2f}. Dual control required."
             if requires_approval

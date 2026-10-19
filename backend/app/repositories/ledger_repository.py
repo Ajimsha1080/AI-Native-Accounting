@@ -136,7 +136,9 @@ class LedgerRepository:
                     "direction": line.direction,
                     "amountFils": line.amount_fils,
                     "debitMinorUnits": str(line.amount_fils) if line.direction == "DEBIT" else "0",
-                    "creditMinorUnits": str(line.amount_fils) if line.direction == "CREDIT" else "0",
+                    "creditMinorUnits": str(line.amount_fils)
+                    if line.direction == "CREDIT"
+                    else "0",
                     "vatRate": line.vat_rate,
                     "vatAmountFils": line.vat_amount_fils,
                 }
@@ -418,7 +420,9 @@ class LedgerRepository:
                         "netMinorUnits": str(box1_tot),
                         "vatMinorUnits": str(box1_vat),
                     }
-                ] if box1_tot > 0 else [],
+                ]
+                if box1_tot > 0
+                else [],
             },
             {
                 "boxNumber": "2",
@@ -433,7 +437,9 @@ class LedgerRepository:
                 "boxNumber": "3",
                 "titleEn": "Supplies subject to reverse charge provisions",
                 "titleAr": "التوريدات الخاضعة لآلية الاحتساب العكسي",
-                "netAmountMinorUnits": str(raw_vat.get("box3_rcm_output", {}).get("amount_fils", 0)),
+                "netAmountMinorUnits": str(
+                    raw_vat.get("box3_rcm_output", {}).get("amount_fils", 0)
+                ),
                 "vatAmountMinorUnits": str(raw_vat.get("box3_rcm_output", {}).get("vat_fils", 0)),
                 "isTotalBox": False,
                 "drilldownLines": [],
@@ -442,7 +448,9 @@ class LedgerRepository:
                 "boxNumber": "4",
                 "titleEn": "Zero rated supplies",
                 "titleAr": "التوريدات الخاضعة لنسبة الصفر",
-                "netAmountMinorUnits": str(raw_vat.get("box4_zero_rated", {}).get("amount_fils", 0)),
+                "netAmountMinorUnits": str(
+                    raw_vat.get("box4_zero_rated", {}).get("amount_fils", 0)
+                ),
                 "vatAmountMinorUnits": "0",
                 "isTotalBox": False,
                 "drilldownLines": [],
@@ -460,8 +468,12 @@ class LedgerRepository:
                 "boxNumber": "6",
                 "titleEn": "Goods imported into the UAE",
                 "titleAr": "السلع المستوردة إلى دولة الإمارات",
-                "netAmountMinorUnits": str(raw_vat.get("box6_customs_imports", {}).get("amount_fils", 0)),
-                "vatAmountMinorUnits": str(raw_vat.get("box6_customs_imports", {}).get("vat_fils", 0)),
+                "netAmountMinorUnits": str(
+                    raw_vat.get("box6_customs_imports", {}).get("amount_fils", 0)
+                ),
+                "vatAmountMinorUnits": str(
+                    raw_vat.get("box6_customs_imports", {}).get("vat_fils", 0)
+                ),
                 "isTotalBox": False,
                 "drilldownLines": [],
             },
@@ -501,15 +513,23 @@ class LedgerRepository:
                         "netMinorUnits": str(box9_amt),
                         "vatMinorUnits": str(box9_vat),
                     }
-                ] if box9_amt > 0 else [],
+                ]
+                if box9_amt > 0
+                else [],
             },
             {
                 "boxNumber": "10",
                 "titleEn": "Supplies subject to reverse charge provisions (Input)",
                 "titleAr": "توريدات خاضعة للاحتساب العكسي (مدخلات)",
-                "netAmountMinorUnits": str(raw_vat.get("box10_rcm_expenses", {}).get("amount_fils", 0)),
-                "vatAmountMinorUnits": str(raw_vat.get("box10_rcm_expenses", {}).get("vat_fils", 0)),
-                "recoverableVatMinorUnits": str(raw_vat.get("box10_rcm_expenses", {}).get("vat_fils", 0)),
+                "netAmountMinorUnits": str(
+                    raw_vat.get("box10_rcm_expenses", {}).get("amount_fils", 0)
+                ),
+                "vatAmountMinorUnits": str(
+                    raw_vat.get("box10_rcm_expenses", {}).get("vat_fils", 0)
+                ),
+                "recoverableVatMinorUnits": str(
+                    raw_vat.get("box10_rcm_expenses", {}).get("vat_fils", 0)
+                ),
                 "isTotalBox": False,
                 "drilldownLines": [],
             },

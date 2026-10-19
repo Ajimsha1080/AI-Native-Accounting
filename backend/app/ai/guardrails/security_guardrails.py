@@ -37,7 +37,9 @@ IBAN_PATTERN = re.compile(r"\bAE\d{2}[0-9A-Z]{19}\b", re.IGNORECASE)
 EMIRATES_ID_PATTERN = re.compile(r"\b784[- ]?\d{4}[- ]?\d{7}[- ]?\d{1}\b")
 CREDIT_CARD_PATTERN = re.compile(r"\b(?:\d{4}[- ]?){3}\d{4}\b")
 JWT_PATTERN = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
-SECRET_KEY_PATTERN = re.compile(r"\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{20,}|Bearer\s+[A-Za-z0-9_.-]+)\b")
+SECRET_KEY_PATTERN = re.compile(
+    r"\b(sk-[a-zA-Z0-9]{20,}|ghp_[a-zA-Z0-9]{20,}|Bearer\s+[A-Za-z0-9_.-]+)\b"
+)
 
 
 def validate_prompt_safety(text: str) -> dict[str, Any]:

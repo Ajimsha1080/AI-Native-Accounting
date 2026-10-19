@@ -34,7 +34,7 @@ class AgentMemoryEngine:
     def _seed_default_memories(self):
         """Pre-seeds standard UAE institutional vendor classifications and accounting policies."""
         default_tenant = "00000000-0000-0000-0000-000000000000"
-        
+
         seeds = [
             # Vendor Classifications
             MemoryItem(
@@ -186,7 +186,8 @@ class AgentMemoryEngine:
         if query:
             q_clean = query.lower().strip()
             all_memories = [
-                m for m in all_memories
+                m
+                for m in all_memories
                 if q_clean in m.key.lower()
                 or (m.notes and q_clean in m.notes.lower())
                 or q_clean in str(m.value).lower()
@@ -320,12 +321,14 @@ class AgentMemoryEngine:
     ) -> None:
         """Appends a turn to the sliding context window (max 10 turns preserved)."""
         session = self.get_working_session(session_id, tenant_id)
-        session["conversationTurns"].append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.utcnow().isoformat(),
-            "metadata": metadata or {},
-        })
+        session["conversationTurns"].append(
+            {
+                "role": role,
+                "content": content,
+                "timestamp": datetime.utcnow().isoformat(),
+                "metadata": metadata or {},
+            }
+        )
         # Keep sliding window bounded to last 10 turns
         if len(session["conversationTurns"]) > 10:
             session["conversationTurns"] = session["conversationTurns"][-10:]

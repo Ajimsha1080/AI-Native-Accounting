@@ -42,7 +42,8 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
     candidates = []
     if raw_slug:
         candidates = [
-            t for t in all_tenants
+            t
+            for t in all_tenants
             if t[1] == raw_slug or t[1].startswith(raw_slug) or raw_slug.startswith(t[1])
         ]
     for t in all_tenants:

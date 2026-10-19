@@ -3,6 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -20,7 +21,9 @@ class MemoryItem(BaseModel):
     key: str
     value: dict[str, Any]
     confidence: float = Field(default=0.95, ge=0.0, le=1.0)
-    source: str = "SYSTEM_SEEDED"  # USER_FEEDBACK, HISTORICAL_DECISION, SYSTEM_SEEDED, OCR_INFERENCE
+    source: str = (
+        "SYSTEM_SEEDED"  # USER_FEEDBACK, HISTORICAL_DECISION, SYSTEM_SEEDED, OCR_INFERENCE
+    )
     hit_count: int = 0
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)

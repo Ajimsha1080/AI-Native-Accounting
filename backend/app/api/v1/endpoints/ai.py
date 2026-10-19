@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from app.ai.guardrails.financial_guardrails import (
@@ -9,7 +9,7 @@ from app.ai.guardrails.financial_guardrails import (
     VALID_UAE_VAT_PERCENTAGES,
 )
 from app.ai.guardrails.guardrail_orchestrator import GuardrailOrchestrator
-from app.ai.memory import AgentMemoryEngine, CreateMemoryRequest, MemoryType
+from app.ai.memory import AgentMemoryEngine, MemoryType
 from app.ai.rag.retrieval import StatutoryRagEngine
 from app.api.deps import get_current_user_claims
 
@@ -181,7 +181,12 @@ async def run_guardrail_check(
             lines=req.journalLines,
             entry_date=parsed_date,
             locked_periods=[
-                {"name": "2025-Q4 Final Close", "start_date": date(2025, 10, 1), "end_date": date(2025, 12, 31), "is_hard_locked": True}
+                {
+                    "name": "2025-Q4 Final Close",
+                    "start_date": date(2025, 10, 1),
+                    "end_date": date(2025, 12, 31),
+                    "is_hard_locked": True,
+                }
             ],
             vat_rate=req.vatRate,
             hitl_threshold_fils=req.hitlThresholdFils,

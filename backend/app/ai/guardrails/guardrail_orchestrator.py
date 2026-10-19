@@ -20,7 +20,6 @@ from app.ai.guardrails.security_guardrails import (
     SecurityGuardrailViolation,
     sanitize_pii_and_credentials,
     validate_prompt_safety,
-    validate_tenant_boundary,
 )
 
 
@@ -34,23 +33,29 @@ class GuardrailReport:
         self.hitl_evaluation: dict[str, Any] | None = None
         self.sanitized_content: str | None = None
 
-    def add_violation(self, name: str, code: str, message: str, details: dict[str, Any] | None = None):
+    def add_violation(
+        self, name: str, code: str, message: str, details: dict[str, Any] | None = None
+    ):
         self.passed = False
-        self.violations.append({
-            "guardrail": name,
-            "code": code,
-            "message": message,
-            "severity": "CRITICAL",
-            "details": details or {},
-        })
+        self.violations.append(
+            {
+                "guardrail": name,
+                "code": code,
+                "message": message,
+                "severity": "CRITICAL",
+                "details": details or {},
+            }
+        )
 
     def add_warning(self, name: str, message: str, details: dict[str, Any] | None = None):
-        self.warnings.append({
-            "guardrail": name,
-            "message": message,
-            "severity": "WARNING",
-            "details": details or {},
-        })
+        self.warnings.append(
+            {
+                "guardrail": name,
+                "message": message,
+                "severity": "WARNING",
+                "details": details or {},
+            }
+        )
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -85,7 +90,9 @@ class GuardrailOrchestrator:
         try:
             validate_prompt_safety(query)
         except SecurityGuardrailViolation as e:
-            report.add_violation("PROMPT_INJECTION_SHIELD", e.code, e.message, {"pattern": e.pattern})
+            report.add_violation(
+                "PROMPT_INJECTION_SHIELD", e.code, e.message, {"pattern": e.pattern}
+            )
 
         # 3. PII & Credential Masking
         report.guardrails_checked.append("PII_CREDENTIAL_SANITIZER")

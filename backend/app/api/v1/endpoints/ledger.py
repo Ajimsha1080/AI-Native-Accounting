@@ -156,9 +156,33 @@ async def post_journal(
     user_uuid = uuid.UUID(claims["sub"])
 
     if req.action == "VALIDATE":
-        raw_lines = (req.journal or {}).get("lines", []) if req.journal else [l.model_dump() for l in req.lines]
-        total_d = sum(int(l.get("debitMinorUnits") or (l.get("amount_fils", 0) if str(l.get("direction", "")).upper() == "DEBIT" else 0) or 0) for l in raw_lines)
-        total_c = sum(int(l.get("creditMinorUnits") or (l.get("amount_fils", 0) if str(l.get("direction", "")).upper() == "CREDIT" else 0) or 0) for l in raw_lines)
+        raw_lines = (
+            (req.journal or {}).get("lines", [])
+            if req.journal
+            else [l.model_dump() for l in req.lines]
+        )
+        total_d = sum(
+            int(
+                l.get("debitMinorUnits")
+                or (
+                    l.get("amount_fils", 0) if str(l.get("direction", "")).upper() == "DEBIT" else 0
+                )
+                or 0
+            )
+            for l in raw_lines
+        )
+        total_c = sum(
+            int(
+                l.get("creditMinorUnits")
+                or (
+                    l.get("amount_fils", 0)
+                    if str(l.get("direction", "")).upper() == "CREDIT"
+                    else 0
+                )
+                or 0
+            )
+            for l in raw_lines
+        )
         is_bal = total_d > 0 and total_d == total_c
         return PostJournalResponse(
             success=is_bal,
@@ -166,7 +190,7 @@ async def post_journal(
             varianceFils=total_d - total_c,
             totalAmountFils=total_d,
             status="VALIDATED" if is_bal else "UNBALANCED",
-            journal={"voucherNumber": "JV-PREVIEW", "status": "VALIDATED"}
+            journal={"voucherNumber": "JV-PREVIEW", "status": "VALIDATED"},
         )
 
     if req.action == "DRAFT":
@@ -174,7 +198,7 @@ async def post_journal(
         return PostJournalResponse(
             success=True,
             status="DRAFT",
-            journal={"voucherNumber": f"DFT-{now_str}", "status": "DRAFT"}
+            journal={"voucherNumber": f"DFT-{now_str}", "status": "DRAFT"},
         )
 
     # Resolve entity_id
@@ -183,19 +207,30 @@ async def post_journal(
     else:
         stmt_ent = select(LegalEntity.id).where(LegalEntity.tenant_id == tenant_uuid).limit(1)
         res_ent = await db.execute(stmt_ent)
-        entity_uuid = res_ent.scalar_one_or_none() or uuid.UUID("00000000-0000-0000-0000-000000000001")
+        entity_uuid = res_ent.scalar_one_or_none() or uuid.UUID(
+            "00000000-0000-0000-0000-000000000001"
+        )
 
     # Resolve period_id
     if req.period_id:
         period_uuid = uuid.UUID(req.period_id)
     else:
-        stmt_per = select(AccountingPeriod.id).where(
-            AccountingPeriod.tenant_id == tenant_uuid, AccountingPeriod.is_hard_locked.is_(False)
-        ).limit(1)
+        stmt_per = (
+            select(AccountingPeriod.id)
+            .where(
+                AccountingPeriod.tenant_id == tenant_uuid,
+                AccountingPeriod.is_hard_locked.is_(False),
+            )
+            .limit(1)
+        )
         res_per = await db.execute(stmt_per)
         resolved_period: uuid.UUID | None = res_per.scalar_one_or_none()
         if not resolved_period:
-            stmt_per_any = select(AccountingPeriod.id).where(AccountingPeriod.tenant_id == tenant_uuid).limit(1)
+            stmt_per_any = (
+                select(AccountingPeriod.id)
+                .where(AccountingPeriod.tenant_id == tenant_uuid)
+                .limit(1)
+            )
             res_per_any = await db.execute(stmt_per_any)
             resolved_period = res_per_any.scalar_one_or_none()
         period_uuid = resolved_period or uuid.UUID("00000000-0000-0000-0000-000000000002")

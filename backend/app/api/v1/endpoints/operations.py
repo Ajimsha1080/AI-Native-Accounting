@@ -57,89 +57,97 @@ async def list_invoices(
 
     if type != "VENDOR_BILL":
         stmt_inv = (
-            select(Invoice).where(Invoice.tenant_id == tenant_uuid).order_by(desc(Invoice.issue_date))
+            select(Invoice)
+            .where(Invoice.tenant_id == tenant_uuid)
+            .order_by(desc(Invoice.issue_date))
         )
         res_inv = await db.execute(stmt_inv)
         invoices = res_inv.scalars().all()
         for i in invoices:
-            docs.append({
-                "id": str(i.id),
-                "type": "SALES_INVOICE",
-                "documentNumber": i.invoice_number,
-                "invoiceNumber": i.invoice_number,
-                "issueDate": i.issue_date.isoformat(),
-                "dueDate": i.due_date.isoformat(),
-                "partyNameEn": i.customer_name,
-                "partyNameAr": "العميل القياسي",
-                "partyTrn": "100123456700003",
-                "status": "APPROVED" if i.status in ["ISSUED", "POSTED"] else i.status,
-                "subtotalMinorUnits": str(i.subtotal_fils),
-                "vatMinorUnits": str(i.vat_total_fils),
-                "totalMinorUnits": str(i.total_fils),
-                "currency": i.currency,
-                "approvalLevel": "LEVEL_1",
-                "peppolStatus": i.einvoice_status,
-                "threeWayMatchStatus": "MATCHED",
-                "lines": [
-                    {
-                        "lineId": f"{i.id}-1",
-                        "descriptionEn": "Professional Accounting & Tax Filing Services",
-                        "descriptionAr": "خدمات المحاسبة المهنية وتقديم الإقرارات الضريبية",
-                        "quantity": 1,
-                        "unitPriceMinorUnits": str(i.subtotal_fils),
-                        "vatRatePercent": 5,
-                        "subtotalMinorUnits": str(i.subtotal_fils),
-                        "vatMinorUnits": str(i.vat_total_fils),
-                    }
-                ],
-                "customerName": i.customer_name,
-                "subtotalFils": i.subtotal_fils,
-                "vatTotalFils": i.vat_total_fils,
-                "totalFils": i.total_fils,
-                "einvoiceStatus": i.einvoice_status,
-            })
+            docs.append(
+                {
+                    "id": str(i.id),
+                    "type": "SALES_INVOICE",
+                    "documentNumber": i.invoice_number,
+                    "invoiceNumber": i.invoice_number,
+                    "issueDate": i.issue_date.isoformat(),
+                    "dueDate": i.due_date.isoformat(),
+                    "partyNameEn": i.customer_name,
+                    "partyNameAr": "العميل القياسي",
+                    "partyTrn": "100123456700003",
+                    "status": "APPROVED" if i.status in ["ISSUED", "POSTED"] else i.status,
+                    "subtotalMinorUnits": str(i.subtotal_fils),
+                    "vatMinorUnits": str(i.vat_total_fils),
+                    "totalMinorUnits": str(i.total_fils),
+                    "currency": i.currency,
+                    "approvalLevel": "LEVEL_1",
+                    "peppolStatus": i.einvoice_status,
+                    "threeWayMatchStatus": "MATCHED",
+                    "lines": [
+                        {
+                            "lineId": f"{i.id}-1",
+                            "descriptionEn": "Professional Accounting & Tax Filing Services",
+                            "descriptionAr": "خدمات المحاسبة المهنية وتقديم الإقرارات الضريبية",
+                            "quantity": 1,
+                            "unitPriceMinorUnits": str(i.subtotal_fils),
+                            "vatRatePercent": 5,
+                            "subtotalMinorUnits": str(i.subtotal_fils),
+                            "vatMinorUnits": str(i.vat_total_fils),
+                        }
+                    ],
+                    "customerName": i.customer_name,
+                    "subtotalFils": i.subtotal_fils,
+                    "vatTotalFils": i.vat_total_fils,
+                    "totalFils": i.total_fils,
+                    "einvoiceStatus": i.einvoice_status,
+                }
+            )
 
     if type != "SALES_INVOICE":
         stmt_bill = (
-            select(VendorBill).where(VendorBill.tenant_id == tenant_uuid).order_by(desc(VendorBill.bill_date))
+            select(VendorBill)
+            .where(VendorBill.tenant_id == tenant_uuid)
+            .order_by(desc(VendorBill.bill_date))
         )
         res_bill = await db.execute(stmt_bill)
         bills = res_bill.scalars().all()
         for b in bills:
-            docs.append({
-                "id": str(b.id),
-                "type": "VENDOR_BILL",
-                "documentNumber": b.bill_number,
-                "billNumber": b.bill_number,
-                "issueDate": b.bill_date.isoformat(),
-                "dueDate": b.due_date.isoformat(),
-                "partyNameEn": b.vendor_name,
-                "partyNameAr": "المورد القياسي",
-                "partyTrn": "100987654300003",
-                "status": b.status,
-                "subtotalMinorUnits": str(b.subtotal_fils),
-                "vatMinorUnits": str(b.vat_total_fils),
-                "totalMinorUnits": str(b.total_fils),
-                "currency": b.currency,
-                "approvalLevel": b.approval_tier,
-                "threeWayMatchStatus": b.match_status,
-                "lines": [
-                    {
-                        "lineId": f"{b.id}-1",
-                        "descriptionEn": "Corporate Cloud & IT Infrastructure",
-                        "descriptionAr": "خدمات البنية التحتية السحابية وتكنولوجيا المعلومات",
-                        "quantity": 1,
-                        "unitPriceMinorUnits": str(b.subtotal_fils),
-                        "vatRatePercent": 5,
-                        "subtotalMinorUnits": str(b.subtotal_fils),
-                        "vatMinorUnits": str(b.vat_total_fils),
-                    }
-                ],
-                "vendorName": b.vendor_name,
-                "subtotalFils": b.subtotal_fils,
-                "vatTotalFils": b.vat_total_fils,
-                "totalFils": b.total_fils,
-            })
+            docs.append(
+                {
+                    "id": str(b.id),
+                    "type": "VENDOR_BILL",
+                    "documentNumber": b.bill_number,
+                    "billNumber": b.bill_number,
+                    "issueDate": b.bill_date.isoformat(),
+                    "dueDate": b.due_date.isoformat(),
+                    "partyNameEn": b.vendor_name,
+                    "partyNameAr": "المورد القياسي",
+                    "partyTrn": "100987654300003",
+                    "status": b.status,
+                    "subtotalMinorUnits": str(b.subtotal_fils),
+                    "vatMinorUnits": str(b.vat_total_fils),
+                    "totalMinorUnits": str(b.total_fils),
+                    "currency": b.currency,
+                    "approvalLevel": b.approval_tier,
+                    "threeWayMatchStatus": b.match_status,
+                    "lines": [
+                        {
+                            "lineId": f"{b.id}-1",
+                            "descriptionEn": "Corporate Cloud & IT Infrastructure",
+                            "descriptionAr": "خدمات البنية التحتية السحابية وتكنولوجيا المعلومات",
+                            "quantity": 1,
+                            "unitPriceMinorUnits": str(b.subtotal_fils),
+                            "vatRatePercent": 5,
+                            "subtotalMinorUnits": str(b.subtotal_fils),
+                            "vatMinorUnits": str(b.vat_total_fils),
+                        }
+                    ],
+                    "vendorName": b.vendor_name,
+                    "subtotalFils": b.subtotal_fils,
+                    "vatTotalFils": b.vat_total_fils,
+                    "totalFils": b.total_fils,
+                }
+            )
 
     return {"invoices": docs}
 
@@ -157,10 +165,14 @@ async def create_invoice(
         try:
             inv_uuid = uuid.UUID(req.invoiceId)
             await db.execute(
-                update(Invoice).where(Invoice.id == inv_uuid, Invoice.tenant_id == tenant_uuid).values(status=new_status)
+                update(Invoice)
+                .where(Invoice.id == inv_uuid, Invoice.tenant_id == tenant_uuid)
+                .values(status=new_status)
             )
             await db.execute(
-                update(VendorBill).where(VendorBill.id == inv_uuid, VendorBill.tenant_id == tenant_uuid).values(status=new_status)
+                update(VendorBill)
+                .where(VendorBill.id == inv_uuid, VendorBill.tenant_id == tenant_uuid)
+                .values(status=new_status)
             )
             await db.flush()
         except Exception as err:
@@ -280,7 +292,9 @@ async def create_vendor_bill(
         try:
             b_uuid = uuid.UUID(req.billId)
             await db.execute(
-                update(VendorBill).where(VendorBill.id == b_uuid, VendorBill.tenant_id == tenant_uuid).values(status=new_status)
+                update(VendorBill)
+                .where(VendorBill.id == b_uuid, VendorBill.tenant_id == tenant_uuid)
+                .values(status=new_status)
             )
             await db.flush()
         except Exception as err:
@@ -368,8 +382,11 @@ async def list_reconciliation(
     lines = res.scalars().all()
 
     from app.models.ledger import JournalEntry, JournalLine
+
     stmt_j = (
-        select(JournalLine, JournalEntry.entry_number, JournalEntry.entry_date, JournalEntry.narration)
+        select(
+            JournalLine, JournalEntry.entry_number, JournalEntry.entry_date, JournalEntry.narration
+        )
         .join(JournalEntry, JournalLine.journal_id == JournalEntry.id)
         .where(JournalLine.tenant_id == tenant_uuid)
         .order_by(desc(JournalEntry.entry_date))
@@ -388,7 +405,9 @@ async def list_reconciliation(
             "amountFils": int(l.amount_fils),
             "currency": "AED",
             "matchedStatus": "MATCHED" if l.is_reconciled else "UNMATCHED",
-            "matchedLedgerEntryId": str(l.matched_journal_line_id) if l.matched_journal_line_id else None,
+            "matchedLedgerEntryId": str(l.matched_journal_line_id)
+            if l.matched_journal_line_id
+            else None,
             "direction": l.direction,
             "status": l.status,
         }
@@ -435,7 +454,9 @@ async def list_reconciliation(
         "ledgerTransactions": ledger_txns,
         "suggestions": suggestions,
         "matchedCount": len([l for l in lines if l.is_reconciled or l.status != "UNMATCHED"]),
-        "unmatchedCount": len([l for l in lines if not l.is_reconciled and l.status == "UNMATCHED"]),
+        "unmatchedCount": len(
+            [l for l in lines if not l.is_reconciled and l.status == "UNMATCHED"]
+        ),
     }
 
 
@@ -554,7 +575,9 @@ async def get_reports(
             "totalDebitsFils": total_debits,
             "totalCreditsFils": total_credits,
             "isBalanced": total_debits == total_credits,
-            "varianceFils": "0" if total_debits == total_credits else str(abs(total_debits - total_credits)),
+            "varianceFils": "0"
+            if total_debits == total_credits
+            else str(abs(total_debits - total_credits)),
         },
         "pnl": {
             "revenueLines": revenue_lines,
@@ -620,12 +643,37 @@ async def run_report_builder(
     if req.format.upper() == "CSV":
         import csv
         import io
+
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow(["Code", "Name (EN)", "Name (AR)", "Category", "Debit (AED)", "Credit (AED)", "Net (AED)"])
+        writer.writerow(
+            [
+                "Code",
+                "Name (EN)",
+                "Name (AR)",
+                "Category",
+                "Debit (AED)",
+                "Credit (AED)",
+                "Net (AED)",
+            ]
+        )
         for r in rows:
-            writer.writerow([r["code"], r["nameEn"], r["nameAr"], r["category"], int(r["debitMinorUnits"]) / 100, int(r["creditMinorUnits"]) / 100, int(r["netBalanceMinorUnits"]) / 100])
-        return Response(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=custom_report.csv"})
+            writer.writerow(
+                [
+                    r["code"],
+                    r["nameEn"],
+                    r["nameAr"],
+                    r["category"],
+                    int(r["debitMinorUnits"]) / 100,
+                    int(r["creditMinorUnits"]) / 100,
+                    int(r["netBalanceMinorUnits"]) / 100,
+                ]
+            )
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=custom_report.csv"},
+        )
 
     return {
         "reportType": req.reportType,
@@ -844,21 +892,36 @@ async def get_close_status(
             "titleEn": "Finance Director / CFO",
             "titleAr": "المدير المالي التنفيذي",
             "memberCount": 2,
-            "permissions": ["PERIOD_HARD_LOCK", "EMERGENCY_ROLLBACK", "TAX_APPROVE", "AUDIT_EXPORT"],
+            "permissions": [
+                "PERIOD_HARD_LOCK",
+                "EMERGENCY_ROLLBACK",
+                "TAX_APPROVE",
+                "AUDIT_EXPORT",
+            ],
         },
         {
             "roleCode": "CHIEF_ACCOUNTANT",
             "titleEn": "Chief Accountant / Controller",
             "titleAr": "رئيس الحسابات / المراقب المالي",
             "memberCount": 4,
-            "permissions": ["JOURNAL_POST", "CLOSE_CHECKLIST_VERIFY", "BALANCE_VERIFY", "SIF_DISPATCH"],
+            "permissions": [
+                "JOURNAL_POST",
+                "CLOSE_CHECKLIST_VERIFY",
+                "BALANCE_VERIFY",
+                "SIF_DISPATCH",
+            ],
         },
         {
             "roleCode": "TAX_MANAGER",
             "titleEn": "UAE Tax Specialist",
             "titleAr": "أخصائي الضرائب الإماراتية",
             "memberCount": 3,
-            "permissions": ["VAT201_SUBMIT", "CT201_CALCULATE", "FTA_INTEGRATION_SYNC", "EXCISE_AUDIT"],
+            "permissions": [
+                "VAT201_SUBMIT",
+                "CT201_CALCULATE",
+                "FTA_INTEGRATION_SYNC",
+                "EXCISE_AUDIT",
+            ],
         },
         {
             "roleCode": "SECURITY_AUDITOR",
@@ -872,7 +935,12 @@ async def get_close_status(
     is_hard_locked = any(p.status == "LOCKED" for p in periods)
 
     checklist = [
-        {"id": f"step-{s['id']}", "nameEn": s["titleEn"], "nameAr": s["titleAr"], "completed": s["status"] == "COMPLETED"}
+        {
+            "id": f"step-{s['id']}",
+            "nameEn": s["titleEn"],
+            "nameAr": s["titleAr"],
+            "completed": s["status"] == "COMPLETED",
+        }
         for s in steps
     ]
 
@@ -907,7 +975,9 @@ async def execute_close_action(
     user_uuid = uuid.UUID(claims["sub"])
 
     if req.action == "TOGGLE_STEP" and req.stepId is not None:
-        curr = _close_step_overrides.get((tenant_uuid, req.stepId), "COMPLETED" if req.stepId < 12 else "IN_PROGRESS")
+        curr = _close_step_overrides.get(
+            (tenant_uuid, req.stepId), "COMPLETED" if req.stepId < 12 else "IN_PROGRESS"
+        )
         new_status = "PENDING" if curr == "COMPLETED" else "COMPLETED"
         _close_step_overrides[(tenant_uuid, req.stepId)] = new_status
         return {
@@ -1069,8 +1139,10 @@ async def list_ai_proposals(
             "confidenceScore": p.confidence_score or 0.96,
             "status": "PENDING_REVIEW" if p.status == "PENDING" else p.status,
             "legalBasis": p.statutory_citation or "UAE Federal Decree-Law No. 8 of 2017 Article 48",
-            "logicExplanationEn": p.explanation_en or "System verified supplier TRN and transaction amount against RCM conditions.",
-            "logicExplanationAr": p.explanation_ar or "تم التحقق من الرقم الضريبي للمورد ومطابقة القيمة مع شروط الاحتساب العكسي.",
+            "logicExplanationEn": p.explanation_en
+            or "System verified supplier TRN and transaction amount against RCM conditions.",
+            "logicExplanationAr": p.explanation_ar
+            or "تم التحقق من الرقم الضريبي للمورد ومطابقة القيمة مع شروط الاحتساب العكسي.",
             "proposedEntry": p.proposed_entry,
             "proposedJournal": {
                 "debitAccount": "1300 - Input VAT Recoverable",
@@ -1160,7 +1232,12 @@ async def handle_ai_proposal(
     except Exception as e:
         logger.warning(f"Failed to record memory feedback: {e}")
 
-    return {"success": True, "proposalId": req.proposalId, "status": new_status, "memoryLearned": True}
+    return {
+        "success": True,
+        "proposalId": req.proposalId,
+        "status": new_status,
+        "memoryLearned": True,
+    }
 
 
 # 8. Audit Log Viewer
@@ -1218,7 +1295,8 @@ async def list_audit_logs(
                 "timestamp": l.created_at.isoformat(),
             }
             for l in logs
-        ] or [
+        ]
+        or [
             {
                 "id": "audit-001",
                 "action": "LOGIN_SUCCESS",

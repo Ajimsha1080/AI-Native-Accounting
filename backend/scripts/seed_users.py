@@ -1,8 +1,11 @@
 import asyncio
 import uuid
+
 from sqlalchemy import text
-from app.db.session import AsyncSessionLocal
+
 from app.core.security import hash_password
+from app.db.session import AsyncSessionLocal
+
 
 async def seed():
     async with AsyncSessionLocal() as db:
@@ -10,11 +13,27 @@ async def seed():
         await db.execute(text(f"SELECT set_config('app.current_tenant_id', '{tid}', false)"))
 
         # Ensure tenant 'ajimsha-holding' exists or update slug
-        await db.execute(text("UPDATE tenants SET slug = 'ajimsha-holding' WHERE id = '00000000-0000-0000-0000-000000000001'"))
+        await db.execute(
+            text(
+                "UPDATE tenants SET slug = 'ajimsha-holding' WHERE id = '00000000-0000-0000-0000-000000000001'"
+            )
+        )
 
         users = [
-            ("ajimsha@ledgerae.local", "AjimshaSecure2026!", "Ajimsha Founder", "أجيمشا المؤسس", "owner"),
-            ("admin@ledgerae.local", "AdminSecure2026!", "System Administrator", "مدير النظام", "admin"),
+            (
+                "ajimsha@ledgerae.local",
+                "AjimshaSecure2026!",
+                "Ajimsha Founder",
+                "أجيمشا المؤسس",
+                "owner",
+            ),
+            (
+                "admin@ledgerae.local",
+                "AdminSecure2026!",
+                "System Administrator",
+                "مدير النظام",
+                "admin",
+            ),
         ]
 
         for email, pwd, name_en, name_ar, role in users:
@@ -40,12 +59,13 @@ async def seed():
                     "full_name_en": name_en,
                     "full_name_ar": name_ar,
                     "role": role,
-                }
+                },
             )
             print(f"Upserted user: {email} ({role})")
 
         await db.commit()
         print("Seeding completed successfully!")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(seed())
