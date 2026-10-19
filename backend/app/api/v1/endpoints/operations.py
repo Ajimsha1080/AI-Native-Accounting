@@ -968,7 +968,9 @@ async def get_dashboard_metrics(
     tenant_uuid = uuid.UUID(claims["tenant_id"])
     target_entity = entityId or "00000000-0000-0000-0000-000000000001"
 
-    prop_stmt = select(AiProposal).where(AiProposal.tenant_id == tenant_uuid, AiProposal.status == "PENDING")
+    prop_stmt = select(AiProposal).where(
+        AiProposal.tenant_id == tenant_uuid, AiProposal.status == "PENDING"
+    )
     proposals = (await db.execute(prop_stmt)).scalars().all()
 
     return {
@@ -979,30 +981,38 @@ async def get_dashboard_metrics(
             "currency": "AED",
             "changePercentage": 12.4,
             "bankAccounts": [
-                {"name": "Emirates NBD Operating (AED)", "iban": "AE030330000000001234567", "minorUnits": "180000000"},
-                {"name": "ADCB Payroll / WPS (AED)", "iban": "AE440260000000007654321", "minorUnits": "65000000"}
-            ]
+                {
+                    "name": "Emirates NBD Operating (AED)",
+                    "iban": "AE030330000000001234567",
+                    "minorUnits": "180000000",
+                },
+                {
+                    "name": "ADCB Payroll / WPS (AED)",
+                    "iban": "AE440260000000007654321",
+                    "minorUnits": "65000000",
+                },
+            ],
         },
         "arAgeing": {
             "totalMinorUnits": "85000000",
             "current_0_30": "60000000",
             "past_31_60": "15000000",
             "past_61_90": "7000000",
-            "over_90": "3000000"
+            "over_90": "3000000",
         },
         "apAgeing": {
             "totalMinorUnits": "42000000",
             "current_0_30": "30000000",
             "past_31_60": "8000000",
             "past_61_90": "3000000",
-            "over_90": "1000000"
+            "over_90": "1000000",
         },
         "vatLiability": {
             "netPayableMinorUnits": "4500000",
             "outputVatMinorUnits": "12500000",
             "inputVatRecoverableMinorUnits": "8000000",
             "dueDate": "2026-04-28",
-            "formBoxStatus": "FILED"
+            "formBoxStatus": "FILED",
         },
         "closeStatus": {
             "completedSteps": 8,
@@ -1012,8 +1022,8 @@ async def get_dashboard_metrics(
             "checklist": [
                 {"step": 1, "name": "Bank Reconciliation", "status": "COMPLETED"},
                 {"step": 2, "name": "Payroll WPS Transmission", "status": "COMPLETED"},
-                {"step": 3, "name": "VAT 201 Return Filing", "status": "PENDING"}
-            ]
+                {"step": 3, "name": "VAT 201 Return Filing", "status": "PENDING"},
+            ],
         },
         "aiProposals": [
             {
@@ -1022,9 +1032,8 @@ async def get_dashboard_metrics(
                 "titleAr": p.title_ar,
                 "category": p.category,
                 "amountMinorUnits": str(p.amount_fils or 0),
-                "costTokens": 1250
+                "costTokens": 1250,
             }
             for p in proposals[:5]
-        ]
+        ],
     }
-

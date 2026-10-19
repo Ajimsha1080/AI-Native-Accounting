@@ -57,7 +57,10 @@ class JournalEntry(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id",
+        UUID(as_uuid=True),
+        ForeignKey("legal_entities.id", ondelete="CASCADE"),
+        nullable=False,
     )
     period_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("accounting_periods.id"), nullable=False
@@ -86,7 +89,10 @@ class JournalLine(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     journal_id: Mapped[uuid.UUID] = mapped_column(
-        "journal_entry_id", UUID(as_uuid=True), ForeignKey("journal_entries.id", ondelete="CASCADE"), nullable=False
+        "journal_entry_id",
+        UUID(as_uuid=True),
+        ForeignKey("journal_entries.id", ondelete="CASCADE"),
+        nullable=False,
     )
     account_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("chart_of_accounts.id"), nullable=False
@@ -134,7 +140,10 @@ class Invoice(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id",
+        UUID(as_uuid=True),
+        ForeignKey("legal_entities.id", ondelete="CASCADE"),
+        nullable=False,
     )
     customer_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     invoice_number: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -144,8 +153,12 @@ class Invoice(Base):
     subtotal_txn: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
     total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
-    subtotal_fils: Mapped[int] = mapped_column("subtotal_base", BigInteger, nullable=False, default=0)
-    vat_total_fils: Mapped[int] = mapped_column("vat_total_base", BigInteger, nullable=False, default=0)
+    subtotal_fils: Mapped[int] = mapped_column(
+        "subtotal_base", BigInteger, nullable=False, default=0
+    )
+    vat_total_fils: Mapped[int] = mapped_column(
+        "vat_total_base", BigInteger, nullable=False, default=0
+    )
     total_fils: Mapped[int] = mapped_column("total_base", BigInteger, nullable=False, default=0)
     status: Mapped[str] = mapped_column(
         String(20), default="ISSUED"
@@ -168,7 +181,10 @@ class VendorBill(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id",
+        UUID(as_uuid=True),
+        ForeignKey("legal_entities.id", ondelete="CASCADE"),
+        nullable=False,
     )
     vendor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     bill_number: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -179,8 +195,12 @@ class VendorBill(Base):
     subtotal_txn: Mapped[int] = mapped_column(BigInteger, default=0)
     vat_total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
     total_txn: Mapped[int] = mapped_column(BigInteger, default=0)
-    subtotal_fils: Mapped[int] = mapped_column("subtotal_base", BigInteger, nullable=False, default=0)
-    vat_total_fils: Mapped[int] = mapped_column("vat_total_base", BigInteger, nullable=False, default=0)
+    subtotal_fils: Mapped[int] = mapped_column(
+        "subtotal_base", BigInteger, nullable=False, default=0
+    )
+    vat_total_fils: Mapped[int] = mapped_column(
+        "vat_total_base", BigInteger, nullable=False, default=0
+    )
     total_fils: Mapped[int] = mapped_column("total_base", BigInteger, nullable=False, default=0)
     status: Mapped[str] = mapped_column(
         String(20), default="PENDING"
@@ -230,7 +250,10 @@ class AiProposal(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id",
+        UUID(as_uuid=True),
+        ForeignKey("legal_entities.id", ondelete="CASCADE"),
+        nullable=False,
     )
     proposal_type: Mapped[str] = mapped_column(
         String(50), nullable=False
@@ -253,6 +276,20 @@ class AiProposal(Base):
     def explanation_ar(self) -> str:
         return self.reasoning_summary or ""
 
+    @property
+    def title_en(self) -> str:
+        return self.proposal_type.replace("_", " ").title()
+
+    @property
+    def title_ar(self) -> str:
+        return self.proposal_type.replace("_", " ").title()
+
+    @property
+    def amount_fils(self) -> int:
+        if isinstance(self.proposed_entry, dict):
+            return int(self.proposed_entry.get("amount_fils", 0))
+        return 0
+
 
 class Customer(Base):
     __tablename__ = "customers"
@@ -262,7 +299,10 @@ class Customer(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id",
+        UUID(as_uuid=True),
+        ForeignKey("legal_entities.id", ondelete="CASCADE"),
+        nullable=False,
     )
     customer_number: Mapped[str] = mapped_column(String(100), nullable=False)
     name_en: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -282,7 +322,10 @@ class Vendor(Base):
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     entity_id: Mapped[uuid.UUID] = mapped_column(
-        "legal_entity_id", UUID(as_uuid=True), ForeignKey("legal_entities.id", ondelete="CASCADE"), nullable=False
+        "legal_entity_id",
+        UUID(as_uuid=True),
+        ForeignKey("legal_entities.id", ondelete="CASCADE"),
+        nullable=False,
     )
     vendor_number: Mapped[str] = mapped_column(String(100), nullable=False)
     name_en: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -292,4 +335,3 @@ class Vendor(Base):
     payment_terms_days: Mapped[int] = mapped_column(Integer, default=30)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-

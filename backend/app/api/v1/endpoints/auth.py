@@ -1,6 +1,6 @@
 import hashlib
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
@@ -28,6 +28,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/login", response_model=LoginResponse)
 async def login(req: LoginRequest, response: Response, db: AsyncSession = Depends(get_db_session)):
     from sqlalchemy import text
+
     from app.models.auth import Tenant
 
     target_tenant_id = None
@@ -42,7 +43,9 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
         target_tenant_id = "00000000-0000-0000-0000-000000000001"
 
     # Set PostgreSQL RLS tenant context for this session
-    await db.execute(text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": target_tenant_id})
+    await db.execute(
+        text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": target_tenant_id}
+    )
 
     stmt = select(User).where(User.email == req.email)
     res = await db.execute(stmt)
@@ -113,12 +116,15 @@ async def login(req: LoginRequest, response: Response, db: AsyncSession = Depend
 async def verify_2fa(
     req: Verify2FaRequest, response: Response, db: AsyncSession = Depends(get_db_session)
 ):
-    from app.core.security import verify_session_jwt
     from sqlalchemy import text
+
+    from app.core.security import verify_session_jwt
 
     claims = verify_session_jwt(req.tempToken)
     tenant_id = claims.get("tenant_id", "00000000-0000-0000-0000-000000000001")
-    await db.execute(text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": tenant_id})
+    await db.execute(
+        text("SELECT set_config('app.current_tenant_id', :tid, true)"), {"tid": tenant_id}
+    )
 
     user_id = uuid.UUID(claims["sub"])
 
