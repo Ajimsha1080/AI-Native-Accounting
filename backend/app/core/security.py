@@ -83,6 +83,7 @@ def create_session_jwt(
     ttl = expires_delta_seconds or settings.SESSION_TTL_SECONDS
     now = int(time.time())
     payload = {
+        "jti": os.urandom(16).hex(),
         "sub": user_id,
         "tenant_id": tenant_id,
         "email": email,
