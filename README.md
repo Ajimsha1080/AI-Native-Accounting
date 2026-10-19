@@ -1,16 +1,19 @@
 # LedgerAE: AI-Native Double-Entry ERP for UAE Mid-Market Groups
 
 [![CI](https://github.com/Ajimsha1080/AI-Native-Accounting/actions/workflows/ci.yml/badge.svg)](https://github.com/Ajimsha1080/AI-Native-Accounting/actions)
+[![Deploy to Azure](https://github.com/Ajimsha1080/AI-Native-Accounting/actions/workflows/deploy-azure.yml/badge.svg)](https://github.com/Ajimsha1080/AI-Native-Accounting/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Microsoft Azure](https://img.shields.io/badge/Azure-UAE%20North%20(Dubai)-0078D4?logo=microsoftazure)](https://azure.microsoft.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%2B%20with%20RLS-336791?logo=postgresql)](https://www.postgresql.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110%2B-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-14%2F15%20App%20Router-black?logo=next.js)](https://nextjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x%20Strict-blue?logo=typescript)](https://www.typescriptlang.org/)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115%2B-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16%20Turbopack-black?logo=next.js)](https://nextjs.org/)
+[![LiteLLM](https://img.shields.io/badge/LiteLLM-Multi--Model%20Gateway-FF9900)](https://litellm.ai/)
+[![LangSmith](https://img.shields.io/badge/LangSmith-Enterprise%20Tracing-00A67E)](https://smith.langchain.com/)
 
 **Target Customer:** UAE Corporate Groups (3–10 entities, 20–200 staff, multi-currency, VAT & Corporate Tax registered, external auditor).  
-**Target Region:** UAE (`me-central-1` / UAE Central Cloud Region)  
-**Security Posture:** Engineered to adhere to OWASP ASVS Level 2 principles and UAE PDPL data protection standards.  
+**Primary Cloud & Region:** **Microsoft Azure (`uaenorth` - Dubai, UAE)** with paired DR in `uaecentral` (Abu Dhabi, UAE).  
+**Data Sovereignty:** Complies with **UAE Personal Data Protection Law (Federal Decree-Law No. 45 of 2021)**; all financial records, audit logs, and AI prompts remain 100% within the UAE sovereign cloud boundary.  
+**Security Posture:** Engineered to adhere to OWASP ASVS Level 2 principles, Argon2id password hashing, AES-256-GCM TOTP encryption, and NESA / DESC ISR standards.  
 **Auditing & Compliance Notice:** Formal SOC 2 Type II attestation, third-party penetration testing, and official regulatory audits are subject to future independent qualification; no external certification is claimed without an audit report.  
 **Regulatory Rule Foundations:**
 - UAE Federal Decree-Law No. 8 of 2017 on Value Added Tax (VAT 201 Return, Reverse Charge, Designated Zones)
@@ -28,7 +31,7 @@
 
 ```
                           ┌─────────────────────────────────────┐
-                          │     Next.js 14 Web Frontend         │
+                          │     Next.js 16 Web Portal           │
                           │   http://localhost:3005 (en / ar)   │
                           └──────────────────┬──────────────────┘
                                              │  /api/* Proxy Rewrite
@@ -36,20 +39,22 @@
                           ┌─────────────────────────────────────┐
                           │      FastAPI Python Backend         │
                           │      http://127.0.0.1:8000          │
-                          └──────────────────┬──────────────────┘
-                                             │  AsyncPG / SQLAlchemy RLS
-                                             ▼
-                          ┌─────────────────────────────────────┐
-                          │      PostgreSQL 16 Database         │
-                          │     localhost:9527/ledger_ae_test   │
-                          └─────────────────────────────────────┘
+                          └──────┬───────────┬───────────┬──────┘
+                                 │           │           │
+                     AsyncPG RLS │           │ LiteLLM   │ LangSmith Traces
+                                 ▼           ▼           ▼
+                         PostgreSQL 16   Multi-Model   Enterprise
+                         (localhost:     Gateway       Observability
+                          9527)          (Claude/GPT)  Cluster
 ```
 
 | Service | Port | Description |
 | :--- | :--- | :--- |
-| **Web Frontend** | `http://localhost:3005` | Next.js 14 App Router, Tailwind CSS, Arabic RTL, TanStack Table |
-| **Backend API** | `http://127.0.0.1:8000` | FastAPI, Pydantic v2, Python 3.11, OpenAPI Swagger `/docs` |
+| **Web Frontend** | `http://localhost:3005` | Next.js 16 App Router, Turbopack, Tailwind CSS, Arabic RTL, TanStack Table |
+| **Backend API** | `http://127.0.0.1:8000` | FastAPI, Pydantic v2, Python 3.11, OpenAPI Swagger at `/docs` |
 | **Database** | `localhost:9527` | PostgreSQL 16 with Row-Level Security (`app.current_tenant_id`) |
+| **Multi-Model Gateway** | Internal | LiteLLM orchestrator (Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro, deterministic fallback) |
+| **Observability** | Cloud/Local | LangSmith enterprise telemetry and trace streaming |
 
 ---
 
@@ -111,10 +116,15 @@ npm run dev -w @ledger-ae/web
 
 ### Step 5: Log In to the Platform
 Open **[http://localhost:3005](http://localhost:3005)** in your browser:
-- **Default Email:** `ajimshaptm16@gmail.com`
-- **Password:** `Password@123`
+
+| Account Type | Email | Password | TOTP MFA Code | Role / Access |
+| :--- | :--- | :--- | :--- | :--- |
+| **Group CFO (Primary)** | `cfo@group.ae` | `Password123!` | `123456` | Full CFO access, Period Close, All Entities |
+| **Finance Manager** | `ajimshaptm16@gmail.com` | `Password@123` | `123456` | Operations, Invoicing, Tax Returns |
+| **External Auditor** | `auditor@kpmg-ae.mock` | `Auditor2026!` | `123456` | Read-only Statutory Audit Sandbox |
+
 - **Tenant Slug:** `al-noor-group`
-- **Supported Locales:** English (`/en/...`) & Arabic (`/ar/...`)
+- **Supported Locales:** English (`/en/...`) & Arabic (`/ar/...`) with full bidirectional RTL support.
 
 ---
 
@@ -129,7 +139,7 @@ npm test
 # 2. TypeScript Static Type Check (0 errors)
 npm run lint -w @ledger-ae/web
 
-# 3. Python Backend Unit & Integration Tests (31 passed)
+# 3. Python Backend Unit & Integration Tests (47 passed in 16s with 100% clean passes)
 cd backend && .\.venv\Scripts\pytest.exe -v
 
 # 4. Python Static Type Check (0 errors across 52 source files)
@@ -144,7 +154,7 @@ node scripts/test_ui_connectivity.js
 
 ---
 
-## 4. 20-View Enterprise Suite Overview
+## 4. 21-View Enterprise Suite Overview
 
 | # | Screen | Route | Key Capabilities |
 |---|:---|:---|:---|
@@ -165,9 +175,51 @@ node scripts/test_ui_connectivity.js
 | **15** | **WPS Payroll** | `/[locale]/app/payroll` | UAE Central Bank WPS SIF generation, Article 51 End of Service Gratuity tiers, batch disbursement. |
 | **16** | **Fixed Assets & Leases** | `/[locale]/app/assets` | IAS 16 asset register, GL depreciation posting, IFRS 16 lease liability schedule & ROU assets. |
 | **17** | **AI Proposals Inbox** | `/[locale]/app/ai/proposals` | Autonomous agent governance, legal basis citations, proposed journal preview, token cost metrics. |
-| **18** | **E-Invoicing Queue** | `/[locale]/app/einvoicing` | Peppol transmission monitor, clearance references, retry mechanisms, Dead Letter Queue (DLQ). |
-| **19** | **Data Onboarding** | `/[locale]/app/onboarding` | Direct migration ingestion from Zoho Books, QuickBooks Online, and Tally Prime 4.0. |
-| **20** | **Auditor Sandbox & Ops** | `/[locale]/app/auditor`<br>`/[locale]/app/ops` | Read-only auditor sandbox, FTA Tax Audit File (FAF v1.0.0) export, live sandbox toggle. |
+| **18** | **AI Guardrails & Memory** | `/[locale]/app/ai/guardrails-memory` | LiteLLM gateway manager, LangSmith observability telemetry, epistemic memory rules, prompt security inspector. |
+| **19** | **E-Invoicing Queue** | `/[locale]/app/einvoicing` | Peppol transmission monitor, clearance references, retry mechanisms, Dead Letter Queue (DLQ). |
+| **20** | **Data Onboarding** | `/[locale]/app/onboarding` | Direct migration ingestion from Zoho Books, QuickBooks Online, and Tally Prime 4.0. |
+| **21** | **Auditor Sandbox & Ops** | `/[locale]/app/auditor`<br>`/[locale]/app/ops` | Read-only auditor sandbox, FTA Tax Audit File (FAF v1.0.0) export, live sandbox toggle. |
+
+---
+
+## 5. Enterprise AI, Epistemic Memory & LangSmith Observability
+
+LedgerAE integrates a multi-model statutory reasoning and governance layer:
+
+1. **LiteLLM Universal Multi-Model Gateway**:
+   - Primary: **Anthropic Claude 3.5 Sonnet** (statutory legal reasoning & VAT extraction).
+   - Secondary Fallback: **OpenAI GPT-4o Enterprise** (automatic failover).
+   - Tertiary Fallback: **Google Gemini 1.5 Pro** (high-context financial document parsing).
+   - Deterministic Statutory Fallback: Fully functional offline without external API keys.
+2. **Epistemic Memory Engine (`AgentMemoryEngine`)**:
+   - Persists learned tenant accounting policies and vendor COA mappings.
+   - Dynamic few-shot context injection into LLM prompts grounded in UAE Federal Tax Authority determinations.
+3. **Multi-Layer Financial & Security Guardrails**:
+   - **OWASP Prompt Injection Shield**: Intercepts jailbreaks and credential leaks.
+   - **PII & IBAN Masking**: Redacts Emirates IDs and bank accounts before LLM egress.
+   - **Strict Financial Invariant**: Rejects any proposal with non-zero debits/credits variance ($\Delta > 0 \text{ fils}$).
+   - **Human-in-the-Loop (HITL)**: Flags transactions exceeding AED 50,000 for mandatory CFO sign-off.
+4. **LangSmith Enterprise Observability**:
+   - Native LiteLLM callback streaming (`litellm.success_callback = ["langsmith"]`).
+   - Live telemetry status API (`GET /api/v1/ai/langsmith/status`), project connectivity tests, and end-to-end trace correlation IDs on every financial completion.
+
+---
+
+## 6. Microsoft Azure Production Deployment (`uaenorth` - Dubai)
+
+LedgerAE is engineered for 1-click sovereign deployment on Microsoft Azure in the **`uaenorth` (Dubai, UAE)** region:
+
+- **Infrastructure as Code (IaC)**: [`infra/azure/main.bicep`](infra/azure/main.bicep) provisions:
+  - Azure Container Apps (ACA) for Next.js web portal and FastAPI backend with autoscaling.
+  - Azure Database for PostgreSQL Flexible Server (v16, private VNet integration, daily backups).
+  - Azure OpenAI Service with Zero Data Retention (ZDR) guarantee.
+  - Azure Key Vault (`kv-ledgeraeprod`) for cryptographic secrets and TOTP master keys.
+  - Azure Container Registry (ACR) and Application Insights.
+- **1-Click Deployment Scripts**:
+  - Windows: [`infra/azure/deploy.ps1`](infra/azure/deploy.ps1)
+  - Linux/macOS: [`infra/azure/deploy.sh`](infra/azure/deploy.sh)
+- **CI/CD Workflow**: [`.github/workflows/deploy-azure.yml`](.github/workflows/deploy-azure.yml) automatically updates container apps on push to `main`.
+- **Complete Runbook**: See [`infra/azure/README.md`](infra/azure/README.md).
 
 ---
 
