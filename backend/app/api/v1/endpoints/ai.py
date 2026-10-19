@@ -9,6 +9,7 @@ from app.ai.guardrails.financial_guardrails import (
     VALID_UAE_VAT_PERCENTAGES,
 )
 from app.ai.guardrails.guardrail_orchestrator import GuardrailOrchestrator
+from app.ai.llm_gateway import LiteLLMGateway
 from app.ai.memory import AgentMemoryEngine, MemoryType
 from app.ai.rag.retrieval import StatutoryRagEngine
 from app.api.deps import get_current_user_claims
@@ -19,6 +20,14 @@ router = APIRouter(prefix="/ai", tags=["AI & RAG Services"])
 # -----------------------------------------------------------------------------
 # Request & Response Schemas
 # -----------------------------------------------------------------------------
+class LlmCompletionRequest(BaseModel):
+    prompt: str = Field(min_length=2, max_length=5000)
+    model: str | None = None
+    systemPrompt: str | None = None
+    temperature: float = Field(default=0.0, ge=0.0, le=1.0)
+    maxTokens: int = Field(default=1500, ge=50, le=4096)
+
+
 class RagSearchRequest(BaseModel):
     query: str = Field(min_length=3, max_length=1000)
     category: str | None = None
@@ -280,4 +289,47 @@ async def lookup_vendor_memory(
         "vendor": vendor,
         "found": result is not None,
         "mapping": result,
+    }
+
+
+# -----------------------------------------------------------------------------
+# LiteLLM Multi-Model Gateway Endpoints
+# -----------------------------------------------------------------------------
+@router.get("/llm/providers")
+async def list_llm_providers(
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Returns available LLM providers, model tiers, and configuration health via LiteLLM."""
+    gateway = LiteLLMGateway()
+    return {
+        "success": True,
+        "defaultModel": gateway.default_model,
+        "fallbackModels": gateway.fallback_models,
+        "maxRetries": gateway.max_retries,
+        "timeoutSeconds": gateway.timeout,
+        "providers": gateway.get_available_providers(),
+    }
+
+
+@router.post("/llm/complete")
+async def complete_with_llm(
+    req: LlmCompletionRequest,
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Executes a multi-model completion through LiteLLM with active guardrails & telemetry."""
+    gateway = LiteLLMGateway()
+    response = gateway.generate_completion(
+        prompt=req.prompt,
+        system_prompt=req.systemPrompt,
+        tenant_id=claims["tenant_id"],
+        model=req.model,
+        temperature=req.temperature,
+        max_tokens=req.maxTokens,
+    )
+    return {
+        "success": True,
+        "content": response.content,
+        "isGuarded": response.is_guarded,
+        "sanitizedPrompt": response.sanitized_prompt,
+        "metrics": response.metrics.model_dump(),
     }

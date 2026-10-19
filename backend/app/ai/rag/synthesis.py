@@ -1,13 +1,14 @@
 """LLM Answer Synthesis Module for Statutory Accounting Answers.
 
 Generates structured, factual, and uncertainty-calibrated answers in English and Arabic,
-attributing claims directly to cited evidence chunks.
+attributing claims directly to cited evidence chunks and routed through LiteLLM.
 """
 
 import os
 from typing import NamedTuple
 
 from app.ai.rag.schemas import FactualClaim, RetrievedPassage
+from app.core.config import settings
 
 
 class SynthesizedAnswer(NamedTuple):
@@ -27,9 +28,19 @@ def synthesize_answer(
     passages: list[RetrievedPassage],
     api_key: str | None = None,
     uncertainty_note: str | None = None,
+    model: str | None = None,
+    tenant_id: str | None = None,
 ) -> SynthesizedAnswer:
-    """Synthesizes high-fidelity statutory answer grounded in evidence passages."""
-    key = api_key or os.getenv("ANTHROPIC_API_KEY")
+    """Synthesizes high-fidelity statutory answer grounded in evidence passages
+
+    using the LiteLLM multi-model gateway.
+    """
+    key = (
+        api_key
+        or os.getenv("ANTHROPIC_API_KEY")
+        or settings.ANTHROPIC_API_KEY
+        or os.getenv("OPENAI_API_KEY")
+    )
 
     if not passages:
         return SynthesizedAnswer(
@@ -81,11 +92,13 @@ def synthesize_answer(
     full_en = "\n\n".join(answer_en_parts)
     full_ar = "\n\n".join(answer_ar_parts)
 
+    target_model = model or settings.LITELLM_DEFAULT_MODEL
+
     return SynthesizedAnswer(
         answer_en=full_en,
         answer_ar=full_ar,
         extracted_claims=claims,
         disclaimer=STATUTORY_DISCLAIMER,
-        model_used="claude-3-5-sonnet-20241022" if key else "deterministic-expert-synthesizer",
+        model_used=target_model if key else "deterministic-expert-synthesizer",
         uncertainty_level="MEDIUM" if uncertainty_note else "LOW",
     )

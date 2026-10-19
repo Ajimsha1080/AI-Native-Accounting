@@ -22,9 +22,15 @@ class Settings(BaseSettings):
     TOTP_ENCRYPTION_KEY: str = Field(default="01234567890123456789012345678901")
     SESSION_TTL_SECONDS: int = Field(default=28800)  # 8 hours
 
-    # Anthropic AI Integration
+    # Multi-Model LLM Gateway (LiteLLM)
     ANTHROPIC_API_KEY: str | None = None
     ANTHROPIC_MODEL_ID: str = Field(default="claude-3-7-sonnet-20250219")
+    OPENAI_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
+    LITELLM_DEFAULT_MODEL: str = Field(default="anthropic/claude-3-5-sonnet-20241022")
+    LITELLM_FALLBACK_MODELS: list[str] = Field(default=["openai/gpt-4o", "gemini/gemini-1.5-pro"])
+    LITELLM_MAX_RETRIES: int = Field(default=2)
+    LITELLM_TIMEOUT: float = Field(default=30.0)
 
     # UAE E-Invoicing & Open Banking
     ASP_PROVIDER_ID: str = Field(default="PINT_AE_SANDBOX")

@@ -24,7 +24,10 @@ import {
   ArrowRight,
   Database,
   History,
-  Activity
+  Activity,
+  Network,
+  Coins,
+  Scale
 } from 'lucide-react';
 
 interface GuardrailItem {
@@ -66,18 +69,37 @@ interface GuardrailReport {
   hitlEvaluation?: Record<string, any>;
 }
 
+interface LlmProvider {
+  id: string;
+  name: string;
+  vendor: string;
+  tier: string;
+  costPer1kPromptUsd: number;
+  costPer1kCompletionUsd: number;
+  isConfigured: boolean;
+}
+
 function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> }) {
   const [locale, setLocale] = useState<'en' | 'ar'>('en');
   useEffect(() => {
     params.then((p) => setLocale(p.locale as 'en' | 'ar'));
   }, [params]);
 
-  const [activeTab, setActiveTab] = useState<'guardrails' | 'memory' | 'testbench'>('guardrails');
+  const [activeTab, setActiveTab] = useState<'guardrails' | 'memory' | 'gateway' | 'testbench'>('guardrails');
   const [guardrails, setGuardrails] = useState<GuardrailItem[]>([]);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [telemetry, setTelemetry] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
+
+  // LiteLLM Gateway State
+  const [providers, setProviders] = useState<LlmProvider[]>([]);
+  const [gatewayDefaultModel, setGatewayDefaultModel] = useState('anthropic/claude-3-5-sonnet-20241022');
+  const [gatewayFallbacks, setGatewayFallbacks] = useState<string[]>([]);
+  const [selectedLlmModel, setSelectedLlmModel] = useState('');
+  const [llmTestPrompt, setLlmTestPrompt] = useState('What are the conditions for Small Business Relief under UAE Corporate Tax Law?');
+  const [llmCompletionResult, setLlmCompletionResult] = useState<any>(null);
+  const [isLlmCompleting, setIsLlmCompleting] = useState(false);
 
   // Memory Filter State
   const [selectedMemoryType, setSelectedMemoryType] = useState<string>('ALL');
@@ -101,9 +123,10 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
     setIsLoading(true);
     setIsError(false);
     try {
-      const [grRes, memRes] = await Promise.all([
+      const [grRes, memRes, provRes] = await Promise.all([
         fetch('/api/ai/guardrails/status'),
-        fetch('/api/ai/memory')
+        fetch('/api/ai/memory'),
+        fetch('/api/ai/llm/providers')
       ]);
 
       if (!grRes.ok || !memRes.ok) {
@@ -112,10 +135,20 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
 
       const grData = await grRes.json();
       const memData = await memRes.json();
+      const provData = provRes.ok ? await provRes.json() : null;
 
       setGuardrails(grData.guardrails || []);
       setTelemetry(grData.telemetry || {});
       setMemories(memData.memories || []);
+
+      if (provData) {
+        setProviders(provData.providers || []);
+        setGatewayDefaultModel(provData.defaultModel || 'anthropic/claude-3-5-sonnet-20241022');
+        setGatewayFallbacks(provData.fallbackModels || []);
+        if (!selectedLlmModel && provData.defaultModel) {
+          setSelectedLlmModel(provData.defaultModel);
+        }
+      }
     } catch {
       setIsError(true);
     } finally {
@@ -126,6 +159,34 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleExecuteLlm = async () => {
+    if (!llmTestPrompt.trim()) return;
+    setIsLlmCompleting(true);
+    setLlmCompletionResult(null);
+
+    try {
+      const res = await fetch('/api/ai/llm/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: llmTestPrompt,
+          model: selectedLlmModel || undefined,
+          temperature: 0.0,
+          maxTokens: 1000
+        })
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        setLlmCompletionResult(json);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLlmCompleting(false);
+    }
+  };
 
   const handleAddMemory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,16 +293,16 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
               <span className="text-[11px] font-mono tracking-widest text-emerald-400 font-semibold uppercase">
-                {locale === 'ar' ? 'منظومة حماية الذكاء الاصطناعي نشطة' : 'AUTONOMOUS GUARDRAILS ACTIVE'}
+                {locale === 'ar' ? 'منظومة حماية الذكاء الاصطناعي وبوابة LITELLM' : 'LITELLM GATEWAY & GUARDRAILS ACTIVE'}
               </span>
             </div>
             <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight">
-              {locale === 'ar' ? 'حواجز الأمان والذاكرة المعرفية للذكاء الاصطناعي' : 'AI Guardrails & Epistemic Memory'}
+              {locale === 'ar' ? 'حواجز الأمان، الذاكرة المعرفية وبوابة LiteLLM' : 'AI Guardrails, Memory & LiteLLM Gateway'}
             </h1>
             <p className="text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
               {locale === 'ar'
-                ? 'تحقق حتمي صارم من التوازن المالي، قفل الفترات المغلقة، تفادي محاولات الحقن البرمجي، وتعلّم تفضيلات المحاسبة الدائمة.'
-                : 'Zero-tolerance double-entry invariants, closed-period lockouts, adversarial jailbreak shields, and tenant-scoped long-term memory.'}
+                ? 'تحقق حتمي صارم من التوازن المالي، تفادي محاولات الاختراق، تعلّم قواعد المحاسبة الدائمة، وبوابة LiteLLM متعددة النماذج (Claude, GPT-4o, Gemini).'
+                : 'Zero-tolerance double-entry invariants, closed-period lockouts, adversarial jailbreak shields, tenant epistemic memory, and LiteLLM multi-model routing.'}
             </p>
           </div>
 
@@ -275,10 +336,10 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
         </div>
 
         {/* Tab Selector */}
-        <div className="mt-8 flex items-center gap-2 border-b border-white/[0.08] pb-px">
+        <div className="mt-8 flex items-center gap-2 border-b border-white/[0.08] pb-px overflow-x-auto">
           <button
             onClick={() => setActiveTab('guardrails')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all whitespace-nowrap ${
               activeTab === 'guardrails'
                 ? 'text-emerald-400 border-b-2 border-emerald-500 bg-white/[0.03]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -289,7 +350,7 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
           </button>
           <button
             onClick={() => setActiveTab('memory')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all whitespace-nowrap ${
               activeTab === 'memory'
                 ? 'text-indigo-400 border-b-2 border-indigo-500 bg-white/[0.03]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -302,8 +363,22 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
             </span>
           </button>
           <button
+            onClick={() => setActiveTab('gateway')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all whitespace-nowrap ${
+              activeTab === 'gateway'
+                ? 'text-amber-400 border-b-2 border-amber-500 bg-white/[0.03]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Network className="w-4 h-4" />
+            {locale === 'ar' ? 'بوابة LiteLLM المتعددة' : 'LiteLLM Gateway & Fallbacks'}
+            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold">
+              3 MODELS
+            </span>
+          </button>
+          <button
             onClick={() => setActiveTab('testbench')}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all ${
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all whitespace-nowrap ${
               activeTab === 'testbench'
                 ? 'text-cyan-400 border-b-2 border-cyan-500 bg-white/[0.03]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -565,7 +640,185 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
           </div>
         )}
 
-        {/* TAB 3: LIVE GUARDRAIL TEST BENCH */}
+        {/* TAB 3: LITELLM GATEWAY & FALLBACKS */}
+        {activeTab === 'gateway' && (
+          <div className="space-y-6">
+            {/* Architecture Banner */}
+            <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] relative overflow-hidden">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono text-amber-400 mb-1">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>UNIVERSAL MODEL GATEWAY WITH FALLBACK CHAINS</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white tracking-tight">
+                    LiteLLM Multi-Model Orchestration Engine
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-2xl mt-1 leading-relaxed">
+                    Automatic routing across Claude 3.5 Sonnet, GPT-4o, and Gemini 1.5 Pro with transparent latency, token accounting, and fallback to offline deterministic synthesis.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono font-medium flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>LITELLM ACTIVE</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Model Chain Diagram */}
+              <div className="mt-5 pt-4 border-t border-white/[0.06] flex items-center gap-3 overflow-x-auto text-xs font-mono">
+                <span className="text-slate-500 font-semibold uppercase text-[10px]">Fallback Chain:</span>
+                <span className="px-3 py-1 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold">
+                  1. Claude 3.5 Sonnet (Primary)
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                <span className="px-3 py-1 rounded-md bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                  2. GPT-4o Enterprise
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                <span className="px-3 py-1 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                  3. Gemini 1.5 Pro
+                </span>
+                <ArrowRight className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
+                <span className="px-3 py-1 rounded-md bg-white/[0.05] text-slate-300 border border-white/[0.1]">
+                  4. Offline Deterministic Fallback
+                </span>
+              </div>
+            </div>
+
+            {/* Provider Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {providers.map((p) => (
+                <div
+                  key={p.id}
+                  className="glass-panel p-5 rounded-2xl border border-white/[0.08] hover:border-amber-500/30 transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.06] text-slate-300 border border-white/[0.08]">
+                        {p.vendor}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                          p.isConfigured
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                        }`}
+                      >
+                        {p.isConfigured ? 'KEY DETECTED' : 'RESILIENT FALLBACK'}
+                      </span>
+                    </div>
+
+                    <h4 className="text-sm font-bold text-white mb-1">{p.name}</h4>
+                    <p className="font-mono text-[11px] text-slate-400 mb-3">{p.id}</p>
+
+                    <div className="space-y-1.5 text-xs text-slate-400 bg-[#090e17] p-3 rounded-xl border border-white/[0.04] font-mono">
+                      <div className="flex justify-between">
+                        <span>Prompt / 1k:</span>
+                        <strong className="text-slate-200">${p.costPer1kPromptUsd.toFixed(4)}</strong>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Completion / 1k:</span>
+                        <strong className="text-slate-200">${p.costPer1kCompletionUsd.toFixed(4)}</strong>
+                      </div>
+                      <div className="flex justify-between text-[11px] pt-1 border-t border-white/[0.06] text-amber-300/80">
+                        <span>AED Equiv (1k):</span>
+                        <strong>AED {(p.costPer1kPromptUsd * 3.6725).toFixed(3)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-white/[0.06] mt-4 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-mono">Tier: {p.tier}</span>
+                    <button
+                      onClick={() => setSelectedLlmModel(p.id)}
+                      className="text-amber-400 hover:text-amber-300 font-medium"
+                    >
+                      {selectedLlmModel === p.id ? '✓ Selected' : 'Select'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Interactive Multi-Model Test Console */}
+            <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-4">
+              <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-amber-400" />
+                <span>Multi-Model LiteLLM Execution Test</span>
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <div className="md:col-span-8">
+                  <label className="block text-xs font-medium text-slate-300 mb-1">
+                    Accounting Prompt:
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={llmTestPrompt}
+                    onChange={(e) => setLlmTestPrompt(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.1] text-xs text-white font-mono focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="md:col-span-4 flex flex-col justify-between">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1">
+                      Model Route:
+                    </label>
+                    <select
+                      value={selectedLlmModel}
+                      onChange={(e) => setSelectedLlmModel(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-white/[0.05] border border-white/[0.1] text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
+                    >
+                      <option value="">Default (Automatic Multi-Model Fallback)</option>
+                      {providers.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.vendor})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    disabled={isLlmCompleting}
+                    onClick={handleExecuteLlm}
+                    className="w-full mt-3 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/30 transition-all flex items-center justify-center gap-2"
+                  >
+                    {isLlmCompleting ? (
+                      <span>Executing Multi-Model Route...</span>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Run Completion via LiteLLM</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Completion Output */}
+              {llmCompletionResult && (
+                <div className="mt-4 p-4 rounded-xl bg-[#080d16] border border-white/[0.06] space-y-3">
+                  <div className="flex items-center justify-between text-xs font-mono text-slate-400 pb-2 border-b border-white/[0.06]">
+                    <span>Model: <strong className="text-amber-400">{llmCompletionResult.metrics.model}</strong></span>
+                    <span>Tokens: <strong className="text-emerald-400">{llmCompletionResult.metrics.totalTokens}</strong></span>
+                    <span>Latency: <strong className="text-cyan-400">{llmCompletionResult.metrics.latencyMs}ms</strong></span>
+                    <span>Est. Cost: <strong className="text-slate-200">{llmCompletionResult.metrics.estimatedCostAedMinorUnits} fils</strong></span>
+                  </div>
+
+                  <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap font-sans">
+                    {llmCompletionResult.content}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: LIVE GUARDRAIL TEST BENCH */}
         {activeTab === 'testbench' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             {/* Input Panel */}
