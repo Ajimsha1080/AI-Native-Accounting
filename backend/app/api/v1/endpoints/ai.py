@@ -9,6 +9,7 @@ from app.ai.guardrails.financial_guardrails import (
     VALID_UAE_VAT_PERCENTAGES,
 )
 from app.ai.guardrails.guardrail_orchestrator import GuardrailOrchestrator
+from app.ai.langsmith_client import langsmith_manager
 from app.ai.llm_gateway import LiteLLMGateway
 from app.ai.memory import AgentMemoryEngine, MemoryType
 from app.ai.rag.retrieval import StatutoryRagEngine
@@ -55,6 +56,18 @@ class AddMemoryPayload(BaseModel):
     value: dict[str, Any]
     confidence: float = Field(default=0.95, ge=0.1, le=1.0)
     notes: str | None = None
+
+
+class LangSmithTestTraceRequest(BaseModel):
+    query: str = Field(
+        default="UAE Corporate Tax Small Business Relief Eligibility Check",
+        min_length=2,
+        max_length=2000,
+    )
+    response: str | None = Field(
+        default="Qualified under UAE Federal Decree-Law No. 47 of 2022 (Revenue <= AED 3,000,000).",
+        max_length=5000,
+    )
 
 
 # -----------------------------------------------------------------------------
@@ -333,3 +346,47 @@ async def complete_with_llm(
         "sanitizedPrompt": response.sanitized_prompt,
         "metrics": response.metrics.model_dump(),
     }
+
+
+# -----------------------------------------------------------------------------
+# LangSmith Enterprise Observability & Tracing Endpoints
+# -----------------------------------------------------------------------------
+@router.get("/langsmith/status")
+async def get_langsmith_status(
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Returns LangSmith enterprise observability state, project, and connectivity health."""
+    return {
+        "success": True,
+        "data": langsmith_manager.get_status(),
+    }
+
+
+@router.post("/langsmith/check-connection")
+async def check_langsmith_connection(
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Tests live reachability of LangSmith enterprise cluster."""
+    result = langsmith_manager.check_connection()
+    return {
+        "success": result.get("success", True),
+        "data": result,
+    }
+
+
+@router.post("/langsmith/test-trace")
+async def dispatch_langsmith_test_trace(
+    req: LangSmithTestTraceRequest,
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Dispatches a test trace to verify telemetry capture in the LangSmith project."""
+    res = langsmith_manager.dispatch_test_trace(
+        query=req.query,
+        response=req.response or "Verified statutory test output.",
+        metadata={"user_id": claims.get("sub"), "tenant_id": claims.get("tenant_id")},
+    )
+    return {
+        "success": True,
+        "data": res,
+    }
+

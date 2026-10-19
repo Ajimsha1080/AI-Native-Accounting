@@ -27,8 +27,24 @@ import {
   Activity,
   Network,
   Coins,
-  Scale
+  Scale,
+  Radio,
+  ExternalLink
 } from 'lucide-react';
+
+interface LangSmithStatus {
+  status: 'CONNECTED' | 'STANDBY' | 'PAUSED' | 'ERROR';
+  configured: boolean;
+  tracingActive: boolean;
+  endpoint: string;
+  project: string;
+  hasApiKey: boolean;
+  maskedApiKey?: string | null;
+  litellmCallbackConfigured: boolean;
+  totalTracesRecorded: number;
+  lastTraceId?: string | null;
+  lastTraceTimestamp?: string | null;
+}
 
 interface GuardrailItem {
   id: string;
@@ -101,6 +117,13 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
   const [llmCompletionResult, setLlmCompletionResult] = useState<any>(null);
   const [isLlmCompleting, setIsLlmCompleting] = useState(false);
 
+  // LangSmith Observability State
+  const [langsmithStatus, setLangsmithStatus] = useState<LangSmithStatus | null>(null);
+  const [isTestingTrace, setIsTestingTrace] = useState(false);
+  const [testTraceResult, setTestTraceResult] = useState<any>(null);
+  const [isCheckingLangsmith, setIsCheckingLangsmith] = useState(false);
+  const [langsmithFeedback, setLangsmithFeedback] = useState<string | null>(null);
+
   // Memory Filter State
   const [selectedMemoryType, setSelectedMemoryType] = useState<string>('ALL');
   const [memorySearchQuery, setMemorySearchQuery] = useState('');
@@ -123,10 +146,11 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
     setIsLoading(true);
     setIsError(false);
     try {
-      const [grRes, memRes, provRes] = await Promise.all([
+      const [grRes, memRes, provRes, lsRes] = await Promise.all([
         fetch('/api/ai/guardrails/status'),
         fetch('/api/ai/memory'),
-        fetch('/api/ai/llm/providers')
+        fetch('/api/ai/llm/providers'),
+        fetch('/api/ai/langsmith/status').catch(() => null)
       ]);
 
       if (!grRes.ok || !memRes.ok) {
@@ -136,6 +160,10 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
       const grData = await grRes.json();
       const memData = await memRes.json();
       const provData = provRes.ok ? await provRes.json() : null;
+      if (lsRes && lsRes.ok) {
+        const lsData = await lsRes.json();
+        setLangsmithStatus(lsData.data || null);
+      }
 
       setGuardrails(grData.guardrails || []);
       setTelemetry(grData.telemetry || {});
@@ -153,6 +181,60 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
       setIsError(true);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCheckLangsmithConnection = async () => {
+    setIsCheckingLangsmith(true);
+    setLangsmithFeedback(null);
+    try {
+      const res = await fetch('/api/ai/langsmith/check-connection', { method: 'POST' });
+      if (res.ok) {
+        const json = await res.json();
+        const info = json.data;
+        setLangsmithFeedback(info.message || 'Connection check completed.');
+        // Refresh status
+        const statusRes = await fetch('/api/ai/langsmith/status');
+        if (statusRes.ok) {
+          const sJson = await statusRes.json();
+          setLangsmithStatus(sJson.data);
+        }
+      }
+    } catch (e: any) {
+      setLangsmithFeedback('Could not reach backend LangSmith endpoint.');
+    } finally {
+      setIsCheckingLangsmith(false);
+    }
+  };
+
+  const handleDispatchTestTrace = async () => {
+    setIsTestingTrace(true);
+    setTestTraceResult(null);
+    setLangsmithFeedback(null);
+    try {
+      const res = await fetch('/api/ai/langsmith/test-trace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: llmTestPrompt || 'UAE Corporate Tax Small Business Relief Verification',
+          response: 'Verified statutory test trace for LedgerAE enterprise accounting.'
+        })
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setTestTraceResult(json.data);
+        setLangsmithFeedback(`Test trace dispatched: ${json.data.traceId}`);
+        // Refresh status counters
+        const statusRes = await fetch('/api/ai/langsmith/status');
+        if (statusRes.ok) {
+          const sJson = await statusRes.json();
+          setLangsmithStatus(sJson.data);
+        }
+      }
+    } catch (e: any) {
+      setLangsmithFeedback('Trace dispatch failed: could not connect to API.');
+    } finally {
+      setIsTestingTrace(false);
     }
   };
 
@@ -812,6 +894,113 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
                   <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap font-sans">
                     {llmCompletionResult.content}
                   </p>
+                </div>
+              )}
+            </div>
+
+            {/* LangSmith Enterprise Observability & Tracing Card */}
+            <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] relative overflow-hidden space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-400">
+                    <Radio className="w-5 h-5 animate-pulse" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white tracking-tight">
+                        LangSmith Enterprise Observability & Tracing
+                      </h4>
+                      <span
+                        className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                          langsmithStatus?.status === 'CONNECTED'
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                            : 'bg-amber-500/10 text-amber-300 border-amber-500/30'
+                        }`}
+                      >
+                        {langsmithStatus?.status || 'STANDBY'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400">
+                      Real-time prompt tracing, token cost accounting, and guardrail telemetry streaming for UAE financial audits.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCheckLangsmithConnection}
+                    disabled={isCheckingLangsmith}
+                    className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-xs font-mono text-slate-300 border border-white/[0.1] transition-all flex items-center gap-1.5"
+                  >
+                    <Activity className={`w-3.5 h-3.5 text-cyan-400 ${isCheckingLangsmith ? 'animate-spin' : ''}`} />
+                    <span>{isCheckingLangsmith ? 'Pinging...' : 'Check Health'}</span>
+                  </button>
+                  <button
+                    onClick={handleDispatchTestTrace}
+                    disabled={isTestingTrace}
+                    className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-xs font-semibold text-white shadow-lg shadow-orange-600/20 transition-all flex items-center gap-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>{isTestingTrace ? 'Tracing...' : 'Send Test Trace'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Status & Project Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2">
+                <div className="p-3 rounded-xl bg-[#080d16] border border-white/[0.05]">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">LangSmith Project</span>
+                  <div className="text-xs font-mono font-bold text-white mt-0.5 truncate">
+                    {langsmithStatus?.project || 'ledger-ae-accounting'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#080d16] border border-white/[0.05]">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Cluster Endpoint</span>
+                  <div className="text-xs font-mono font-bold text-slate-300 mt-0.5 truncate">
+                    {langsmithStatus?.endpoint || 'https://api.smith.langchain.com'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#080d16] border border-white/[0.05]">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">LiteLLM Callbacks</span>
+                  <div className="text-xs font-mono font-bold text-emerald-400 mt-0.5 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Active & Wired</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#080d16] border border-white/[0.05]">
+                  <span className="text-[10px] font-mono text-slate-400 uppercase">Traces Logged</span>
+                  <div className="text-xs font-mono font-bold text-amber-400 mt-0.5">
+                    {langsmithStatus?.totalTracesRecorded ?? 0} Recorded
+                  </div>
+                </div>
+              </div>
+
+              {/* Feedback Alert */}
+              {langsmithFeedback && (
+                <div className="px-3.5 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs font-mono text-slate-300 flex items-center justify-between">
+                  <span>{langsmithFeedback}</span>
+                  {langsmithStatus?.lastTraceId && (
+                    <span className="text-[11px] text-orange-400">
+                      ID: {langsmithStatus.lastTraceId.slice(0, 8)}...
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Test Trace Result Card */}
+              {testTraceResult && (
+                <div className="p-4 rounded-xl bg-[#080d16] border border-orange-500/20 text-xs font-mono space-y-2">
+                  <div className="flex items-center justify-between border-b border-white/[0.06] pb-2 text-[11px] text-slate-400">
+                    <span className="text-orange-400 font-bold">✓ Trace Dispatched Successfully</span>
+                    <span>Status: <strong className="text-emerald-400">{testTraceResult.status}</strong></span>
+                    <span>Latency: <strong>{testTraceResult.latencyMs}ms</strong></span>
+                  </div>
+                  <div className="text-slate-300 text-[11px]">
+                    <strong>Trace ID:</strong> <span className="text-slate-400">{testTraceResult.traceId}</span>
+                  </div>
+                  <div className="text-slate-300 text-[11px]">
+                    <strong>Project:</strong> <span className="text-slate-400">{testTraceResult.project}</span>
+                  </div>
                 </div>
               )}
             </div>

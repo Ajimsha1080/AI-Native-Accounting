@@ -22,6 +22,7 @@ from app.ai.guardrails.security_guardrails import (
     sanitize_pii_and_credentials,
     validate_prompt_safety,
 )
+from app.ai.langsmith_client import langsmith_manager
 from app.ai.memory import AgentMemoryEngine, MemoryType
 from app.ai.rag.schemas import FactualClaim, RetrievedPassage
 from app.core.config import settings
@@ -42,6 +43,7 @@ class LlmExecutionMetrics(BaseModel):
     estimatedCostAedMinorUnits: int = 0  # in fils
     fallbackUsed: bool = False
     provider: str = "deterministic"
+    langsmithTraceId: str | None = None
 
 
 class GatewayResponse(NamedTuple):
@@ -86,6 +88,8 @@ class LiteLLMGateway:
         self.fallback_models = settings.LITELLM_FALLBACK_MODELS
         self.max_retries = settings.LITELLM_MAX_RETRIES
         self.timeout = settings.LITELLM_TIMEOUT
+        if langsmith_manager.is_configured() or langsmith_manager.is_tracing_active():
+            langsmith_manager.wire_litellm_callbacks()
 
     def get_available_providers(self) -> list[dict[str, Any]]:
         """Returns catalog of configured LLM providers and live availability."""
@@ -156,8 +160,14 @@ class LiteLLMGateway:
         if not has_keys:
             # Deterministic statutory synthesis when no live API keys provided
             latency_ms = int((time.time() - start_time) * 1000)
+            answer_content = f"Statutory Answer (Deterministic Engine): Grounded in UAE VAT & Corporate Tax Laws for query: {sanitized_input}"
+            trace_rec = langsmith_manager.dispatch_test_trace(
+                query=sanitized_input,
+                response=answer_content,
+                metadata={"mode": "deterministic", "model": "deterministic-expert-gateway"},
+            )
             return GatewayResponse(
-                content=f"Statutory Answer (Deterministic Engine): Grounded in UAE VAT & Corporate Tax Laws for query: {sanitized_input}",
+                content=answer_content,
                 metrics=LlmExecutionMetrics(
                     model="deterministic-expert-gateway",
                     promptTokens=len(sanitized_input.split()) * 2,
@@ -168,6 +178,7 @@ class LiteLLMGateway:
                     estimatedCostAedMinorUnits=0,
                     fallbackUsed=False,
                     provider="deterministic",
+                    langsmithTraceId=trace_rec.get("traceId"),
                 ),
                 is_guarded=True,
                 sanitized_prompt=sanitized_input,
@@ -204,6 +215,12 @@ class LiteLLMGateway:
             # Output Financial Guardrail Check
             verify_no_vector_arithmetic({"content": content})
 
+            trace_rec = langsmith_manager.dispatch_test_trace(
+                query=sanitized_input,
+                response=content,
+                metadata={"model": model_used, "tokens": total_tok, "latencyMs": latency_ms},
+            )
+
             return GatewayResponse(
                 content=content,
                 metrics=LlmExecutionMetrics(
@@ -216,6 +233,7 @@ class LiteLLMGateway:
                     estimatedCostAedMinorUnits=cost_aed_fils,
                     fallbackUsed=model_used != target_model,
                     provider=model_used.split("/")[0] if "/" in model_used else "litellm",
+                    langsmithTraceId=trace_rec.get("traceId"),
                 ),
                 is_guarded=True,
                 sanitized_prompt=sanitized_input,
@@ -224,8 +242,14 @@ class LiteLLMGateway:
         except Exception as e:
             logger.warning(f"LiteLLM completion error, invoking fallback: {e}")
             latency_ms = int((time.time() - start_time) * 1000)
+            fallback_content = f"Statutory Answer (Offline Resilient Mode): Grounded in UAE VAT & Corporate Tax Laws. Query: {sanitized_input}"
+            trace_rec = langsmith_manager.dispatch_test_trace(
+                query=sanitized_input,
+                response=fallback_content,
+                metadata={"mode": "fallback", "error": str(e)},
+            )
             return GatewayResponse(
-                content=f"Statutory Answer (Offline Resilient Mode): Grounded in UAE VAT & Corporate Tax Laws. Query: {sanitized_input}",
+                content=fallback_content,
                 metrics=LlmExecutionMetrics(
                     model="fallback-statutory-engine",
                     promptTokens=len(sanitized_input.split()) * 2,
@@ -236,6 +260,7 @@ class LiteLLMGateway:
                     estimatedCostAedMinorUnits=0,
                     fallbackUsed=True,
                     provider="deterministic-fallback",
+                    langsmithTraceId=trace_rec.get("traceId"),
                 ),
                 is_guarded=True,
                 sanitized_prompt=sanitized_input,

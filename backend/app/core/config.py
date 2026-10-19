@@ -1,4 +1,4 @@
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -31,6 +31,24 @@ class Settings(BaseSettings):
     LITELLM_FALLBACK_MODELS: list[str] = Field(default=["openai/gpt-4o", "gemini/gemini-1.5-pro"])
     LITELLM_MAX_RETRIES: int = Field(default=2)
     LITELLM_TIMEOUT: float = Field(default=30.0)
+
+    # LangSmith Enterprise Observability & Tracing
+    LANGSMITH_TRACING: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2"),
+    )
+    LANGSMITH_ENDPOINT: str = Field(
+        default="https://api.smith.langchain.com",
+        validation_alias=AliasChoices("LANGSMITH_ENDPOINT", "LANGCHAIN_ENDPOINT"),
+    )
+    LANGSMITH_API_KEY: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"),
+    )
+    LANGSMITH_PROJECT: str = Field(
+        default="ledger-ae-accounting",
+        validation_alias=AliasChoices("LANGSMITH_PROJECT", "LANGCHAIN_PROJECT"),
+    )
 
     # UAE E-Invoicing & Open Banking
     ASP_PROVIDER_ID: str = Field(default="PINT_AE_SANDBOX")
