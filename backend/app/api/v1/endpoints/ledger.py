@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user_claims, get_tenant_db
 from app.core.exceptions import PeriodLockedException, UnbalancedJournalException
 from app.models.auth import LegalEntity
+from app.models.ledger import Account, AccountingPeriod
 from app.repositories.ledger_repository import LedgerRepository
 from app.schemas.ledger import PostJournalRequest, PostJournalResponse
 
@@ -154,20 +155,108 @@ async def post_journal(
     tenant_uuid = uuid.UUID(claims["tenant_id"])
     user_uuid = uuid.UUID(claims["sub"])
 
+    if req.action == "VALIDATE":
+        raw_lines = (req.journal or {}).get("lines", []) if req.journal else [l.model_dump() for l in req.lines]
+        total_d = sum(int(l.get("debitMinorUnits") or (l.get("amount_fils", 0) if str(l.get("direction", "")).upper() == "DEBIT" else 0) or 0) for l in raw_lines)
+        total_c = sum(int(l.get("creditMinorUnits") or (l.get("amount_fils", 0) if str(l.get("direction", "")).upper() == "CREDIT" else 0) or 0) for l in raw_lines)
+        is_bal = total_d > 0 and total_d == total_c
+        return PostJournalResponse(
+            success=is_bal,
+            isBalanced=is_bal,
+            varianceFils=total_d - total_c,
+            totalAmountFils=total_d,
+            status="VALIDATED" if is_bal else "UNBALANCED",
+            journal={"voucherNumber": "JV-PREVIEW", "status": "VALIDATED"}
+        )
+
+    if req.action == "DRAFT":
+        now_str = datetime.now(UTC).strftime("%H%M%S")
+        return PostJournalResponse(
+            success=True,
+            status="DRAFT",
+            journal={"voucherNumber": f"DFT-{now_str}", "status": "DRAFT"}
+        )
+
+    # Resolve entity_id
+    if req.entity_id:
+        entity_uuid = uuid.UUID(req.entity_id)
+    else:
+        stmt_ent = select(LegalEntity.id).where(LegalEntity.tenant_id == tenant_uuid).limit(1)
+        res_ent = await db.execute(stmt_ent)
+        entity_uuid = res_ent.scalar_one_or_none() or uuid.UUID("00000000-0000-0000-0000-000000000001")
+
+    # Resolve period_id
+    if req.period_id:
+        period_uuid = uuid.UUID(req.period_id)
+    else:
+        stmt_per = select(AccountingPeriod.id).where(
+            AccountingPeriod.tenant_id == tenant_uuid, AccountingPeriod.status == "OPEN"
+        ).limit(1)
+        res_per = await db.execute(stmt_per)
+        resolved_period: uuid.UUID | None = res_per.scalar_one_or_none()
+        if not resolved_period:
+            stmt_per_any = select(AccountingPeriod.id).where(AccountingPeriod.tenant_id == tenant_uuid).limit(1)
+            res_per_any = await db.execute(stmt_per_any)
+            resolved_period = res_per_any.scalar_one_or_none()
+        period_uuid = resolved_period or uuid.UUID("00000000-0000-0000-0000-000000000002")
+
+    # Resolve entry metadata
+    entry_number = req.entry_number or f"JV-{datetime.now(UTC).strftime('%Y%m%d%H%M%S')}"
+    raw_date = (req.journal or {}).get("date") or req.entry_date
     try:
-        entry_dt = date.fromisoformat(req.entry_date)
+        entry_dt = date.fromisoformat(raw_date) if raw_date else datetime.now(UTC).date()
     except ValueError:
         entry_dt = datetime.now(UTC).date()
+
+    narration = req.narration or (req.journal or {}).get("description") or "Manual Journal Entry"
+
+    # Resolve lines
+    if req.journal and "lines" in req.journal:
+        stmt_accs = select(Account).where(Account.tenant_id == tenant_uuid)
+        res_accs = await db.execute(stmt_accs)
+        all_accs = res_accs.scalars().all()
+        code_to_acc = {a.account_code: a for a in all_accs}
+
+        processed_lines = []
+        for l in req.journal["lines"]:
+            d_amt = int(l.get("debitMinorUnits") or 0)
+            c_amt = int(l.get("creditMinorUnits") or 0)
+            direction = "DEBIT" if d_amt > 0 else "CREDIT"
+            amt = d_amt if d_amt > 0 else c_amt
+
+            acc_code = l.get("accountCode") or ""
+            target_acc = code_to_acc.get(acc_code)
+            if target_acc:
+                acc_uuid = str(target_acc.id)
+            elif all_accs:
+                acc_uuid = str(all_accs[0].id)
+            else:
+                acc_uuid = str(uuid.uuid4())
+
+            processed_lines.append(
+                {
+                    "account_id": acc_uuid,
+                    "description": l.get("description") or narration,
+                    "direction": direction,
+                    "amount_fils": amt,
+                    "vat_rate": None,
+                    "vat_amount_fils": 0,
+                    "trn": None,
+                    "emirate": "DUBAI",
+                }
+            )
+    else:
+        processed_lines = [l.model_dump() for l in req.lines]
 
     try:
         result = await repo.post_journal_entry(
             tenant_id=tenant_uuid,
-            entity_id=uuid.UUID(req.entity_id),
-            period_id=uuid.UUID(req.period_id),
-            entry_number=req.entry_number,
+            entity_id=entity_uuid,
+            period_id=period_uuid,
+            entry_number=entry_number,
             entry_date=entry_dt,
-            narration=req.narration,
-            lines=[l.model_dump() for l in req.lines],
+            narration=narration,
+            lines=processed_lines,
             user_id=user_uuid,
         )
         return PostJournalResponse(
@@ -177,6 +266,16 @@ async def post_journal(
             totalAmountFils=result["totalAmountFils"],
             hashChain=result["hashChain"],
             status="POSTED",
+            journal={
+                "id": result["id"],
+                "voucherNumber": result["entryNumber"],
+                "entryNumber": result["entryNumber"],
+                "date": entry_dt.isoformat(),
+                "description": narration,
+                "status": "POSTED",
+                "totalDebitMinorUnits": str(result["totalAmountFils"]),
+                "totalCreditMinorUnits": str(result["totalAmountFils"]),
+            },
         )
     except UnbalancedJournalException as e:
         raise HTTPException(

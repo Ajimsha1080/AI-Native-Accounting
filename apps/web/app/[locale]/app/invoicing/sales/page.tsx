@@ -358,7 +358,7 @@ function InvoicesView({ params }: { params: Promise<{ locale: string }> }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60">
-                    {selectedInvoice.lines.map((l) => (
+                    {(selectedInvoice.lines || []).map((l) => (
                       <tr key={l.lineId}>
                         <td className="p-2.5 ps-3">
                           <div className="font-semibold text-white">{l.descriptionEn}</div>
@@ -366,7 +366,7 @@ function InvoicesView({ params }: { params: Promise<{ locale: string }> }) {
                         </td>
                         <td className="p-2.5 text-center font-bold text-amber-400">{l.vatRatePercent}%</td>
                         <td className="p-2.5 pe-3 text-end font-mono text-emerald-400 font-bold">
-                          {formatMinorUnits(BigInt(l.subtotalMinorUnits), { locale })}
+                          {formatMinorUnits(BigInt(l.subtotalMinorUnits || '0'), { locale })}
                         </td>
                       </tr>
                     ))}
@@ -379,19 +379,19 @@ function InvoicesView({ params }: { params: Promise<{ locale: string }> }) {
                 <div className="flex justify-between text-slate-400">
                   <span>Net Subtotal:</span>
                   <span className="font-mono text-white">
-                    {formatMinorUnits(BigInt(selectedInvoice.subtotalMinorUnits), { locale })}
+                    {formatMinorUnits(BigInt(selectedInvoice.subtotalMinorUnits || '0'), { locale })}
                   </span>
                 </div>
                 <div className="flex justify-between text-slate-400">
                   <span>VAT (5%):</span>
                   <span className="font-mono text-amber-400">
-                    {formatMinorUnits(BigInt(selectedInvoice.vatMinorUnits), { locale })}
+                    {formatMinorUnits(BigInt(selectedInvoice.vatMinorUnits || '0'), { locale })}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm font-black text-white pt-1.5 border-t border-slate-800">
                   <span>Total Due (AED):</span>
                   <span className="font-mono text-emerald-400">
-                    {formatMinorUnits(BigInt(selectedInvoice.totalMinorUnits), { locale })}
+                    {formatMinorUnits(BigInt(selectedInvoice.totalMinorUnits || '0'), { locale })}
                   </span>
                 </div>
               </div>

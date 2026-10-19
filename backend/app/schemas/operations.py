@@ -4,29 +4,37 @@ from pydantic import BaseModel, Field
 
 
 class CreateInvoiceRequest(BaseModel):
-    customerName: str = Field(min_length=1)
-    invoiceNumber: str = Field(min_length=1)
-    issueDate: str
-    dueDate: str
-    subtotalFils: int = Field(ge=0)
-    vatTotalFils: int = Field(ge=0)
-    totalFils: int = Field(ge=0)
+    action: str | None = None
+    invoiceId: str | None = None
+    decision: str | None = None
+    customerName: str | None = "Standard Customer"
+    invoiceNumber: str | None = None
+    issueDate: str | None = None
+    dueDate: str | None = None
+    subtotalFils: int = 0
+    vatTotalFils: int = 0
+    totalFils: int = 0
     currency: str = "AED"
 
 
 class CreateVendorBillRequest(BaseModel):
-    vendorName: str = Field(min_length=1)
-    billNumber: str = Field(min_length=1)
-    billDate: str
-    dueDate: str
-    subtotalFils: int = Field(ge=0)
-    vatTotalFils: int = Field(ge=0)
-    totalFils: int = Field(ge=0)
+    billId: str | None = None
+    action: str | None = None
+    notes: str | None = None
+    vendorName: str | None = "Standard Vendor"
+    billNumber: str | None = None
+    billDate: str | None = None
+    dueDate: str | None = None
+    subtotalFils: int = 0
+    vatTotalFils: int = 0
+    totalFils: int = 0
     currency: str = "AED"
 
 
 class MatchBankLineRequest(BaseModel):
-    lineId: str
+    statementLineId: str | None = None
+    lineId: str | None = None
+    ledgerLineId: str | None = None
     matchedJournalLineId: str | None = None
     action: str = "MATCH"
 
@@ -42,11 +50,13 @@ class ReportBuilderRequest(BaseModel):
 class CloseActionRequest(BaseModel):
     action: str = "LOCK_PERIOD"
     periodId: str | None = None
+    stepId: int | None = None
     isHardLock: bool = True
 
 
 class WpsRequest(BaseModel):
     action: str = "GENERATE_SIF"
+    payrollRunId: str | None = None
     salaryMonth: str = "2026-03"
     employerRoutingCode: str = "CBUAE001"
     employerCrn: str = "MOHRE-DXB-9871"
@@ -55,6 +65,12 @@ class WpsRequest(BaseModel):
 class AiProposalActionRequest(BaseModel):
     proposalId: str
     action: str = "APPROVE"
+    decision: str | None = None
+    rationale: str | None = None
+
+
+class OpsConsoleRequest(BaseModel):
+    isSandbox: bool = False
 
 
 class EInvoiceActionRequest(BaseModel):

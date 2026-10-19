@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -13,18 +15,23 @@ class JournalLineInput(BaseModel):
 
 
 class PostJournalRequest(BaseModel):
-    entity_id: str
-    period_id: str
-    entry_number: str
-    entry_date: str
-    narration: str
-    lines: list[JournalLineInput] = Field(min_length=2)
+    action: str | None = None
+    journal: dict[str, Any] | None = None
+    entity_id: str | None = None
+    period_id: str | None = None
+    entry_number: str | None = None
+    entry_date: str | None = None
+    narration: str | None = None
+    lines: list[JournalLineInput] = Field(default_factory=list)
 
 
 class PostJournalResponse(BaseModel):
     success: bool
-    voucherId: str
-    entryNumber: str
-    totalAmountFils: int
-    hashChain: str
-    status: str
+    voucherId: str | None = None
+    entryNumber: str | None = None
+    totalAmountFils: int = 0
+    hashChain: str | None = None
+    status: str = "POSTED"
+    journal: dict[str, Any] | None = None
+    isBalanced: bool | None = None
+    varianceFils: int | None = None

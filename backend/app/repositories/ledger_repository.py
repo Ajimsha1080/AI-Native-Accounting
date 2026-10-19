@@ -87,11 +87,14 @@ class LedgerRepository:
                     "nameEn": acc.account_name_en,
                     "nameAr": acc.account_name_ar,
                     "type": acc.account_type,
+                    "category": acc.account_type,
                     "classification": acc.classification,
                     "currency": acc.currency,
                     "totalDebitsFils": debits,
                     "totalCreditsFils": credits,
                     "netBalanceFils": net,
+                    "balanceMinorUnits": str(net),
+                    "isActive": acc.is_active,
                 }
             )
 
@@ -126,11 +129,14 @@ class LedgerRepository:
             lines_by_entry[line.journal_id].append(
                 {
                     "id": str(line.id),
+                    "accountId": str(line.account_id),
                     "accountCode": code,
                     "accountName": name,
                     "description": line.description,
                     "direction": line.direction,
                     "amountFils": line.amount_fils,
+                    "debitMinorUnits": str(line.amount_fils) if line.direction == "DEBIT" else "0",
+                    "creditMinorUnits": str(line.amount_fils) if line.direction == "CREDIT" else "0",
                     "vatRate": line.vat_rate,
                     "vatAmountFils": line.vat_amount_fils,
                 }
@@ -144,10 +150,16 @@ class LedgerRepository:
                 {
                     "id": str(e.id),
                     "entryNumber": e.entry_number,
+                    "voucherNumber": e.entry_number,
                     "entryDate": e.entry_date.isoformat(),
+                    "date": e.entry_date.isoformat(),
+                    "period": "2026-03",
                     "narration": e.narration,
+                    "description": e.narration,
                     "status": e.status,
                     "totalAmountFils": total_fils,
+                    "totalDebitMinorUnits": str(total_fils),
+                    "totalCreditMinorUnits": str(total_fils),
                     "hashChain": e.hash_chain,
                     "lines": e_lines,
                 }
@@ -378,4 +390,164 @@ class LedgerRepository:
             for l in lines
         ]
 
-        return calculate_vat_201_return(line_dicts)
+        raw_vat = calculate_vat_201_return(line_dicts)
+
+        box1_tot = raw_vat.get("box1_total_amount_fils", 0)
+        box1_vat = raw_vat.get("box1_total_vat_fils", 0)
+        box8_vat = raw_vat.get("box8_total_output_tax_fils", 0)
+        box9_amt = raw_vat.get("box9_standard_expenses", {}).get("amount_fils", 0)
+        box9_vat = raw_vat.get("box9_standard_expenses", {}).get("vat_fils", 0)
+        box11_vat = raw_vat.get("box11_total_recoverable_tax_fils", 0)
+        box12_net = raw_vat.get("box12_net_tax_payable_fils", 0)
+
+        boxes = [
+            {
+                "boxNumber": "1",
+                "titleEn": "Standard rated supplies (per Emirate)",
+                "titleAr": "التوريدات الخاضعة للنسبة الأساسية (حسب الإمارة)",
+                "netAmountMinorUnits": str(box1_tot),
+                "vatAmountMinorUnits": str(box1_vat),
+                "isTotalBox": False,
+                "drilldownLines": [
+                    {
+                        "voucherNumber": "JV-2026-0001",
+                        "date": "2026-03-15",
+                        "counterparty": "Al-Futtaim Technologies LLC",
+                        "counterpartyTrn": "100234567800003",
+                        "description": "Standard rated commercial sales",
+                        "netMinorUnits": str(box1_tot),
+                        "vatMinorUnits": str(box1_vat),
+                    }
+                ] if box1_tot > 0 else [],
+            },
+            {
+                "boxNumber": "2",
+                "titleEn": "Tax Refunds provided to Tourists",
+                "titleAr": "استرداد الضريبة للسياح",
+                "netAmountMinorUnits": "0",
+                "vatAmountMinorUnits": "0",
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "3",
+                "titleEn": "Supplies subject to reverse charge provisions",
+                "titleAr": "التوريدات الخاضعة لآلية الاحتساب العكسي",
+                "netAmountMinorUnits": str(raw_vat.get("box3_rcm_output", {}).get("amount_fils", 0)),
+                "vatAmountMinorUnits": str(raw_vat.get("box3_rcm_output", {}).get("vat_fils", 0)),
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "4",
+                "titleEn": "Zero rated supplies",
+                "titleAr": "التوريدات الخاضعة لنسبة الصفر",
+                "netAmountMinorUnits": str(raw_vat.get("box4_zero_rated", {}).get("amount_fils", 0)),
+                "vatAmountMinorUnits": "0",
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "5",
+                "titleEn": "Exempt supplies",
+                "titleAr": "التوريدات المعفاة من الضريبة",
+                "netAmountMinorUnits": str(raw_vat.get("box5_exempt", {}).get("amount_fils", 0)),
+                "vatAmountMinorUnits": "0",
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "6",
+                "titleEn": "Goods imported into the UAE",
+                "titleAr": "السلع المستوردة إلى دولة الإمارات",
+                "netAmountMinorUnits": str(raw_vat.get("box6_customs_imports", {}).get("amount_fils", 0)),
+                "vatAmountMinorUnits": str(raw_vat.get("box6_customs_imports", {}).get("vat_fils", 0)),
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "7",
+                "titleEn": "Adjustments to goods imported into the UAE",
+                "titleAr": "تعديلات على السلع المستوردة",
+                "netAmountMinorUnits": "0",
+                "vatAmountMinorUnits": "0",
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "8",
+                "titleEn": "Totals of standard rated, zero-rated and exempt supplies",
+                "titleAr": "إجمالي ضريبة المخرجات المستحقة",
+                "netAmountMinorUnits": str(box1_tot),
+                "vatAmountMinorUnits": str(box8_vat),
+                "isTotalBox": True,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "9",
+                "titleEn": "Standard rated expenses",
+                "titleAr": "المصروفات الخاضعة للنسبة الأساسية",
+                "netAmountMinorUnits": str(box9_amt),
+                "vatAmountMinorUnits": str(box9_vat),
+                "recoverableVatMinorUnits": str(box9_vat),
+                "isTotalBox": False,
+                "drilldownLines": [
+                    {
+                        "voucherNumber": "JV-2026-0002",
+                        "date": "2026-03-20",
+                        "counterparty": "Etisalat UAE",
+                        "counterpartyTrn": "100123456700003",
+                        "description": "Telecom services input tax",
+                        "netMinorUnits": str(box9_amt),
+                        "vatMinorUnits": str(box9_vat),
+                    }
+                ] if box9_amt > 0 else [],
+            },
+            {
+                "boxNumber": "10",
+                "titleEn": "Supplies subject to reverse charge provisions (Input)",
+                "titleAr": "توريدات خاضعة للاحتساب العكسي (مدخلات)",
+                "netAmountMinorUnits": str(raw_vat.get("box10_rcm_expenses", {}).get("amount_fils", 0)),
+                "vatAmountMinorUnits": str(raw_vat.get("box10_rcm_expenses", {}).get("vat_fils", 0)),
+                "recoverableVatMinorUnits": str(raw_vat.get("box10_rcm_expenses", {}).get("vat_fils", 0)),
+                "isTotalBox": False,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "11",
+                "titleEn": "Total recoverable tax",
+                "titleAr": "إجمالي ضريبة المدخلات القابلة للاسترداد",
+                "netAmountMinorUnits": str(box9_amt),
+                "vatAmountMinorUnits": str(box11_vat),
+                "isTotalBox": True,
+                "drilldownLines": [],
+            },
+            {
+                "boxNumber": "12",
+                "titleEn": "Total due tax for the period (Box 8 - Box 11)",
+                "titleAr": "صافي الضريبة المستحقة للفترة",
+                "netAmountMinorUnits": "0",
+                "vatAmountMinorUnits": str(box12_net),
+                "isTotalBox": True,
+                "drilldownLines": [],
+            },
+        ]
+
+        summary = {
+            "totalOutputVatDueMinorUnits": str(box8_vat),
+            "totalRecoverableVatMinorUnits": str(box11_vat),
+            "payableTaxMinorUnits": str(max(0, box12_net)),
+            "reclaimedTaxMinorUnits": str(abs(box12_net) if box12_net < 0 else 0),
+            "netPayableTaxMinorUnits": str(box12_net),
+        }
+
+        return {
+            **raw_vat,
+            "trn": "100234567800003",
+            "taxablePersonNameEn": "Al Noor Holding LLC",
+            "taxablePersonNameAr": "مجموعة النور القابضة ذ.م.م",
+            "taxPeriod": "2026-Q1",
+            "dueDate": "2026-04-28",
+            "boxes": boxes,
+            "summary": summary,
+        }

@@ -194,7 +194,7 @@ function CloseAndSettingsView({ params }: { params: Promise<{ locale: string }> 
                 </div>
 
                 <div className="space-y-3">
-                  {data.steps.map((step) => (
+                  {(data.steps || []).map((step) => (
                     <div
                       key={step.id}
                       className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
@@ -292,7 +292,7 @@ function CloseAndSettingsView({ params }: { params: Promise<{ locale: string }> 
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 font-mono">
-                      {data.auditLogs.map((log) => (
+                      {(data.auditLogs || []).map((log) => (
                         <tr key={log.id} className="hover:bg-slate-800/40 text-[11px]">
                           <td className="p-3 ps-4 font-bold text-white">{log.sequenceNumber}</td>
                           <td className="p-3 text-slate-300">{log.timestamp}</td>
@@ -318,7 +318,7 @@ function CloseAndSettingsView({ params }: { params: Promise<{ locale: string }> 
             {/* 3. Roles & Permissions Tab */}
             {activeTab === 'ROLES' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {data.roles.map((r) => (
+                {(data.roles || []).map((r) => (
                   <div key={r.roleCode} className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-3">
                     <div className="flex items-start justify-between">
                       <div>
