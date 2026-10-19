@@ -190,7 +190,7 @@ async def post_journal(
         period_uuid = uuid.UUID(req.period_id)
     else:
         stmt_per = select(AccountingPeriod.id).where(
-            AccountingPeriod.tenant_id == tenant_uuid, AccountingPeriod.status == "OPEN"
+            AccountingPeriod.tenant_id == tenant_uuid, AccountingPeriod.is_hard_locked.is_(False)
         ).limit(1)
         res_per = await db.execute(stmt_per)
         resolved_period: uuid.UUID | None = res_per.scalar_one_or_none()

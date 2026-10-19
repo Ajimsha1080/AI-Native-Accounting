@@ -368,7 +368,7 @@ async def list_reconciliation(
 
     from app.models.ledger import JournalEntry, JournalLine
     stmt_j = (
-        select(JournalLine, JournalEntry.entry_number, JournalEntry.entry_date)
+        select(JournalLine, JournalEntry.entry_number, JournalEntry.entry_date, JournalEntry.narration)
         .join(JournalEntry, JournalLine.journal_id == JournalEntry.id)
         .where(JournalLine.tenant_id == tenant_uuid)
         .order_by(desc(JournalEntry.entry_date))
@@ -383,8 +383,8 @@ async def list_reconciliation(
             "date": l.line_date.isoformat(),
             "reference": f"REF-{str(l.id)[:8]}",
             "description": l.description,
-            "amountMinorUnits": str(l.amount_fils),
-            "amountFils": l.amount_fils,
+            "amountMinorUnits": str(int(l.amount_fils)),
+            "amountFils": int(l.amount_fils),
             "currency": "AED",
             "matchedStatus": "MATCHED" if l.is_reconciled else "UNMATCHED",
             "matchedLedgerEntryId": str(l.matched_journal_line_id) if l.matched_journal_line_id else None,
@@ -399,12 +399,12 @@ async def list_reconciliation(
             "id": str(jl.id),
             "voucherNumber": entry_num,
             "date": entry_dt.isoformat(),
-            "description": jl.description,
-            "amountMinorUnits": str(jl.amount_fils),
+            "description": memo or "General Ledger line",
+            "amountMinorUnits": str(int(jl.amount_fils)),
             "accountCode": "1020",
             "isReconciled": False,
         }
-        for jl, entry_num, entry_dt in j_lines
+        for jl, entry_num, entry_dt, memo in j_lines
     ]
 
     suggestions = []
@@ -508,14 +508,14 @@ async def get_reports(
 
     revenue_lines = [l for l in report_lines if l["category"] == "REVENUE"]
     expense_lines = [l for l in report_lines if l["category"] == "EXPENSE"]
-    tot_rev = sum(int(l["creditMinorUnits"]) for l in revenue_lines)
-    tot_exp = sum(int(l["debitMinorUnits"]) for l in expense_lines)
+    tot_rev = sum(int(float(l["creditMinorUnits"])) for l in revenue_lines)
+    tot_exp = sum(int(float(l["debitMinorUnits"])) for l in expense_lines)
 
     asset_lines = [l for l in report_lines if l["category"] == "ASSET"]
     liability_lines = [l for l in report_lines if l["category"] == "LIABILITY"]
     equity_lines = [l for l in report_lines if l["category"] == "EQUITY"]
-    tot_assets = sum(int(l["debitMinorUnits"]) for l in asset_lines)
-    tot_liab_eq = sum(int(l["creditMinorUnits"]) for l in liability_lines + equity_lines)
+    tot_assets = sum(int(float(l["debitMinorUnits"])) for l in asset_lines)
+    tot_liab_eq = sum(int(float(l["creditMinorUnits"])) for l in liability_lines + equity_lines)
 
     entities_stmt = select(LegalEntity).where(LegalEntity.tenant_id == tenant_uuid)
     ent_res = await db.execute(entities_stmt)

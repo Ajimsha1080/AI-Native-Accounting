@@ -69,12 +69,12 @@ class LedgerRepository:
         for acc_id, direction, tot in line_result.all():
             if acc_id not in sums:
                 sums[acc_id] = {"DEBIT": 0, "CREDIT": 0}
-            sums[acc_id][direction] = tot or 0
+            sums[acc_id][direction] = int(tot or 0)
 
         account_list = []
         for acc in accounts:
-            debits = sums.get(acc.id, {}).get("DEBIT", 0)
-            credits = sums.get(acc.id, {}).get("CREDIT", 0)
+            debits = int(sums.get(acc.id, {}).get("DEBIT", 0))
+            credits = int(sums.get(acc.id, {}).get("CREDIT", 0))
             if acc.account_type in ("ASSET", "EXPENSE"):
                 net = debits - credits
             else:
