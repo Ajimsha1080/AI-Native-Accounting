@@ -83,12 +83,14 @@ export class AuthenticationService {
     if (!password || password.length < 10) {
       throw new Error('Password must meet minimum length of 10 characters per OWASP ASVS');
     }
-    return argon2.hash(password, {
+    const rawHash = await argon2.hash(password, {
       type: argon2.argon2id,
       memoryCost: 65536,
       timeCost: 3,
       parallelism: 4
     });
+    // Canonicalize parameter order to m=...,t=...,p=... for cross-runtime interoperability (RFC 9106)
+    return rawHash.replace(/\$m=(\d+),p=(\d+),t=(\d+)\$/, '\$m=\$1,t=\$3,p=\$2\$');
   }
 
   /**

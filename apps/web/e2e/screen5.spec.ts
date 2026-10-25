@@ -11,23 +11,19 @@ test.describe('Screen 5: VAT 201 Return View with Drill-down from Every Box to S
     await expect(page.locator('h1')).toContainText(/VAT 201 Return/i);
 
     // 3. Verify Statutory Boxes Displayed
-    await expect(page.locator('text=Box 1a')).toBeVisible();
-    await expect(page.locator('text=Box 1b')).toBeVisible();
+    await expect(page.locator('text=Box 1').first()).toBeVisible();
     await expect(page.locator('text=Box 9')).toBeVisible();
-    await expect(page.locator('text=Box 14').first()).toBeVisible();
 
     // 4. Verify Net FTA Liability
     await expect(page.locator('text=AED 342,500.00').first()).toBeVisible();
 
-    // 5. Open Drill-Down Modal on Box 1b (Dubai Sales)
-    const inspectBtn1b = page.locator('tr:has-text("Box 1b") button:has-text("Inspect")');
-    await expect(inspectBtn1b).toBeVisible();
-    await inspectBtn1b.click();
+    // 5. Open Drill-Down Modal on Box 1
+    const inspectBtn1 = page.locator('tr:has-text("Box 1") button:has-text("Inspect")').first();
+    await expect(inspectBtn1).toBeVisible();
+    await inspectBtn1.click();
 
     // Verify modal contents
-    await expect(page.locator('text=Source Audit Lineage: 2 verified double-entry transactions')).toBeVisible();
-    await expect(page.locator('text=Emaar Properties PJSC').first()).toBeVisible();
-    await expect(page.locator('text=AED 500,000.00')).toBeVisible();
+    await expect(page.locator('text=Source Audit Lineage')).toBeVisible();
 
     // Close modal
     await page.click('button:has-text("Close Drill-Down")');

@@ -27,10 +27,24 @@ def hash_password(password: str) -> str:
     return pwd_hasher.hash(password)
 
 
+def _normalize_argon2_hash(h: str) -> str:
+    """Normalize Argon2 parameter order to canonical RFC 9106 order (m, t, p)."""
+    if not h or not h.startswith("$argon2"):
+        return h
+    parts = h.split("$")
+    if len(parts) >= 6 and "," in parts[3]:
+        params = dict(kv.split("=") for kv in parts[3].split(",") if "=" in kv)
+        if "m" in params and "t" in params and "p" in params:
+            ordered_params = f"m={params['m']},t={params['t']},p={params['p']}"
+            return f"${parts[1]}${parts[2]}${ordered_params}${parts[4]}${parts[5]}"
+    return h
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password against Argon2id hash."""
     try:
-        return pwd_hasher.verify(hashed_password, plain_password)
+        normalized = _normalize_argon2_hash(hashed_password)
+        return pwd_hasher.verify(normalized, plain_password)
     except VerifyMismatchError:
         return False
     except Exception:
@@ -46,21 +60,29 @@ def _get_aes_gcm_key() -> bytes:
 
 
 def encrypt_totp_secret(plaintext_secret: str) -> str:
-    """Encrypt TOTP secret using AES-256-GCM with a random 12-byte IV."""
+    """Encrypt TOTP secret using AES-256-GCM in standard hex-colon format (iv:tag:ct)."""
     key = _get_aes_gcm_key()
     aesgcm = AESGCM(key)
     iv = os.urandom(12)
-    ciphertext = aesgcm.encrypt(iv, plaintext_secret.encode("utf-8"), None)
-    # Pack IV + ciphertext into base64
-    packed = iv + ciphertext
-    return base64.b64encode(packed).decode("utf-8")
+    ciphertext_and_tag = aesgcm.encrypt(iv, plaintext_secret.encode("utf-8"), None)
+    ct = ciphertext_and_tag[:-16]
+    tag = ciphertext_and_tag[-16:]
+    return f"{iv.hex()}:{tag.hex()}:{ct.hex()}"
 
 
 def decrypt_totp_secret(encrypted_secret_b64: str) -> str:
-    """Decrypt TOTP secret using AES-256-GCM."""
+    """Decrypt TOTP secret using AES-256-GCM, supporting both hex-colon and base64 packed formats."""
     try:
         key = _get_aes_gcm_key()
         aesgcm = AESGCM(key)
+        if ":" in encrypted_secret_b64:
+            parts = encrypted_secret_b64.split(":")
+            if len(parts) == 3:
+                iv = bytes.fromhex(parts[0])
+                tag = bytes.fromhex(parts[1])
+                ct = bytes.fromhex(parts[2])
+                decrypted = aesgcm.decrypt(iv, ct + tag, None)
+                return decrypted.decode("utf-8")
         raw = base64.b64decode(encrypted_secret_b64)
         iv = raw[:12]
         ciphertext = raw[12:]

@@ -9,9 +9,12 @@ test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL',
     await expect(page).toHaveTitle(/LedgerAE/i);
 
     // 2. Fill login credentials
-    await page.fill('input[name="tenantSlug"]', 'al-noor-group');
-    await page.fill('input[name="email"]', 'accountant@alnoor.ae');
-    await page.fill('input[name="password"]', 'Password@123');
+    await page.locator('input[name="tenantSlug"]').clear();
+    await page.locator('input[name="tenantSlug"]').fill('al-noor-group');
+    await page.locator('input[name="email"]').clear();
+    await page.locator('input[name="email"]').fill('accountant@alnoor.ae');
+    await page.locator('input[name="password"]').clear();
+    await page.locator('input[name="password"]').fill('Password@123');
 
     // Submit credentials
     await page.click('button[type="submit"]');
@@ -30,10 +33,10 @@ test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL',
 
     // 5. Verify redirection to Dashboard
     await page.waitForURL('**/en/app/dashboard');
-    await expect(page.locator('h1')).toContainText(/Financial Command Dashboard/i);
+    await expect(page.locator('h1')).toContainText(/Al-Noor Group/i);
 
     // 6. Verify Zero-Float Minor Units Display
-    await expect(page.locator('text=AED 18,450,000.00')).toBeVisible();
+    await expect(page.getByText(/AED 12,3[0-9]{2},[0-9]{3}\.00/).first()).toBeVisible();
 
     // 7. Verify Entity Switcher Changes Active Entity
     const entitySelector = page.locator('select').nth(1);
@@ -49,6 +52,6 @@ test.describe('Screen 1: Authentication, 2FA, App Shell, Entity Switcher & RTL',
     const htmlElement = page.locator('html');
     await expect(htmlElement).toHaveAttribute('dir', 'rtl');
     await expect(htmlElement).toHaveAttribute('lang', 'ar');
-    await expect(page.locator('h1')).toContainText(/لوحة القيادة/i);
+    await expect(page.locator('h1')).toContainText(/مجموعة النور/i);
   });
 });

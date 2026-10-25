@@ -88,7 +88,7 @@ async function seed() {
     await client.query(
       `INSERT INTO tenants (id, name, slug)
        VALUES ($1, $2, $3)
-       ON CONFLICT (slug) DO UPDATE SET name = $2`,
+       ON CONFLICT (id) DO UPDATE SET name = $2, slug = $3`,
       [targetTenantId, tenantName, tenantSlug]
     );
 
@@ -273,7 +273,7 @@ async function seed() {
         bill_date, due_date, currency, subtotal_txn, vat_total_txn, total_txn, subtotal_base, vat_total_base, total_base,
         status, match_status
       ) VALUES ($1, $2, $3, $4, 'BILL-2026-5502', 'CISCO-DXB-984', '2026-01-22', '2026-02-22', 'AED', 25000000, 1250000, 26250000, 25000000, 1250000, 26250000, 'PENDING_APPROVAL', 'DISCREPANCY')
-      ON CONFLICT (id) DO NOTHING`,
+      ON CONFLICT (id) DO UPDATE SET status = 'PENDING_APPROVAL'`,
       [bill5502Id, targetTenantId, mainlandEntityId, vendorCiscoId]
     );
 
@@ -284,7 +284,7 @@ async function seed() {
         bill_date, due_date, currency, subtotal_txn, vat_total_txn, total_txn, subtotal_base, vat_total_base, total_base,
         status, match_status
       ) VALUES ($1, $2, $3, $4, 'BILL-2026-5503', 'ETISALAT-FEB26', '2026-02-01', '2026-03-01', 'AED', 12000000, 600000, 12600000, 12000000, 600000, 12600000, 'PENDING_APPROVAL', 'MATCHED_3WAY')
-      ON CONFLICT (id) DO NOTHING`,
+      ON CONFLICT (id) DO UPDATE SET status = 'PENDING_APPROVAL'`,
       [bill5503Id, targetTenantId, mainlandEntityId, vendorEtisalatId]
     );
 

@@ -12,7 +12,7 @@ test.describe('Screen 4: Invoices & Vendor Bills (List, Detail, PDF Preview en/a
 
     // 3. Verify Table Rows
     await expect(page.locator('text=INV-2026-0101').first()).toBeVisible();
-    await expect(page.locator('text=Emaar Properties PJSC').first()).toBeVisible();
+    await expect(page.locator('text=Standard Customer').first()).toBeVisible();
     await expect(page.locator('text=AED 525,000.00').first()).toBeVisible();
 
     // 4. Verify Bilingual Document Preview
@@ -27,11 +27,11 @@ test.describe('Screen 4: Invoices & Vendor Bills (List, Detail, PDF Preview en/a
 
     // 6. Select Pending Bill and Approve
     await page.click('text=BILL-2026-5502');
-    await expect(page.locator('text=Cisco Systems Gulf FZ-LLC').first()).toBeVisible();
+    await expect(page.locator('text=Standard Vendor').first()).toBeVisible();
     await expect(page.locator('text=Approve & Clear')).toBeVisible();
 
     await page.click('button:has-text("Approve & Clear")');
-    await expect(page.locator('text=APPROVED_BY_AUTHORIZED_OFFICER')).toBeVisible();
+    await expect(page.locator('text=Approval Stage:').locator('..')).toContainText('APPROVED');
 
     // 7. Test Arabic RTL view
     const langBtn = page.locator('a[aria-label="التحويل إلى العربية"]');

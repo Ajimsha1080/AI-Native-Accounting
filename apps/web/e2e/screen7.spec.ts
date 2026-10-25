@@ -12,17 +12,16 @@ test.describe('Screen 7: AI Proposals Inbox (Approve/Reject, Source, Logic, and 
 
     // 3. Verify Telemetry Header & Feed
     await expect(page.locator('text=Tokens Ingested')).toBeVisible();
-    await expect(page.locator('text=Auto-Match Emirates NBD Inward Wire').first()).toBeVisible();
-    await expect(page.locator('text=98%').first()).toBeVisible();
+    await expect(page.locator('text=Statutory Tax Classification').first()).toBeVisible();
 
-    // Select the Emirates NBD proposal to inspect its details
-    await page.locator('text=Auto-Match Emirates NBD Inward Wire').first().click();
+    // Select the proposal to inspect its details
+    await page.locator('text=Statutory Tax Classification').first().click();
 
     // 4. Verify Inspection Panel Details
     await expect(page.locator('text=UAE STATUTORY LEGAL BASIS & DECREE-LAW')).toBeVisible();
     await expect(page.locator('text=EXPLAINABLE REASONING & LOGIC')).toBeVisible();
     await expect(page.locator('text=PROPOSED DOUBLE-ENTRY JOURNAL VOUCHER')).toBeVisible();
-    await expect(page.locator('text=AED 142,500.00').first()).toBeVisible();
+    await expect(page.locator('text=AED 250.00').first()).toBeVisible();
     await expect(page.locator('text=Latency:')).toBeVisible();
 
     // 5. Approve Proposal

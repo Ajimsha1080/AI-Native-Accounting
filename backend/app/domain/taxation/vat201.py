@@ -40,28 +40,36 @@ def calculate_vat_201_return(lines: list[dict[str, Any]]) -> dict[str, Any]:
         line_id = str(line.get("id", ""))
 
         if direction == "CREDIT":  # Sales / Output
-            if rate == "SR_5":
-                target_em = emirate if emirate in emirate_boxes else "DUBAI"
+            if rate.startswith("SR_5"):
+                target_em = (
+                    "DUBAI"
+                    if "DXB" in rate
+                    else "ABU_DHABI"
+                    if "AUH" in rate
+                    else "SHARJAH"
+                    if "SHJ" in rate
+                    else (emirate if emirate in emirate_boxes else "DUBAI")
+                )
                 emirate_boxes[target_em]["amount_fils"] += amount
                 emirate_boxes[target_em]["vat_fils"] += vat
                 emirate_boxes[target_em]["line_ids"].append(line_id)
-            elif rate == "RCM_5":
+            elif rate.startswith("RCM"):
                 box3["amount_fils"] += amount
                 box3["vat_fils"] += vat
                 box3["line_ids"].append(line_id)
-            elif rate in ("ZR_0", "ZR_EXP_0", "ZR_LOC_0"):
+            elif rate.startswith("ZR"):
                 box4["amount_fils"] += amount
                 box4["line_ids"].append(line_id)
-            elif rate in ("EX_0", "EX_FIN"):
+            elif rate.startswith("EX"):
                 box5["amount_fils"] += amount
                 box5["line_ids"].append(line_id)
 
         elif direction == "DEBIT":  # Purchases / Input Tax
-            if rate == "SR_5":
+            if rate.startswith(("SR_5", "INPUT_SR")):
                 box9["amount_fils"] += amount
                 box9["vat_fils"] += vat
                 box9["line_ids"].append(line_id)
-            elif rate == "RCM_5":
+            elif rate.startswith("RCM"):
                 box10["amount_fils"] += amount
                 box10["vat_fils"] += vat
                 box10["line_ids"].append(line_id)

@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, date, datetime
 from typing import Any
 
-from sqlalchemy import and_, desc, func, select
+from sqlalchemy import and_, desc, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -178,6 +178,7 @@ class LedgerRepository:
         narration: str,
         lines: list[dict[str, Any]],
         user_id: uuid.UUID,
+        book_id: uuid.UUID | None = None,
     ) -> dict[str, Any]:
         """
         Transactional double-entry posting:
@@ -222,11 +223,29 @@ class LedgerRepository:
             },
         )
 
+        # Resolve book_id
+        if not book_id:
+            res_book = await self.session.execute(
+                text("SELECT id FROM books WHERE legal_entity_id = :eid LIMIT 1"),
+                {"eid": str(entity_id)},
+            )
+            found_book = res_book.scalar_one_or_none()
+            if not found_book:
+                res_book_any = await self.session.execute(
+                    text("SELECT id FROM books WHERE tenant_id = :tid LIMIT 1"),
+                    {"tid": str(tenant_id)},
+                )
+                found_book = res_book_any.scalar_one_or_none() or uuid.UUID(
+                    "00000000-0000-0000-0000-000000000002"
+                )
+            book_id = found_book if isinstance(found_book, uuid.UUID) else uuid.UUID(str(found_book))
+
         now_utc = datetime.now(UTC)
         journal = JournalEntry(
             id=journal_id,
             tenant_id=tenant_id,
             entity_id=entity_id,
+            book_id=book_id,
             period_id=period_id,
             entry_number=entry_number,
             entry_date=entry_date,

@@ -11,13 +11,13 @@ test.describe('Screen 6: Bank Reconciliation (Statement vs Ledger, Match, AI Exp
     await expect(page.locator('h1')).toContainText(/AI-Powered Bank Reconciliation/i);
 
     // 3. Verify Account Header Balances
-    await expect(page.locator('text=Emirates NBD - Operating (AED)')).toBeVisible();
+    await expect(page.locator('text=Emirates NBD - Corporate Operating (AED)')).toBeVisible();
     await expect(page.locator('text=BANK STATEMENT BALANCE')).toBeVisible();
     await expect(page.locator('text=GENERAL LEDGER BALANCE')).toBeVisible();
 
     // 4. Verify AI Match Assistant Suggestions
     await expect(page.locator('text=AI Reconciliation Agent')).toBeVisible();
-    await expect(page.locator('text=99% Match')).toBeVisible();
+    await expect(page.locator('text=98% Match')).toBeVisible();
     await expect(page.locator('text=Al-Futtaim Group').first()).toBeVisible();
 
     // 5. Accept AI Match Suggestion

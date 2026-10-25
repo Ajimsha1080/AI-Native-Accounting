@@ -53,8 +53,8 @@ test.describe('Phase 5 Feature Completion Suite: Enterprise Modules (EN & AR)', 
     await expect(page.locator('h1')).toContainText(/Fixed Assets & IFRS 16 Leases/i);
 
     // 2. Verify Fixed Assets and IFRS 16 Leases
-    await expect(page.locator('text=FA-SRV-2026-01')).toBeVisible();
-    await expect(page.locator('text=LC-DXB-MARINA-01')).toBeVisible();
+    await expect(page.locator('text=AST-2026-001')).toBeVisible();
+    await expect(page.locator('text=IFRS16-2026-HQ')).toBeVisible();
 
     // 3. Post monthly depreciation to GL
     const postDepBtn = page.locator('button:has-text("Post Depreciation")').first();
@@ -110,10 +110,11 @@ test.describe('Phase 5 Feature Completion Suite: Enterprise Modules (EN & AR)', 
     // 1. Navigate to Report Builder
     await page.goto('/en/app/reports/builder');
     await expect(page.locator('h1')).toContainText(/Custom Report Builder/i);
+    await expect(page.locator('text=Balanced: 0 fils variance')).toBeVisible();
 
     // 2. Filter by Asset category
     await page.selectOption('main select', 'ASSET');
-    await expect(page.locator('text=Balanced: 0 fils variance')).toBeVisible();
+    await expect(page.locator('text=Emirates NBD - Operating (AED)')).toBeVisible();
 
     // 3. Switch to Arabic RTL
     const langBtn = page.locator('a[aria-label="التحويل إلى العربية"]');
@@ -130,7 +131,7 @@ test.describe('Phase 5 Feature Completion Suite: Enterprise Modules (EN & AR)', 
 
     // 2. Verify active user and audit stream
     await expect(page.locator('text=accountant@alnoor.ae').first()).toBeVisible();
-    await expect(page.locator('text=FINANCIAL_CONTROLLER').first()).toBeVisible();
+    await expect(page.locator('text=FINANCE_DIRECTOR').first()).toBeVisible();
 
     // 3. Switch to Arabic RTL
     const langBtn = page.locator('a[aria-label="التحويل إلى العربية"]');

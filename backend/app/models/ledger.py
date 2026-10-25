@@ -147,15 +147,27 @@ class JournalLine(Base):
 
     @property
     def description(self) -> str:
-        return "General Ledger line"
+        return getattr(self, "_description", "General Ledger line")
+
+    @description.setter
+    def description(self, val: str) -> None:
+        self._description = val
 
     @property
     def trn(self) -> str | None:
-        return None
+        return getattr(self, "_trn", None)
+
+    @trn.setter
+    def trn(self, val: str | None) -> None:
+        self._trn = val
 
     @property
     def emirate(self) -> str | None:
-        return "DUBAI"
+        return getattr(self, "_emirate", "DUBAI")
+
+    @emirate.setter
+    def emirate(self, val: str | None) -> None:
+        self._emirate = val
 
 
 class AuditLog(Base):
@@ -178,7 +190,11 @@ class AuditLog(Base):
 
     @property
     def previous_hash(self) -> str | None:
-        return None
+        return getattr(self, "_previous_hash", None)
+
+    @previous_hash.setter
+    def previous_hash(self, val: str | None) -> None:
+        self._previous_hash = val
 
 
 class Invoice(Base):
