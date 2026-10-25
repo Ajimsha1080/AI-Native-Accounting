@@ -19,7 +19,7 @@
     "lint": "node scripts/check-no-mock-fallbacks.mjs && node scripts/lint-zero-float-money.mjs && npm run lint --workspaces --if-present",
     "lint:fallbacks": "node scripts/check-no-mock-fallbacks.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "backend:dev": "python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8000 --reload",
+    "backend:dev": "python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port 8080 --reload",
     "backend:test": "cd backend && pytest -v",
     "backend:lint": "cd backend && ruff check . && mypy app tests"
   },

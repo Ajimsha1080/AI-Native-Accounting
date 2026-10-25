@@ -32,6 +32,13 @@ import {
   ExternalLink
 } from 'lucide-react';
 
+function formatTokenRate(val: number, decimals: number = 4): string {
+  return val.toLocaleString('en-US', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}
+
 interface LangSmithStatus {
   status: 'CONNECTED' | 'STANDBY' | 'PAUSED' | 'ERROR';
   configured: boolean;
@@ -799,15 +806,15 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
                     <div className="space-y-1.5 text-xs text-slate-400 bg-[#090e17] p-3 rounded-xl border border-white/[0.04] font-mono">
                       <div className="flex justify-between">
                         <span>Prompt / 1k:</span>
-                        <strong className="text-slate-200">${p.costPer1kPromptUsd.toFixed(4)}</strong>
+                        <strong className="text-slate-200">${formatTokenRate(p.costPer1kPromptUsd, 4)}</strong>
                       </div>
                       <div className="flex justify-between">
                         <span>Completion / 1k:</span>
-                        <strong className="text-slate-200">${p.costPer1kCompletionUsd.toFixed(4)}</strong>
+                        <strong className="text-slate-200">${formatTokenRate(p.costPer1kCompletionUsd, 4)}</strong>
                       </div>
                       <div className="flex justify-between text-[11px] pt-1 border-t border-white/[0.06] text-amber-300/80">
                         <span>AED Equiv (1k):</span>
-                        <strong>AED {(p.costPer1kPromptUsd * 3.6725).toFixed(3)}</strong>
+                        <strong>AED {formatTokenRate(p.costPer1kPromptUsd * 3.6725, 3)}</strong>
                       </div>
                     </div>
                   </div>
