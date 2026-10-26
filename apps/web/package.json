@@ -22,7 +22,7 @@
     "@tanstack/react-table": "^8.21.3",
     "autoprefixer": "^10.6.1",
     "lucide-react": "^1.55.0",
-    "next": "^16.4.0",
+    "next": "^16.4.3",
     "next-intl": "^4.14.9",
     "postcss": "^8.5.29",
     "react": "^19.3.0",
