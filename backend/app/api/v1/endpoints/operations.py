@@ -5,7 +5,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import desc, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -162,21 +162,23 @@ async def create_invoice(
 
     if req.action == "APPROVAL" and req.invoiceId:
         new_status = "APPROVED" if req.decision == "APPROVE" else "REJECTED"
-        try:
-            inv_uuid = uuid.UUID(req.invoiceId)
-            await db.execute(
-                update(Invoice)
-                .where(Invoice.id == inv_uuid, Invoice.tenant_id == tenant_uuid)
-                .values(status=new_status)
+        inv_uuid = uuid.UUID(req.invoiceId)
+        res1 = await db.execute(
+            update(Invoice)
+            .where(Invoice.id == inv_uuid, Invoice.tenant_id == tenant_uuid)
+            .values(status=new_status)
+        )
+        res2 = await db.execute(
+            update(VendorBill)
+            .where(VendorBill.id == inv_uuid, VendorBill.tenant_id == tenant_uuid)
+            .values(status=new_status)
+        )
+        await db.flush()
+        if (res1.rowcount or 0) == 0 and (res2.rowcount or 0) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invoice or bill not found or not owned by tenant."
             )
-            await db.execute(
-                update(VendorBill)
-                .where(VendorBill.id == inv_uuid, VendorBill.tenant_id == tenant_uuid)
-                .values(status=new_status)
-            )
-            await db.flush()
-        except Exception as err:
-            logger.debug("Non-critical status sync bypass for invoice %s: %s", req.invoiceId, err)
         return {"success": True, "invoiceId": req.invoiceId, "status": new_status}
 
     stmt_ent = select(LegalEntity.id).where(LegalEntity.tenant_id == tenant_uuid).limit(1)
@@ -487,10 +489,15 @@ async def reconcile_bank_line(
     stmt = (
         update(BankStatementLine)
         .where(BankStatementLine.id == line_uuid, BankStatementLine.tenant_id == tenant_uuid)
-        .values(is_reconciled=True, matched_journal_line_id=matched_uuid, status="MATCHED")
+        .values(is_reconciled=True, matched_journal_line_id=matched_uuid)
     )
-    await db.execute(stmt)
+    res = await db.execute(stmt)
     await db.flush()
+    if (res.rowcount or 0) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Bank statement line not found or not owned by tenant."
+        )
 
     return {"success": True, "lineId": str(line_uuid), "status": "RECONCILED"}
 

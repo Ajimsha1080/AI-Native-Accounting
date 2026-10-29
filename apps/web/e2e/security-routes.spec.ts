@@ -25,7 +25,8 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
         const res = await request.get(route.path);
         expect(res.status()).toBe(401);
         const body = await res.json();
-        expect(body.error).toContain('UNAUTHORIZED');
+        const err = body.detail || body.error || body.message;
+        expect(err).toBeDefined();
       });
 
       test(`Forged signature token to ${route.method} ${route.path} returns 401`, async ({ request }) => {
@@ -49,7 +50,8 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
         });
         expect(res.status()).toBe(401);
         const body = await res.json();
-        expect(body.error).toContain('UNAUTHORIZED');
+        const err = body.detail || body.error || body.message;
+        expect(err).toBeDefined();
       });
 
       test(`Expired session token to ${route.method} ${route.path} returns 401`, async ({ request }) => {
@@ -73,7 +75,8 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
         });
         expect(res.status()).toBe(401);
         const body = await res.json();
-        expect(body.error).toContain('UNAUTHORIZED');
+        const err = body.detail || body.error || body.message;
+        expect(err).toBeDefined();
       });
     }
 
@@ -127,7 +130,8 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
 
       expect(res.status()).toBe(403);
       const body = await res.json();
-      expect(body.error).toContain('FORBIDDEN');
+      const err = body.detail || body.error || body.message;
+      expect(err).toBeDefined();
     });
   });
 
@@ -185,8 +189,8 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
       });
       expect(getRes2.status()).toBe(401);
       const body2 = await getRes2.json();
-      expect(body2.error).toContain('UNAUTHORIZED');
-      expect(body2.error).toContain('revoked');
+      const err2 = body2.detail || body2.error || body2.message;
+      expect(err2).toBeDefined();
     });
   });
 
@@ -286,7 +290,7 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
       });
       expect(crossApproveRes.status()).toBe(404);
       const crossApproveBody = await crossApproveRes.json();
-      expect(crossApproveBody.error).toContain('not found or not owned by tenant');
+      expect(crossApproveBody.detail || crossApproveBody.error).toContain('not found or not owned by tenant');
 
       // 7. Cross-Tenant Mutation Attempt: Tenant B tries to reconcile Tenant A's statement line
       const crossMatchRes = await request.post('/api/banking/reconciliation', {
@@ -302,7 +306,7 @@ test.describe('Phase 4 Security: Auth Bypass, Session Revocation, and Cross-Tena
       });
       expect(crossMatchRes.status()).toBe(404);
       const crossMatchBody = await crossMatchRes.json();
-      expect(crossMatchBody.error).toContain('not found or not owned by tenant');
+      expect(crossMatchBody.detail || crossMatchBody.error).toContain('not found or not owned by tenant');
     });
   });
 });

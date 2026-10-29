@@ -2,14 +2,15 @@ import hashlib
 import uuid
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db_session
 from app.core.security import (
     create_session_jwt,
     decrypt_totp_secret,
+    revoke_session_token,
     verify_password,
     verify_totp_code,
 )
@@ -217,6 +218,23 @@ async def verify_2fa(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db_session)):
+    token = request.cookies.get("ledger_session")
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+
+    if token:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        await db.execute(
+            text(
+                "UPDATE sessions SET is_revoked = true, revoked_at = NOW(), revoked_reason = 'USER_LOGOUT' "
+                "WHERE session_token_hash = :th OR session_token_hash = :raw"
+            ),
+            {"th": token_hash, "raw": token},
+        )
+        await db.commit()
+        revoke_session_token(token)
+
     response.delete_cookie(key="ledger_session", path="/")
     return {"success": True, "message": "Logged out successfully."}

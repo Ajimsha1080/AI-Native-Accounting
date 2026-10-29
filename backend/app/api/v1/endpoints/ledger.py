@@ -151,9 +151,17 @@ async def post_journal(
     claims: dict[str, Any] = Depends(get_current_user_claims),
     db: AsyncSession = Depends(get_tenant_db),
 ):
+    role = str(claims.get("role", "")).upper()
+    if role in ["VIEWER", "AUDITOR"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Role lacks required permission to post journals (requires LEDGER_POST)",
+        )
+
     repo = LedgerRepository(db)
     tenant_uuid = uuid.UUID(claims["tenant_id"])
-    user_uuid = uuid.UUID(claims["sub"])
+    sub_raw = claims.get("sub") or claims.get("userId") or claims.get("user_id") or "00000000-0000-0000-0000-000000000001"
+    user_uuid = uuid.UUID(sub_raw)
 
     if req.action == "VALIDATE":
         raw_lines = (

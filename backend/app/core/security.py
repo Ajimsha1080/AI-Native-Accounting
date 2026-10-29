@@ -116,8 +116,53 @@ def create_session_jwt(
     return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
 
 
+_revoked_session_tokens: set[str] = set()
+
+
+def revoke_session_token(token: str) -> None:
+    """Marks a session token as revoked in-memory."""
+    _revoked_session_tokens.add(token)
+
+
+def is_session_revoked(token: str) -> bool:
+    """Checks whether a token has been revoked in-memory."""
+    return token in _revoked_session_tokens
+
+
 def verify_session_jwt(token: str) -> dict[str, Any]:
     """Verifies a JWT session token and returns decoded claims."""
+    if is_session_revoked(token):
+        raise AuthException("Session has been revoked. Please log in again.", code="SESSION_REVOKED")
+
+    parts = token.split(".")
+    if len(parts) == 2:
+        import base64
+        import hashlib
+        import hmac
+        import json
+
+        data_b64, sig_b64 = parts
+        expected_sig = hmac.new(settings.JWT_SECRET.encode(), data_b64.encode(), hashlib.sha256).digest()
+        padded_sig = sig_b64 + "=" * (-len(sig_b64) % 4)
+        try:
+            provided_sig = base64.urlsafe_b64decode(padded_sig)
+            if not hmac.compare_digest(provided_sig, expected_sig):
+                raise AuthException("Invalid signature on session token", code="INVALID_SIGNATURE")
+            padded_data = data_b64 + "=" * (-len(data_b64) % 4)
+            payload = json.loads(base64.urlsafe_b64decode(padded_data).decode("utf-8"))
+            exp_ms = payload.get("expiresAt") or (payload.get("exp") * 1000 if payload.get("exp") else None)
+            if exp_ms and time.time() * 1000 > exp_ms:
+                raise AuthException("Session has expired. Please log in again.", code="SESSION_EXPIRED")
+            if "userId" in payload and "sub" not in payload:
+                payload["sub"] = payload["userId"]
+            if "tenantId" in payload and "tenant_id" not in payload:
+                payload["tenant_id"] = payload["tenantId"]
+            return payload
+        except AuthException:
+            raise
+        except Exception as e:
+            raise AuthException(f"Invalid authentication token: {e!s}", code="INVALID_TOKEN")
+
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
         return payload
