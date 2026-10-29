@@ -13,6 +13,15 @@ import {
 
 import { Pool, PoolClient } from 'pg';
 
+function filsToDecimalString(fils: bigint): string {
+  const isNegative = fils < 0n;
+  const absFils = isNegative ? -fils : fils;
+  const major = absFils / 100n;
+  const minor = absFils % 100n;
+  const sign = isNegative ? '-' : '';
+  return `${sign}${major.toString()}.${minor.toString().padStart(2, '0')}`;
+}
+
 export interface McpCallToolRequest {
   toolName: string;
   arguments: Record<string, any>;
@@ -173,7 +182,38 @@ export class LedgerMcpServer {
 
     // 2. Dispatch Tool Execution
     if (req.toolName === 'get_trial_balance_summary') {
-      const mockTotalDebits = 50000000n; // AED 500,000.00
+      let totalDebits = 0n;
+      let totalCredits = 0n;
+
+      if (this.dbClient) {
+        try {
+          const res = await this.dbClient.query(
+            `SELECT COALESCE(SUM(jl.debit_minor_units), 0) AS total_debits,
+                    COALESCE(SUM(jl.credit_minor_units), 0) AS total_credits
+             FROM journal_lines jl
+             JOIN journal_entries je ON je.id = jl.journal_entry_id
+             WHERE je.tenant_id = $1 AND je.status = 'POSTED'`,
+            [tokenPayload.tenantId]
+          );
+          if (res.rows.length > 0) {
+            totalDebits = BigInt(res.rows[0].total_debits || 0);
+            totalCredits = BigInt(res.rows[0].total_credits || 0);
+          }
+        } catch (dbErr: any) {
+          return {
+            isSuccess: false,
+            content: [],
+            error: `DATABASE_ERROR: Failed to query trial balance totals: ${dbErr.message}`
+          };
+        }
+      } else if (process.env.NODE_ENV === 'production') {
+        return {
+          isSuccess: false,
+          content: [],
+          error: 'DATABASE_UNAVAILABLE: Real PostgreSQL database connection required in production.'
+        };
+      }
+
       return {
         isSuccess: true,
         content: [
@@ -181,9 +221,11 @@ export class LedgerMcpServer {
             type: 'text',
             text: JSON.stringify({
               periodId: req.arguments.periodId,
-              totalDebitsAed: formatMoney(mockTotalDebits, 'AED'),
-              totalCreditsAed: formatMoney(mockTotalDebits, 'AED'),
-              status: 'BALANCED',
+              tenantId: tokenPayload.tenantId,
+              totalDebitsAed: formatMoney(totalDebits, 'AED'),
+              totalCreditsAed: formatMoney(totalCredits, 'AED'),
+              varianceFils: (totalDebits - totalCredits).toString(),
+              status: totalDebits === totalCredits ? 'BALANCED' : 'UNBALANCED',
               queriedBy: tokenPayload.sub
             })
           }
@@ -192,6 +234,46 @@ export class LedgerMcpServer {
     }
 
     if (req.toolName === 'query_vat201_summary') {
+      let box1StandardRatedAed = '0.00';
+      let box1VatDueAed = '0.00';
+      let box10RecoverableInputVatAed = '0.00';
+      let netPayableAed = '0.00';
+
+      if (this.dbClient) {
+        try {
+          const res = await this.dbClient.query(
+            `SELECT COALESCE(SUM(CASE WHEN jl.direction = 'CREDIT' AND jl.vat_code LIKE '%SR%' THEN jl.amount_minor_units ELSE 0 END), 0) AS box1_supplies,
+                    COALESCE(SUM(CASE WHEN jl.direction = 'CREDIT' AND jl.vat_code LIKE '%SR%' THEN jl.vat_minor_units ELSE 0 END), 0) AS box1_vat,
+                    COALESCE(SUM(CASE WHEN jl.direction = 'DEBIT' AND jl.vat_code LIKE '%SR%' THEN jl.vat_minor_units ELSE 0 END), 0) AS box10_vat
+             FROM journal_lines jl
+             JOIN journal_entries je ON je.id = jl.journal_entry_id
+             WHERE je.tenant_id = $1 AND je.status = 'POSTED'`,
+            [tokenPayload.tenantId]
+          );
+          if (res.rows.length > 0) {
+            const b1Supplies = BigInt(res.rows[0].box1_supplies || 0);
+            const b1Vat = BigInt(res.rows[0].box1_vat || 0);
+            const b10Vat = BigInt(res.rows[0].box10_vat || 0);
+            box1StandardRatedAed = filsToDecimalString(b1Supplies);
+            box1VatDueAed = filsToDecimalString(b1Vat);
+            box10RecoverableInputVatAed = filsToDecimalString(b10Vat);
+            netPayableAed = filsToDecimalString(b1Vat - b10Vat);
+          }
+        } catch (dbErr: any) {
+          return {
+            isSuccess: false,
+            content: [],
+            error: `DATABASE_ERROR: Failed to query VAT 201 summary: ${dbErr.message}`
+          };
+        }
+      } else if (process.env.NODE_ENV === 'production') {
+        return {
+          isSuccess: false,
+          content: [],
+          error: 'DATABASE_UNAVAILABLE: Real PostgreSQL database connection required in production.'
+        };
+      }
+
       return {
         isSuccess: true,
         content: [
@@ -199,10 +281,11 @@ export class LedgerMcpServer {
             type: 'text',
             text: JSON.stringify({
               taxPeriod: req.arguments.taxPeriod,
-              box1StandardRatedAed: '50000.00',
-              box1VatDueAed: '2500.00',
-              box10RecoverableInputVatAed: '1000.00',
-              netPayableAed: '1500.00',
+              tenantId: tokenPayload.tenantId,
+              box1StandardRatedAed,
+              box1VatDueAed,
+              box10RecoverableInputVatAed,
+              netPayableAed,
               disclaimer: 'Calculated deterministically. VERIFY WITH UAE TAX ADVISOR.'
             })
           }

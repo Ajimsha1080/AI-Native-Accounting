@@ -45,11 +45,121 @@ export interface ArchivedEInvoice {
 }
 
 /**
+ * Production HTTP Adapter for Accredited Service Providers (ASPs) on the UAE Peppol Network.
+ * Dispatches PINT-AE UBL 2.1 documents to certified Access Points via OASIS AS4 / REST.
+ */
+export interface HttpAspConfig {
+  endpointUrl: string;
+  apiKey: string;
+  timeoutMs?: number;
+}
+
+export class HttpAspAdapter implements AspAdapter {
+  private config: HttpAspConfig;
+
+  constructor(config?: Partial<HttpAspConfig>) {
+    const endpointUrl = config?.endpointUrl || process.env.PEPPOL_ASP_ENDPOINT_URL || '';
+    const apiKey = config?.apiKey || process.env.PEPPOL_ASP_API_KEY || '';
+
+    if (process.env.NODE_ENV === 'production' && (!endpointUrl || !apiKey)) {
+      throw new Error(
+        'PEPPOL_ASP_CONFIG_REQUIRED: Production e-invoicing requires PEPPOL_ASP_ENDPOINT_URL and PEPPOL_ASP_API_KEY.'
+      );
+    }
+
+    this.config = {
+      endpointUrl,
+      apiKey,
+      timeoutMs: config?.timeoutMs || 15000
+    };
+  }
+
+  async transmitInvoice(request: AspTransmissionRequest | string): Promise<AspTransmissionResponse> {
+    const xml = typeof request === 'string' ? request : request.ublXml;
+    const invoiceId = typeof request === 'string' ? `inv-${Date.now()}` : request.invoiceId;
+    const idempotencyKey = typeof request === 'string' ? `idem-${Date.now()}` : request.idempotencyKey;
+
+    if (!this.config.endpointUrl || !this.config.apiKey) {
+      throw new Error('PEPPOL_ASP_UNAVAILABLE: Peppol Accredited Service Provider endpoint is not configured.');
+    }
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.config.timeoutMs);
+
+      const response = await fetch(this.config.endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Authorization': `Bearer ${this.config.apiKey}`,
+          'X-Idempotency-Key': idempotencyKey,
+          'X-Document-Id': invoiceId
+        },
+        body: xml,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (response.status === 200 || response.status === 201) {
+        const data = await response.json() as any;
+        return {
+          transmissionId: data.transmissionId || `ASP-${Date.now()}`,
+          status: PeppolMlsStatus.ACCEPTED,
+          mlsStatusCode: 'AP',
+          clearanceReference: data.clearanceReference || data.uuid,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
+        const errText = await response.text();
+        return {
+          transmissionId: `tx-transient-${Date.now()}`,
+          status: PeppolMlsStatus.FAILED_TRANSIENT,
+          mlsStatusCode: 'IP',
+          rejectionReason: `ASP_TEMPORARY_ERROR (${response.status}): ${errText}`,
+          isTransientError: true,
+          timestamp: new Date().toISOString()
+        };
+      }
+
+      const rejectionText = await response.text();
+      return {
+        transmissionId: `tx-err-${Date.now()}`,
+        status: PeppolMlsStatus.REJECTED,
+        mlsStatusCode: 'RE',
+        rejectionReason: `ASP_REJECTION (${response.status}): ${rejectionText}`,
+        isTransientError: false,
+        timestamp: new Date().toISOString()
+      };
+    } catch (err: any) {
+      return {
+        transmissionId: `tx-transient-${Date.now()}`,
+        status: PeppolMlsStatus.FAILED_TRANSIENT,
+        mlsStatusCode: 'IP',
+        rejectionReason: `ASP_CONNECTION_FAILED: ${err.message}`,
+        isTransientError: true,
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+}
+
+/**
  * Sandboxed Mock Adapter for Accredited Service Providers (ASPs) on the UAE Peppol Network.
- * Simulates real ASP network clearance, XML schema validation, and transient failure conditions.
+ * STRICT INVARIANT: Cannot be initialized in production.
  */
 export class SandboxAspAdapter implements AspAdapter {
   public simulateNetworkFailure: boolean = false;
+
+  constructor() {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'MOCK_ADAPTER_PROHIBITED: SandboxAspAdapter cannot be initialized in production. Use HttpAspAdapter with accredited Peppol credentials.'
+      );
+    }
+  }
 
   async transmitInvoice(request: AspTransmissionRequest | string): Promise<AspTransmissionResponse> {
     const xml = typeof request === 'string' ? request : request.ublXml;
