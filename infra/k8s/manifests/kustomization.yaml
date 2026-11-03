@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ledger-ae
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap.yaml
+  - 02-secrets.yaml
+  - 03-serviceaccounts.yaml
+  - 04-network-policies.yaml
+  - 05-postgres.yaml
+  - 06-redis.yaml
+  - 07-minio.yaml
+  - 08-temporal.yaml
+  - 09-migration-job.yaml
+  - 10-backend.yaml
+  - 11-web.yaml
+  - 12-worker.yaml
+  - 13-hpa.yaml
+  - 14-ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/part-of: ledger-ae
+  app.kubernetes.io/managed-by: kustomize

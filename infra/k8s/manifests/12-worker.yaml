@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ledger-temporal-worker
+  namespace: ledger-ae
+  labels:
+    app: ledger-temporal-worker
+    app.kubernetes.io/name: ledger-temporal-worker
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ledger-temporal-worker
+  template:
+    metadata:
+      labels:
+        app: ledger-temporal-worker
+    spec:
+      serviceAccountName: ledger-worker-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: worker
+          image: ledger-ae/worker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: ledger-config
+                  key: NODE_ENV
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: database-url
+            - name: TEMPORAL_ADDRESS
+              valueFrom:
+                configMapKeyRef:
+                  name: ledger-config
+                  key: TEMPORAL_ADDRESS
+            - name: S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: ledger-config
+                  key: S3_ENDPOINT
+            - name: S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: s3-access-key
+            - name: S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: s3-secret-key
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: ledger-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: ledger-config
+                  key: REDIS_PORT
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: redis-password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "512Mi"
+            limits:
+              cpu: "1500m"
+              memory: "2Gi"

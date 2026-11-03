@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ledger-config
+  namespace: ledger-ae
+  labels:
+    app.kubernetes.io/name: ledger-ae
+    app.kubernetes.io/part-of: ledger-ae
+data:
+  NODE_ENV: "production"
+  ENVIRONMENT: "production"
+  PORT: "3000"
+  BACKEND_PORT: "8000"
+  BACKEND_API_URL: "http://ledger-backend-svc.ledger-ae.svc.cluster.local:8000"
+  NEXT_PUBLIC_APP_URL: "https://app.ledgeraegroup.ae"
+  NEXT_PUBLIC_DEFAULT_LOCALE: "en"
+  DEFAULT_LOCALE: "en"
+  DEFAULT_TIMEZONE: "Asia/Dubai"
+  JURISDICTION: "AE"
+  CURRENCY_CODE: "AED"
+  CURRENCY_EXPONENT: "2"
+  NEXT_TELEMETRY_DISABLED: "1"
+  REDIS_HOST: "ledger-redis-svc.ledger-ae.svc.cluster.local"
+  REDIS_PORT: "6379"
+  TEMPORAL_ADDRESS: "temporal-frontend.ledger-ae.svc.cluster.local:7233"
+  S3_ENDPOINT: "http://ledger-minio-svc.ledger-ae.svc.cluster.local:9000"
+  S3_BUCKET: "ledger-ae-einvoices"
+  S3_REGION: "me-central-1"
+  LOG_LEVEL: "INFO"
+  ANTHROPIC_MODEL_ID: "claude-3-7-sonnet-20250219"

@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: temporal-server
+  namespace: ledger-ae
+  labels:
+    app: temporal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: temporal
+  template:
+    metadata:
+      labels:
+        app: temporal
+    spec:
+      containers:
+        - name: temporal
+          image: temporalio/auto-setup:1.24.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DB
+              value: "postgresql"
+            - name: DB_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: postgres-user
+            - name: POSTGRES_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: ledger-secrets
+                  key: postgres-password
+            - name: POSTGRES_SEEDS
+              value: "ledger-postgres-svc"
+            - name: DYNAMIC_CONFIG_FILE_PATH
+              value: "config/dynamicconfig/development-sql.yaml"
+          ports:
+            - containerPort: 7233
+              name: grpc
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: temporal-frontend
+  namespace: ledger-ae
+  labels:
+    app: temporal
+spec:
+  ports:
+    - port: 7233
+      targetPort: 7233
+      name: grpc
+  selector:
+    app: temporal
+  type: ClusterIP

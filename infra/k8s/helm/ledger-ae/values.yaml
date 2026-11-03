@@ -1,0 +1,148 @@
+# Default values for LedgerAE Helm Chart.
+# Declare variables to be passed into templates.
+
+global:
+  environment: production
+  namespace: ledger-ae
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# Frontend Next.js Web App
+web:
+  enabled: true
+  replicaCount: 3
+  image:
+    repository: ledger-ae/web
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 1500m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+
+# Authoritative Python FastAPI Backend
+backend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ledger-ae/backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 1500m
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 75
+    targetMemoryUtilizationPercentage: 80
+
+# Temporal Background Worker
+worker:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: ledger-ae/worker
+    tag: latest
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 300m
+      memory: 512Mi
+    limits:
+      cpu: 1500m
+      memory: 2Gi
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: app.ledgeraegroup.ae
+      paths:
+        - path: /
+          pathType: Prefix
+          service: web
+    - host: api.ledgeraegroup.ae
+      paths:
+        - path: /
+          pathType: Prefix
+          service: backend
+  tls:
+    - secretName: ledger-tls-cert
+      hosts:
+        - app.ledgeraegroup.ae
+        - api.ledgeraegroup.ae
+
+# ConfigMap Environment Variables
+config:
+  nodeEnv: production
+  environment: production
+  defaultLocale: en
+  timezone: Asia/Dubai
+  jurisdiction: AE
+  currencyCode: AED
+  logLevel: INFO
+  anthropicModelId: claude-3-7-sonnet-20250219
+  redisHost: ledger-redis-svc
+  redisPort: "6379"
+  temporalAddress: temporal-frontend:7233
+  s3Endpoint: http://ledger-minio-svc:9000
+  s3Bucket: ledger-ae-einvoices
+  s3Region: me-central-1
+
+# Secrets (use external secret stores or override in values-prod.yaml)
+secrets:
+  databaseUrl: "postgresql://ledger_admin:LedgerSecure_2026!@ledger-postgres-svc:5432/ledger_ae"
+  backendDatabaseUrl: "postgresql+asyncpg://ledger_admin:LedgerSecure_2026!@ledger-postgres-svc:5432/ledger_ae"
+  jwtSecret: "01234567890123456789012345678901"
+  totpEncryptionKey: "01234567890123456789012345678901"
+  nextauthSecret: "production_secret_32_chars_long_2026!"
+  anthropicApiKey: "sk-ant-production-placeholder-replace-in-vault"
+  s3AccessKey: "ledger_minio_admin"
+  s3SecretKey: "LedgerMinioSecret_2026!"
+  redisPassword: "LedgerRedisAuth_2026!"
+  postgresUser: "ledger_admin"
+  postgresPassword: "LedgerSecure_2026!"
+  postgresDb: "ledger_ae"
+
+# Database Migration Job
+migration:
+  enabled: true
+  image:
+    repository: ledger-ae/migrate
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Security & Policies
+networkPolicy:
+  enabled: true
+
+serviceAccounts:
+  create: true

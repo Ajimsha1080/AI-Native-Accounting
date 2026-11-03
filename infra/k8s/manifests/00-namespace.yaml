@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ledger-ae
+  labels:
+    name: ledger-ae
+    app.kubernetes.io/name: ledger-ae
+    app.kubernetes.io/part-of: ledger-ae
+    app.kubernetes.io/managed-by: kustomize
+    environment: production
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

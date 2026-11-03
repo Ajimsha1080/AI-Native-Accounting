@@ -1,0 +1,17 @@
+apiVersion: v2
+name: ledger-ae
+description: Production-grade Helm chart for LedgerAE - AI-Native Financial ERP for the UAE
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - accounting
+  - erp
+  - uae
+  - fast-api
+  - nextjs
+  - temporal
+home: https://github.com/Ajimsha1080/AI-Native-Accounting
+maintainers:
+  - name: LedgerAE Core Team
+    email: devops@ledgeraegroup.ae
