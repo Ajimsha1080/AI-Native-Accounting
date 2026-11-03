@@ -238,3 +238,46 @@ CREATE POLICY tenant_isolation_journal_entries ON journal_entries
 
 CREATE POLICY tenant_isolation_journal_lines ON journal_lines
     FOR ALL USING (tenant_id = app.get_current_tenant_id());
+
+-- ==============================================================================
+-- Tenant-Isolated Custom RAG Knowledge Base Documents & Semantic Chunks
+-- ==============================================================================
+CREATE TABLE IF NOT EXISTS tenant_rag_documents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    filename VARCHAR(255) NOT NULL,
+    file_type VARCHAR(50) NOT NULL,
+    file_size_bytes BIGINT NOT NULL DEFAULT 0,
+    title VARCHAR(255) NOT NULL,
+    category VARCHAR(50) NOT NULL DEFAULT 'GENERAL',
+    status VARCHAR(50) NOT NULL DEFAULT 'PROCESSED',
+    chunk_count INT NOT NULL DEFAULT 0,
+    uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS tenant_rag_chunks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    document_id UUID NOT NULL REFERENCES tenant_rag_documents(id) ON DELETE CASCADE,
+    chunk_index INT NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    keywords TEXT[] NOT NULL DEFAULT '{}',
+    token_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_rag_docs_tenant ON tenant_rag_documents(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_rag_chunks_tenant ON tenant_rag_chunks(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenant_rag_chunks_doc ON tenant_rag_chunks(document_id);
+
+ALTER TABLE tenant_rag_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_rag_chunks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY tenant_isolation_rag_documents ON tenant_rag_documents
+    FOR ALL USING (tenant_id = app.get_current_tenant_id());
+
+CREATE POLICY tenant_isolation_rag_chunks ON tenant_rag_chunks
+    FOR ALL USING (tenant_id = app.get_current_tenant_id());
+

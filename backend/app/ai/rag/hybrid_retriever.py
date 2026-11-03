@@ -9,6 +9,7 @@ from typing import NamedTuple
 
 from app.ai.rag.guidance_store import STATUTORY_GUIDANCE_CORPUS, GuidanceChunk
 from app.ai.rag.schemas import RetrievedPassage
+from app.ai.rag.tenant_knowledge import get_tenant_chunks
 
 
 class HybridRetrievalCandidates(NamedTuple):
@@ -76,11 +77,15 @@ class HybridRetriever:
         dense_results: list[RetrievedPassage] = []
         sparse_results: list[RetrievedPassage] = []
 
+        # Combine statutory guidance with tenant-isolated custom document chunks
+        tenant_docs = get_tenant_chunks(tenant_id)
+        effective_corpus = list(self.corpus) + tenant_docs
+
         query_terms = [t.strip("?,.:;\"'") for t in query.lower().split() if len(t) > 2]
-        avg_doc_len = sum(len(c.content.split()) for c in self.corpus) / max(len(self.corpus), 1)
+        avg_doc_len = sum(len(c.content.split()) for c in effective_corpus) / max(len(effective_corpus), 1)
 
         # 1. Sparse BM25 Scoring
-        for chunk in self.corpus:
+        for chunk in effective_corpus:
             if category and chunk.category.upper() != category.upper():
                 continue
 
@@ -104,7 +109,7 @@ class HybridRetriever:
         sparse_results.sort(key=lambda x: x.score, reverse=True)
 
         # 2. Dense Semantic Scoring
-        for chunk in self.corpus:
+        for chunk in effective_corpus:
             if category and chunk.category.upper() != category.upper():
                 continue
 

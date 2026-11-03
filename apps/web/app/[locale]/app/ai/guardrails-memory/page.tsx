@@ -29,7 +29,10 @@ import {
   Coins,
   Scale,
   Radio,
-  ExternalLink
+  ExternalLink,
+  UploadCloud,
+  FileText,
+  BookOpen
 } from 'lucide-react';
 
 function formatTokenRate(val: number, decimals: number = 4): string {
@@ -102,15 +105,36 @@ interface LlmProvider {
   isConfigured: boolean;
 }
 
+interface RagDocumentItem {
+  id: string;
+  filename: string;
+  title: string;
+  category: string;
+  fileType: string;
+  fileSizeBytes: number;
+  chunkCount: number;
+  status: string;
+  createdAt: string | null;
+}
+
 function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> }) {
   const [locale, setLocale] = useState<'en' | 'ar'>('en');
   useEffect(() => {
     params.then((p) => setLocale(p.locale as 'en' | 'ar'));
   }, [params]);
 
-  const [activeTab, setActiveTab] = useState<'guardrails' | 'memory' | 'gateway' | 'testbench'>('guardrails');
+  const [activeTab, setActiveTab] = useState<'guardrails' | 'memory' | 'gateway' | 'testbench' | 'rag-docs'>('guardrails');
   const [guardrails, setGuardrails] = useState<GuardrailItem[]>([]);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [ragDocuments, setRagDocuments] = useState<RagDocumentItem[]>([]);
+  const [isUploadingRagDoc, setIsUploadingRagDoc] = useState(false);
+  const [uploadFeedback, setUploadFeedback] = useState<string | null>(null);
+  const [ragUploadCategory, setRagUploadCategory] = useState<string>('CONTRACT');
+  const [ragCustomTitle, setRagCustomTitle] = useState<string>('');
+  const [ragFileToUpload, setRagFileToUpload] = useState<File | null>(null);
+  const [ragSearchQuery, setRagSearchQuery] = useState('What are the termination terms in our contract?');
+  const [isRagSearching, setIsRagSearching] = useState(false);
+  const [ragSearchResults, setRagSearchResults] = useState<any[]>([]);
   const [telemetry, setTelemetry] = useState<Record<string, any>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
@@ -153,11 +177,12 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
     setIsLoading(true);
     setIsError(false);
     try {
-      const [grRes, memRes, provRes, lsRes] = await Promise.all([
+      const [grRes, memRes, provRes, lsRes, ragDocsRes] = await Promise.all([
         fetch('/api/ai/guardrails/status'),
         fetch('/api/ai/memory'),
         fetch('/api/ai/llm/providers'),
-        fetch('/api/ai/langsmith/status').catch(() => null)
+        fetch('/api/ai/langsmith/status').catch(() => null),
+        fetch('/api/ai/rag/documents').catch(() => null)
       ]);
 
       if (!grRes.ok || !memRes.ok) {
@@ -170,6 +195,10 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
       if (lsRes && lsRes.ok) {
         const lsData = await lsRes.json();
         setLangsmithStatus(lsData.data || null);
+      }
+      if (ragDocsRes && ragDocsRes.ok) {
+        const rDocsData = await ragDocsRes.json();
+        setRagDocuments(rDocsData.documents || []);
       }
 
       setGuardrails(grData.guardrails || []);
@@ -367,6 +396,75 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
     });
   }, [memories, selectedMemoryType, memorySearchQuery]);
 
+  const handleUploadRagDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ragFileToUpload) return;
+    setIsUploadingRagDoc(true);
+    setUploadFeedback(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', ragFileToUpload);
+      formData.append('category', ragUploadCategory);
+      if (ragCustomTitle.trim()) {
+        formData.append('title', ragCustomTitle.trim());
+      }
+      const res = await fetch('/api/ai/rag/documents/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUploadFeedback(`✓ ${data.message || 'Document uploaded and indexed successfully!'}`);
+        setRagFileToUpload(null);
+        setRagCustomTitle('');
+        const refreshRes = await fetch('/api/ai/rag/documents');
+        if (refreshRes.ok) {
+          const rJson = await refreshRes.json();
+          setRagDocuments(rJson.documents || []);
+        }
+      } else {
+        setUploadFeedback(`✗ Error: ${data.detail || data.message || 'Upload failed'}`);
+      }
+    } catch (err: any) {
+      setUploadFeedback(`✗ Network error: ${err.message || 'Could not upload'}`);
+    } finally {
+      setIsUploadingRagDoc(false);
+    }
+  };
+
+  const handleDeleteRagDocument = async (docId: string) => {
+    if (!confirm('Are you sure you want to delete this document from your RAG knowledge base?')) return;
+    try {
+      const res = await fetch(`/api/ai/rag/documents/${docId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRagDocuments(prev => prev.filter(d => d.id !== docId));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleTestRagSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ragSearchQuery.trim()) return;
+    setIsRagSearching(true);
+    try {
+      const res = await fetch('/api/ai/rag/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: ragSearchQuery, topK: 5 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRagSearchResults(data.results || []);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsRagSearching(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-12" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
       {/* Hero Header */}
@@ -475,6 +573,20 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
           >
             <Terminal className="w-4 h-4" />
             {locale === 'ar' ? 'منصة الفحص المباشر' : 'Live Guardrail Test Bench'}
+          </button>
+          <button
+            onClick={() => setActiveTab('rag-docs')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg transition-all whitespace-nowrap ${
+              activeTab === 'rag-docs'
+                ? 'text-purple-400 border-b-2 border-purple-500 bg-white/[0.03]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <BookOpen className="w-4 h-4" />
+            {locale === 'ar' ? 'وثائق ومعرفة RAG للمستخدم' : 'RAG Knowledge & User Files'}
+            <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 font-mono">
+              {ragDocuments.length}
+            </span>
           </button>
         </div>
       </div>
@@ -1014,6 +1126,251 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
           </div>
         )}
 
+        {/* TAB 5: RAG USER DOCUMENTS & KNOWLEDGE BASE */}
+        {activeTab === 'rag-docs' && (
+          <div className="space-y-8">
+            {/* Top Overview Banner */}
+            <div className="glass-panel p-6 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-transparent">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      {locale === 'ar' ? 'قاعدة معرفة RAG المخصصة للشركة' : 'Tenant RAG Knowledge Base & Custom Document Upload'}
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      {locale === 'ar'
+                        ? 'ارفع عقود شركتك، فتاوى الضرائب، واللوائح الداخلية. يقوم محرك RAG بتقسيمها دلالياً واسترجاعها تلقائياً مع القوانين الإماراتية.'
+                        : 'Upload corporate contracts, tax rulings, and company bylaws. The RAG engine chunks and indexes them with strict tenant isolation.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-xs font-mono text-purple-300">
+                    {ragDocuments.length} Documents Indexed
+                  </span>
+                  <span className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
+                    Zero Cross-Tenant Leakage
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Upload Form & Live RAG Search Tester */}
+              <div className="lg:col-span-5 space-y-6">
+                {/* Upload Form Card */}
+                <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-5">
+                  <div className="flex items-center gap-2.5">
+                    <UploadCloud className="w-5 h-5 text-purple-400" />
+                    <h4 className="text-sm font-semibold text-white">
+                      {locale === 'ar' ? 'رفع وثيقة جديدة إلى RAG' : 'Upload Document to RAG'}
+                    </h4>
+                  </div>
+
+                  <form onSubmit={handleUploadRagDocument} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                        {locale === 'ar' ? 'ملف الوثيقة (PDF, TXT, MD, CSV, JSON)' : 'Document File (PDF, TXT, MD, CSV, JSON)'}
+                      </label>
+                      <input
+                        type="file"
+                        accept=".pdf,.txt,.md,.markdown,.csv,.json"
+                        onChange={(e) => setRagFileToUpload(e.target.files?.[0] || null)}
+                        className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30 cursor-pointer bg-white/[0.03] border border-white/[0.08] rounded-xl p-2"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                        {locale === 'ar' ? 'عنوان الوثيقة (اختياري)' : 'Document Title (Optional)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={ragCustomTitle}
+                        onChange={(e) => setRagCustomTitle(e.target.value)}
+                        placeholder="e.g. Al Noor Master Cloud Services Agreement 2026"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                        {locale === 'ar' ? 'تصنيف الوثيقة' : 'Document Category'}
+                      </label>
+                      <select
+                        value={ragUploadCategory}
+                        onChange={(e) => setRagUploadCategory(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#0f172a] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="CONTRACT">Contract & Legal Agreement</option>
+                        <option value="TAX_RULING">Tax Ruling & Memorandum</option>
+                        <option value="POLICY">Accounting & Corporate Policy</option>
+                        <option value="VENDOR_AGREEMENT">Vendor & Supplier Terms</option>
+                        <option value="GENERAL">General Knowledge</option>
+                      </select>
+                    </div>
+
+                    {uploadFeedback && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-medium border ${
+                          uploadFeedback.startsWith('✓')
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                        }`}
+                      >
+                        {uploadFeedback}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isUploadingRagDoc || !ragFileToUpload}
+                      className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm transition-all shadow-lg shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isUploadingRagDoc ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Processing & Chunking...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Ingest into RAG Knowledge Base</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Live RAG Retrieval Tester */}
+                <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-4 h-4 text-cyan-400" />
+                    <h4 className="text-sm font-semibold text-white">
+                      {locale === 'ar' ? 'اختبار استرجاع RAG المباشر' : 'Test Live RAG Retrieval'}
+                    </h4>
+                  </div>
+                  <form onSubmit={handleTestRagSearch} className="space-y-3">
+                    <input
+                      type="text"
+                      value={ragSearchQuery}
+                      onChange={(e) => setRagSearchQuery(e.target.value)}
+                      placeholder="Ask a question about your uploaded contracts or tax laws..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isRagSearching || !ragSearchQuery.trim()}
+                      className="w-full py-2 px-3 rounded-lg bg-cyan-600/30 hover:bg-cyan-600/40 border border-cyan-500/40 text-cyan-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                    >
+                      {isRagSearching ? 'Searching...' : 'Search Knowledge Base (Hybrid + RRF)'}
+                    </button>
+                  </form>
+
+                  {ragSearchResults.length > 0 && (
+                    <div className="space-y-2.5 pt-2">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Retrieved Passages ({ragSearchResults.length}):
+                      </span>
+                      {ragSearchResults.map((r, i) => (
+                        <div
+                          key={i}
+                          className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-purple-300 font-mono">
+                              {r.lawReference || r.titleEn}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-white/[0.06] text-slate-400 font-mono">
+                              Score: {r.relevanceScore}
+                            </span>
+                          </div>
+                          <p className="text-slate-300 leading-relaxed line-clamp-3">
+                            {r.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: List of Uploaded Documents */}
+              <div className="lg:col-span-7">
+                <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="w-5 h-5 text-purple-400" />
+                      <h4 className="text-sm font-semibold text-white">
+                        {locale === 'ar' ? 'الوثائق المفهرسة حالياً' : 'Indexed Company Documents'}
+                      </h4>
+                    </div>
+                    <button
+                      onClick={fetchData}
+                      className="px-2.5 py-1 text-xs text-slate-400 hover:text-white rounded-lg border border-white/[0.08] bg-white/[0.02]"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {ragDocuments.length === 0 ? (
+                    <div className="p-12 text-center border border-dashed border-white/[0.08] rounded-xl space-y-2">
+                      <FileText className="w-10 h-10 text-slate-600 mx-auto" />
+                      <p className="text-sm text-slate-400 font-medium">
+                        No custom company documents uploaded yet.
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        Upload your corporate agreements, tax rulings, or bylaws on the left to allow the AI Copilot to answer questions with exact citations to your documents.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {ragDocuments.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-purple-500/30 transition-all flex items-start justify-between gap-4"
+                        >
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm text-white truncate">
+                                {doc.title}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                {doc.category}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.05] text-slate-400">
+                                {doc.fileType}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-400">
+                              <span>File: {doc.filename}</span>
+                              <span>•</span>
+                              <span>{doc.chunkCount} semantic chunks</span>
+                              <span>•</span>
+                              <span>{Math.round(doc.fileSizeBytes / 1024)} KB</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteRagDocument(doc.id)}
+                            className="p-2 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            title="Delete Document"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* TAB 4: LIVE GUARDRAIL TEST BENCH */}
         {activeTab === 'testbench' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -1202,6 +1559,251 @@ function GuardrailsMemoryView({ params }: { params: Promise<{ locale: string }> 
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: RAG USER DOCUMENTS & KNOWLEDGE BASE */}
+        {activeTab === 'rag-docs' && (
+          <div className="space-y-8">
+            {/* Top Overview Banner */}
+            <div className="glass-panel p-6 rounded-2xl border border-purple-500/20 bg-gradient-to-r from-purple-500/10 via-indigo-500/5 to-transparent">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-3 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white">
+                      {locale === 'ar' ? 'قاعدة معرفة RAG المخصصة للشركة' : 'Tenant RAG Knowledge Base & Custom Document Upload'}
+                    </h3>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      {locale === 'ar'
+                        ? 'ارفع عقود شركتك، فتاوى الضرائب، واللوائح الداخلية. يقوم محرك RAG بتقسيمها دلالياً واسترجاعها تلقائياً مع القوانين الإماراتية.'
+                        : 'Upload corporate contracts, tax rulings, and company bylaws. The RAG engine chunks and indexes them with strict tenant isolation.'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1.5 rounded-lg bg-white/[0.05] border border-white/[0.1] text-xs font-mono text-purple-300">
+                    {ragDocuments.length} Documents Indexed
+                  </span>
+                  <span className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-mono text-emerald-400">
+                    Zero Cross-Tenant Leakage
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Left Column: Upload Form & Live RAG Search Tester */}
+              <div className="lg:col-span-5 space-y-6">
+                {/* Upload Form Card */}
+                <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-5">
+                  <div className="flex items-center gap-2.5">
+                    <UploadCloud className="w-5 h-5 text-purple-400" />
+                    <h4 className="text-sm font-semibold text-white">
+                      {locale === 'ar' ? 'رفع وثيقة جديدة إلى RAG' : 'Upload Document to RAG'}
+                    </h4>
+                  </div>
+
+                  <form onSubmit={handleUploadRagDocument} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                        {locale === 'ar' ? 'ملف الوثيقة (PDF, TXT, MD, CSV, JSON)' : 'Document File (PDF, TXT, MD, CSV, JSON)'}
+                      </label>
+                      <input
+                        type="file"
+                        accept=".pdf,.txt,.md,.markdown,.csv,.json"
+                        onChange={(e) => setRagFileToUpload(e.target.files?.[0] || null)}
+                        className="block w-full text-xs text-slate-300 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-500/20 file:text-purple-300 hover:file:bg-purple-500/30 cursor-pointer bg-white/[0.03] border border-white/[0.08] rounded-xl p-2"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                        {locale === 'ar' ? 'عنوان الوثيقة (اختياري)' : 'Document Title (Optional)'}
+                      </label>
+                      <input
+                        type="text"
+                        value={ragCustomTitle}
+                        onChange={(e) => setRagCustomTitle(e.target.value)}
+                        placeholder="e.g. Al Noor Master Cloud Services Agreement 2026"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-medium text-slate-300 block mb-1.5">
+                        {locale === 'ar' ? 'تصنيف الوثيقة' : 'Document Category'}
+                      </label>
+                      <select
+                        value={ragUploadCategory}
+                        onChange={(e) => setRagUploadCategory(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-[#0f172a] border border-white/[0.08] text-sm text-white focus:outline-none focus:border-purple-500"
+                      >
+                        <option value="CONTRACT">Contract & Legal Agreement</option>
+                        <option value="TAX_RULING">Tax Ruling & Memorandum</option>
+                        <option value="POLICY">Accounting & Corporate Policy</option>
+                        <option value="VENDOR_AGREEMENT">Vendor & Supplier Terms</option>
+                        <option value="GENERAL">General Knowledge</option>
+                      </select>
+                    </div>
+
+                    {uploadFeedback && (
+                      <div
+                        className={`p-3 rounded-xl text-xs font-medium border ${
+                          uploadFeedback.startsWith('✓')
+                            ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'
+                            : 'bg-rose-500/10 text-rose-300 border-rose-500/20'
+                        }`}
+                      >
+                        {uploadFeedback}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={isUploadingRagDoc || !ragFileToUpload}
+                      className="w-full py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-medium text-sm transition-all shadow-lg shadow-purple-600/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isUploadingRagDoc ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Processing & Chunking...</span>
+                        </>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-4 h-4" />
+                          <span>Ingest into RAG Knowledge Base</span>
+                        </>
+                      )}
+                    </button>
+                  </form>
+                </div>
+
+                {/* Live RAG Retrieval Tester */}
+                <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Search className="w-4 h-4 text-cyan-400" />
+                    <h4 className="text-sm font-semibold text-white">
+                      {locale === 'ar' ? 'اختبار استرجاع RAG المباشر' : 'Test Live RAG Retrieval'}
+                    </h4>
+                  </div>
+                  <form onSubmit={handleTestRagSearch} className="space-y-3">
+                    <input
+                      type="text"
+                      value={ragSearchQuery}
+                      onChange={(e) => setRagSearchQuery(e.target.value)}
+                      placeholder="Ask a question about your uploaded contracts or tax laws..."
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isRagSearching || !ragSearchQuery.trim()}
+                      className="w-full py-2 px-3 rounded-lg bg-cyan-600/30 hover:bg-cyan-600/40 border border-cyan-500/40 text-cyan-200 text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                    >
+                      {isRagSearching ? 'Searching...' : 'Search Knowledge Base (Hybrid + RRF)'}
+                    </button>
+                  </form>
+
+                  {ragSearchResults.length > 0 && (
+                    <div className="space-y-2.5 pt-2">
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                        Retrieved Passages ({ragSearchResults.length}):
+                      </span>
+                      {ragSearchResults.map((r, i) => (
+                        <div
+                          key={i}
+                          className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-purple-300 font-mono">
+                              {r.lawReference || r.titleEn}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-white/[0.06] text-slate-400 font-mono">
+                              Score: {r.relevanceScore}
+                            </span>
+                          </div>
+                          <p className="text-slate-300 leading-relaxed line-clamp-3">
+                            {r.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Column: List of Uploaded Documents */}
+              <div className="lg:col-span-7">
+                <div className="glass-panel p-6 rounded-2xl border border-white/[0.08] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <FileText className="w-5 h-5 text-purple-400" />
+                      <h4 className="text-sm font-semibold text-white">
+                        {locale === 'ar' ? 'الوثائق المفهرسة حالياً' : 'Indexed Company Documents'}
+                      </h4>
+                    </div>
+                    <button
+                      onClick={fetchData}
+                      className="px-2.5 py-1 text-xs text-slate-400 hover:text-white rounded-lg border border-white/[0.08] bg-white/[0.02]"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+
+                  {ragDocuments.length === 0 ? (
+                    <div className="p-12 text-center border border-dashed border-white/[0.08] rounded-xl space-y-2">
+                      <FileText className="w-10 h-10 text-slate-600 mx-auto" />
+                      <p className="text-sm text-slate-400 font-medium">
+                        No custom company documents uploaded yet.
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                        Upload your corporate agreements, tax rulings, or bylaws on the left to allow the AI Copilot to answer questions with exact citations to your documents.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {ragDocuments.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:border-purple-500/30 transition-all flex items-start justify-between gap-4"
+                        >
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm text-white truncate">
+                                {doc.title}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                                {doc.category}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.05] text-slate-400">
+                                {doc.fileType}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-400">
+                              <span>File: {doc.filename}</span>
+                              <span>•</span>
+                              <span>{doc.chunkCount} semantic chunks</span>
+                              <span>•</span>
+                              <span>{Math.round(doc.fileSizeBytes / 1024)} KB</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteRagDocument(doc.id)}
+                            className="p-2 text-slate-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            title="Delete Document"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -1,8 +1,11 @@
+import uuid
 from datetime import date
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field
+from sqlalchemy import delete, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.guardrails.financial_guardrails import (
     DEFAULT_HITL_THRESHOLD_FILS,
@@ -12,8 +15,12 @@ from app.ai.guardrails.guardrail_orchestrator import GuardrailOrchestrator
 from app.ai.langsmith_client import langsmith_manager
 from app.ai.llm_gateway import LiteLLMGateway
 from app.ai.memory import AgentMemoryEngine, MemoryType
+from app.ai.rag.document_ingestion import parse_and_process_document
 from app.ai.rag.retrieval import StatutoryRagEngine
-from app.api.deps import get_current_user_claims
+from app.ai.rag.tenant_knowledge import register_tenant_document_chunks, remove_tenant_document
+from app.api.deps import get_current_user_claims, get_tenant_db
+from app.models.auth import User
+from app.models.ledger import TenantRagChunk, TenantRagDocument
 
 router = APIRouter(prefix="/ai", tags=["AI & RAG Services"])
 
@@ -389,4 +396,192 @@ async def dispatch_langsmith_test_trace(
         "success": True,
         "data": res,
     }
+
+
+# -----------------------------------------------------------------------------
+# Tenant Custom Document Upload & Knowledge Base Endpoints for RAG
+# -----------------------------------------------------------------------------
+@router.post("/rag/documents/upload", status_code=status.HTTP_201_CREATED)
+async def upload_document_for_rag(
+    file: UploadFile = File(...),
+    category: str = Form("GENERAL"),
+    title: str | None = Form(None),
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Uploads, parses, and semantically chunks a user document into the tenant's RAG knowledge base.
+
+    Supports PDF, TXT, MD, CSV, and JSON files up to 10MB.
+    """
+    tenant_id_str = claims["tenant_id"]
+    tenant_uuid = uuid.UUID(tenant_id_str)
+    user_uuid: uuid.UUID | None = None
+    if claims.get("sub"):
+        try:
+            cand_user = uuid.UUID(claims["sub"])
+            u_res = await db.execute(select(User.id).where(User.id == cand_user))
+            if u_res.scalar_one_or_none():
+                user_uuid = cand_user
+        except Exception:
+            user_uuid = None
+
+    # 1. Read and validate file content
+    content = await file.read()
+    if len(content) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file is empty.",
+        )
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File size exceeds the 10MB limit for RAG document processing.",
+        )
+
+    # 2. Parse and chunk document
+    filename = file.filename or "uploaded_document.txt"
+    doc_title = title.strip() if title and title.strip() else filename
+    parsed = parse_and_process_document(
+        file_bytes=content,
+        filename=filename,
+        custom_title=doc_title,
+        category=category,
+    )
+
+    if not parsed.chunks:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract readable text or sections from the uploaded file.",
+        )
+
+    # 3. Persist document record
+    doc_rec = TenantRagDocument(
+        id=uuid.uuid4(),
+        tenant_id=tenant_uuid,
+        filename=filename,
+        file_type=parsed.file_type,
+        file_size_bytes=len(content),
+        title=doc_title,
+        category=category.upper(),
+        status="PROCESSED",
+        chunk_count=len(parsed.chunks),
+        uploaded_by=user_uuid,
+    )
+    db.add(doc_rec)
+    await db.flush()
+
+    # 4. Persist semantic chunk records
+    chunk_records: list[TenantRagChunk] = []
+    for chunk in parsed.chunks:
+        c_rec = TenantRagChunk(
+            id=uuid.uuid4(),
+            tenant_id=tenant_uuid,
+            document_id=doc_rec.id,
+            chunk_index=chunk.chunk_index,
+            title=chunk.title,
+            content=chunk.content,
+            keywords=chunk.keywords,
+            token_count=chunk.token_count,
+        )
+        db.add(c_rec)
+        chunk_records.append(c_rec)
+
+    await db.commit()
+
+    # 5. Register in active tenant knowledge cache for instantaneous RAG retrieval
+    register_tenant_document_chunks(
+        tenant_id=tenant_id_str,
+        document_id=str(doc_rec.id),
+        document_title=doc_title,
+        category=category,
+        chunks=parsed.chunks,
+    )
+
+    return {
+        "success": True,
+        "message": f"Document '{filename}' successfully ingested into RAG knowledge base.",
+        "document": {
+            "id": str(doc_rec.id),
+            "filename": doc_rec.filename,
+            "title": doc_rec.title,
+            "category": doc_rec.category,
+            "fileType": doc_rec.file_type,
+            "fileSizeBytes": doc_rec.file_size_bytes,
+            "chunkCount": doc_rec.chunk_count,
+            "totalTokens": parsed.total_tokens,
+            "status": doc_rec.status,
+            "createdAt": doc_rec.created_at.isoformat(),
+        },
+    }
+
+
+@router.get("/rag/documents")
+async def list_tenant_rag_documents(
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Lists all user-uploaded knowledge base documents for the active tenant."""
+    tenant_uuid = uuid.UUID(claims["tenant_id"])
+    stmt = (
+        select(TenantRagDocument)
+        .where(TenantRagDocument.tenant_id == tenant_uuid)
+        .order_by(desc(TenantRagDocument.created_at))
+    )
+    res = await db.execute(stmt)
+    docs = res.scalars().all()
+
+    return {
+        "success": True,
+        "count": len(docs),
+        "documents": [
+            {
+                "id": str(d.id),
+                "filename": d.filename,
+                "title": d.title,
+                "category": d.category,
+                "fileType": d.file_type,
+                "fileSizeBytes": d.file_size_bytes,
+                "chunkCount": d.chunk_count,
+                "status": d.status,
+                "createdAt": d.created_at.isoformat() if d.created_at else None,
+            }
+            for d in docs
+        ],
+    }
+
+
+@router.delete("/rag/documents/{document_id}")
+async def delete_tenant_rag_document(
+    document_id: str,
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+    db: AsyncSession = Depends(get_tenant_db),
+):
+    """Deletes an uploaded document and all its indexed chunks from the tenant's RAG knowledge base."""
+    tenant_id_str = claims["tenant_id"]
+    tenant_uuid = uuid.UUID(tenant_id_str)
+    doc_uuid = uuid.UUID(document_id)
+
+    # 1. Delete from database (cascades to chunks)
+    stmt = (
+        delete(TenantRagDocument)
+        .where(TenantRagDocument.id == doc_uuid, TenantRagDocument.tenant_id == tenant_uuid)
+    )
+    res = await db.execute(stmt)
+    await db.commit()
+
+    if (res.rowcount or 0) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found or not owned by active tenant.",
+        )
+
+    # 2. Remove from active in-memory retrieval cache
+    remove_tenant_document(tenant_id=tenant_id_str, document_id=document_id)
+
+    return {
+        "success": True,
+        "message": "Document and all corresponding RAG chunks deleted successfully.",
+        "documentId": document_id,
+    }
+
 
