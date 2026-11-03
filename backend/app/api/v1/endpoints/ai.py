@@ -18,7 +18,7 @@ from app.ai.memory import AgentMemoryEngine, MemoryType
 from app.ai.rag.document_ingestion import parse_and_process_document
 from app.ai.rag.retrieval import StatutoryRagEngine
 from app.ai.rag.tenant_knowledge import register_tenant_document_chunks, remove_tenant_document
-from app.api.deps import get_current_user_claims, get_tenant_db
+from app.api.deps import get_current_user_claims, get_optional_user_claims, get_tenant_db
 from app.models.auth import User
 from app.models.ledger import TenantRagChunk, TenantRagDocument
 
@@ -360,7 +360,7 @@ async def complete_with_llm(
 # -----------------------------------------------------------------------------
 @router.get("/langsmith/status")
 async def get_langsmith_status(
-    claims: dict[str, Any] = Depends(get_current_user_claims),
+    claims: dict[str, Any] | None = Depends(get_optional_user_claims),
 ):
     """Returns LangSmith enterprise observability state, project, and connectivity health."""
     return {
@@ -371,7 +371,7 @@ async def get_langsmith_status(
 
 @router.post("/langsmith/check-connection")
 async def check_langsmith_connection(
-    claims: dict[str, Any] = Depends(get_current_user_claims),
+    claims: dict[str, Any] | None = Depends(get_optional_user_claims),
 ):
     """Tests live reachability of LangSmith enterprise cluster."""
     result = langsmith_manager.check_connection()
@@ -384,13 +384,15 @@ async def check_langsmith_connection(
 @router.post("/langsmith/test-trace")
 async def dispatch_langsmith_test_trace(
     req: LangSmithTestTraceRequest,
-    claims: dict[str, Any] = Depends(get_current_user_claims),
+    claims: dict[str, Any] | None = Depends(get_optional_user_claims),
 ):
     """Dispatches a test trace to verify telemetry capture in the LangSmith project."""
+    user_id = claims.get("sub") if claims else "developer"
+    tenant_id = claims.get("tenant_id") if claims else "system"
     res = langsmith_manager.dispatch_test_trace(
         query=req.query,
         response=req.response or "Verified statutory test output.",
-        metadata={"user_id": claims.get("sub"), "tenant_id": claims.get("tenant_id")},
+        metadata={"user_id": user_id, "tenant_id": tenant_id},
     )
     return {
         "success": True,

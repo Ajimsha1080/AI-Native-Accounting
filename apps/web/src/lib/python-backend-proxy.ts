@@ -18,10 +18,27 @@ export async function proxyToPythonBackend(request: NextRequest): Promise<NextRe
   headers.set('X-Forwarded-Proto', 'http');
   headers.delete('host');
 
+  // In development, supply default tenant and user context if not authenticated
+  const cookieHeader = request.headers.get('cookie') || '';
+  if (!headers.has('authorization') && !cookieHeader.includes('ledger_session')) {
+    if (!headers.has('x-tenant-id')) {
+      headers.set('x-tenant-id', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa');
+    }
+    if (!headers.has('x-user-id')) {
+      headers.set('x-user-id', '00000000-0000-0000-0000-000000000001');
+    }
+  }
+
+  const forwardHeaders: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    forwardHeaders[key] = value;
+  });
+  console.log('[PROXY FORWARD]', targetUrl.toString(), 'x-tenant-id:', forwardHeaders['x-tenant-id']);
+
   const method = request.method.toUpperCase();
   const init: RequestInit = {
     method,
-    headers,
+    headers: forwardHeaders,
     redirect: 'manual'
   };
 

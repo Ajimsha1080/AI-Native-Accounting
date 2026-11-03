@@ -57,6 +57,16 @@ async def get_current_user_claims(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=e.message)
 
 
+async def get_optional_user_claims(
+    request: Request, auth_header: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)
+) -> dict[str, Any] | None:
+    """Extracts user claims if present; returns None without raising 401 if unauthenticated."""
+    try:
+        return await get_current_user_claims(request, auth_header)
+    except HTTPException:
+        return None
+
+
 async def get_tenant_db(
     claims: dict[str, Any] = Depends(get_current_user_claims),
 ) -> AsyncGenerator[AsyncSession, None]:
