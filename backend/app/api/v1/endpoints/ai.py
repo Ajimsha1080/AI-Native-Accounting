@@ -15,6 +15,7 @@ from app.ai.guardrails.guardrail_orchestrator import GuardrailOrchestrator
 from app.ai.langsmith_client import langsmith_manager
 from app.ai.llm_gateway import LiteLLMGateway
 from app.ai.memory import AgentMemoryEngine, MemoryType
+from app.ai.ocr_extractor import InvoiceOcrExtractor
 from app.ai.rag.document_ingestion import parse_and_process_document
 from app.ai.rag.retrieval import StatutoryRagEngine
 from app.ai.rag.tenant_knowledge import register_tenant_document_chunks, remove_tenant_document
@@ -397,6 +398,31 @@ async def dispatch_langsmith_test_trace(
     return {
         "success": True,
         "data": res,
+    }
+
+
+# -----------------------------------------------------------------------------
+# Document Intelligence & Invoice/Receipt OCR Endpoints
+# -----------------------------------------------------------------------------
+@router.post("/ocr/extract-invoice")
+async def extract_invoice_ocr(
+    file: UploadFile = File(...),
+    claims: dict[str, Any] | None = Depends(get_optional_user_claims),
+):
+    """Bilingual UAE Invoice & Receipt OCR Extraction Endpoint.
+    Extracts vendor legal name, 15-digit TRN, dates, lines, and tax amounts into integer fils.
+    """
+    file_bytes = await file.read()
+    doc_id = str(uuid.uuid4())
+    result = await InvoiceOcrExtractor.extract_invoice(
+        file_bytes=file_bytes,
+        filename=file.filename or "invoice.pdf",
+        document_id=doc_id,
+    )
+    return {
+        "success": True,
+        "documentId": doc_id,
+        "data": result.model_dump(),
     }
 
 
