@@ -1,21 +1,18 @@
 import io
 import uuid
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
-from app.core.security import create_session_jwt
-from app.ai.rag.document_ingestion import (
-    extract_text_from_bytes,
-    chunk_document_text,
-    parse_and_process_document,
-)
+from app.ai.rag.document_ingestion import parse_and_process_document
+from app.ai.rag.hybrid_retriever import HybridRetriever
 from app.ai.rag.tenant_knowledge import (
-    register_tenant_document_chunks,
     get_tenant_chunks,
+    register_tenant_document_chunks,
     remove_tenant_document,
 )
-from app.ai.rag.hybrid_retriever import HybridRetriever
+from app.core.security import create_session_jwt
+from app.main import app
 
 
 def test_document_chunking_and_keywords():

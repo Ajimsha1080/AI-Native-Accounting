@@ -6,8 +6,11 @@ and prepares them for tenant-isolated vector indexing and hybrid retrieval.
 """
 
 import io
+import logging
 import re
 from typing import NamedTuple
+
+logger = logging.getLogger("ledgerae.ai.rag.ingestion")
 
 
 class ProcessedChunk(NamedTuple):
@@ -69,9 +72,9 @@ def extract_text_from_bytes(file_bytes: bytes, filename: str) -> str:
             extracted = "\n\n".join(pages_text)
             if extracted.strip():
                 return extracted
-        except Exception as e:
+        except Exception as exc:
             # Fallback to UTF-8 / latin-1 decoding if PDF parser fails
-            pass
+            logger.debug("PDF parser error, falling back to raw decoding: %s", exc)
 
     # Try UTF-8 decoding first, then latin-1
     try:

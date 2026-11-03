@@ -14,7 +14,7 @@ import logging
 import os
 import time
 import uuid
-from typing import Any, Self
+from typing import Any, Self, cast
 
 import litellm
 
@@ -37,7 +37,7 @@ class LangSmithManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._init_environment()
-        return cls._instance
+        return cast(Self, cls._instance)
 
     def _init_environment(self) -> None:
         """Synchronizes LangSmith settings into OS environment variables."""

@@ -569,7 +569,7 @@ async def delete_tenant_rag_document(
     res = await db.execute(stmt)
     await db.commit()
 
-    if (res.rowcount or 0) == 0:
+    if (getattr(res, "rowcount", 0) or 0) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Document not found or not owned by active tenant.",

@@ -174,7 +174,9 @@ async def create_invoice(
             .values(status=new_status)
         )
         await db.flush()
-        if (res1.rowcount or 0) == 0 and (res2.rowcount or 0) == 0:
+        res1_count = getattr(res1, "rowcount", 0) or 0
+        res2_count = getattr(res2, "rowcount", 0) or 0
+        if res1_count == 0 and res2_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Invoice or bill not found or not owned by tenant."
@@ -493,7 +495,7 @@ async def reconcile_bank_line(
     )
     res = await db.execute(stmt)
     await db.flush()
-    if (res.rowcount or 0) == 0:
+    if (getattr(res, "rowcount", 0) or 0) == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Bank statement line not found or not owned by tenant."

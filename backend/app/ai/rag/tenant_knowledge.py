@@ -4,9 +4,6 @@ Manages tenant-isolated custom document chunks and provides clean conversion
 to GuidanceChunk objects for hybrid retrieval, RRF, and citation verification.
 """
 
-import uuid
-from typing import Any
-
 from app.ai.rag.document_ingestion import ProcessedChunk
 from app.ai.rag.guidance_store import GuidanceChunk
 
