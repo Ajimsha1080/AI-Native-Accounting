@@ -236,6 +236,101 @@ Total: AED 73,500.00`,
         expectedTrn: undefined,
         expectedTotalFils: 7350000n,
         expectedVatCode: 'RCM_5'
+      },
+      {
+        id: 'doc-16',
+        rawText: `فاتورة ضريبية أصلية
+شركة الاتحاد لمعدات المكاتب ش.ذ.م.م
+الرقم الضريبي: 100999888777666
+رقم الفاتورة: ITD-AR-2026-90
+التاريخ: 2026-03-22
+توريد أثاث ومستلزمات مكتبية
+المجموع: AED 12,600.00
+ضريبة القيمة المضافة 5%: AED 600.00`,
+        expectedTrn: '100999888777666',
+        expectedTotalFils: 1260000n,
+        expectedVatCode: 'SR_5'
+      },
+      {
+        id: 'doc-17',
+        rawText: `PHONE PHOTO RECEIPT / إيصال تصوير هاتف
+CAFE BEVERAGES LLC
+TRN: 100555444333222
+INV NO: PHO-9012
+DATE: 2026-03-24
+Catering and Hospitality Services
+TOTAL: AED 1,050.00
+VAT 5%: AED 50.00`,
+        expectedTrn: '100555444333222',
+        expectedTotalFils: 105000n,
+        expectedVatCode: 'SR_5'
+      },
+      {
+        id: 'doc-18',
+        rawText: `BANK STATEMENT - كشف حساب بنكي
+Emirates NBD Bank PJSC - بنك الإمارات دبي الوطني
+TRN: 100123456789001
+Account: AE070260000123456789012
+Opening Balance: AED 100,000.00
+2026-03-01 Customer Direct Transfer Alpha CR 15,000.00
+2026-03-10 Utility DEWA Payment DR 5,000.00
+Total / Closing Balance: AED 110,000.00`,
+        expectedTrn: '100123456789001',
+        expectedTotalFils: 11000000n,
+        expectedVatCode: 'EX_FIN'
+      },
+      {
+        id: 'doc-19',
+        rawText: `BANK ACCOUNT STATEMENT - كشف الحساب المصرفي
+Abu Dhabi Commercial Bank (ADCB) - بنك أبوظبي التجاري
+TRN: 100234567890112
+Account: AE330030000987654321098
+Opening Balance: AED 45,000.00
+2026-03-05 Office Rent Wire Transfer DR 10,000.00
+Total / Closing Balance: AED 35,000.00`,
+        expectedTrn: '100234567890112',
+        expectedTotalFils: 3500000n,
+        expectedVatCode: 'EX_FIN'
+      },
+      {
+        id: 'doc-20',
+        rawText: `BANK STATEMENT
+First Abu Dhabi Bank (FAB) - بنك أبوظبي الأول
+TRN: 100345678901223
+Account: AE440020000456123789456
+Opening Balance: AED 200,000.00
+2026-03-12 Inward Letter of Credit Settlement CR 50,000.00
+Total / Closing Balance: AED 250,000.00`,
+        expectedTrn: '100345678901223',
+        expectedTotalFils: 25000000n,
+        expectedVatCode: 'EX_FIN'
+      },
+      {
+        id: 'doc-21',
+        rawText: `ISLAMIC BANK STATEMENT - كشف حساب مصرفي إسلامي
+Dubai Islamic Bank PJSC - بنك دبي الإسلامي
+TRN: 100456789012345
+Account: AE550240000321654987123
+Opening Balance: AED 80,000.00
+2026-03-15 Corporate Sukuk Dividend Distribution CR 20,000.00
+2026-03-20 Sharia Supervisory Audit Fee DR 30,000.00
+Total / Closing Balance: AED 70,000.00`,
+        expectedTrn: '100456789012345',
+        expectedTotalFils: 7000000n,
+        expectedVatCode: 'EX_FIN'
+      },
+      {
+        id: 'doc-22',
+        rawText: `COMMERCIAL BANK ACCOUNT STATEMENT
+Mashreq Bank PSC - بنك المشرق
+TRN: 100567890123456
+Account: AE660310000789456123789
+Opening Balance: AED 15,000.00
+2026-03-25 Trade Finance Handling Charges DR 2,500.00
+Total / Closing Balance: AED 12,500.00`,
+        expectedTrn: '100567890123456',
+        expectedTotalFils: 1250000n,
+        expectedVatCode: 'EX_FIN'
       }
     ];
 
@@ -243,6 +338,7 @@ Total: AED 73,500.00`,
       let trnCorrect = 0;
       let totalAmountCorrect = 0;
       let vatCodingCorrect = 0;
+      let wrongSkippedReview = 0;
       const totalDocs = LABELLED_EVAL_DATASET.length;
 
       for (const sample of LABELLED_EVAL_DATASET) {
@@ -269,16 +365,26 @@ Total: AED 73,500.00`,
         if (extracted.lines.length > 0 && extracted.lines[0].proposedTaxCode === sample.expectedVatCode) {
           vatCodingCorrect++;
         }
+
+        // 4. Zero wrong extractions may skip human review invariant
+        const isWrong =
+          (sample.expectedTrn && extracted.vendorTrn !== sample.expectedTrn) ||
+          extracted.totalFils !== sample.expectedTotalFils ||
+          !extracted.isMathValid;
+        if (isWrong && !extracted.requiresHumanReview) {
+          wrongSkippedReview++;
+        }
       }
 
       const trnAccuracy = (trnCorrect / totalDocs) * 100;
       const amountAccuracy = (totalAmountCorrect / totalDocs) * 100;
       const vatCodingAccuracy = (vatCodingCorrect / totalDocs) * 100;
 
-      // PRD targets: TRN 100%, Amount >= 95%, VAT Coding >= 95%
+      // PRD targets: TRN 100%, Amount >= 95%, VAT Coding >= 95%, 0 wrong unreviewed
       assert.equal(trnAccuracy, 100, `TRN Accuracy ${trnAccuracy}% must be 100%`);
       assert.ok(amountAccuracy >= 95, `Amount Accuracy ${amountAccuracy}% must be >= 95%`);
       assert.ok(vatCodingAccuracy >= 95, `VAT Coding Accuracy ${vatCodingAccuracy}% must be >= 95%`);
+      assert.equal(wrongSkippedReview, 0, 'Zero wrong extractions may skip human review');
     });
 
     test('Claude Document Intelligence Service validates structured Zod output across benchmark', async () => {

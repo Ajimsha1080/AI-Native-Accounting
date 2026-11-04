@@ -201,7 +201,19 @@ LedgerAE integrates an enterprise-grade multi-model statutory reasoning and gove
    - Secondary Fallback: **OpenAI GPT-4o Enterprise** (automatic failover).
    - Tertiary Fallback: **Google Gemini 1.5 Pro** (high-context financial document parsing).
    - Deterministic Statutory Fallback: Fully functional offline without external API keys.
-2. **Tenant Custom Document Ingestion & RAG Knowledge Base**:
+2. **Document Ingestion & Bilingual OCR Engine (Docling + EasyOCR)**:
+   - **Full OCR Pipeline**: `File -> Bilingual OCR -> Structured LLM Extraction -> Deterministic Checks -> HITL Approval -> Ledger`.
+   - **Supported Ingestion**: Born-digital PDFs, scanned/photocopied PDFs, mobile photos, TIFF, PNG, and JPEG.
+   - **Bilingual Arabic & English**: Powered by IBM Docling with `EasyOcrOptions(lang=["ar", "en"])` and table structure detection.
+   - **Zero Invented Defaults**: Unextracted or unreadable fields default to `null` with explicit `missingFields` tracking; zero hallucinated fallback vendors or fixed amounts.
+   - **Deterministic Financial Checks**:
+     - Invoices: Mathematical reconciliation (`sum(lines) == subtotal`, `subtotal + vat == total`), 15-digit UAE TRN validation (starting `100`), and balanced double-entry `JournalEntryCandidate` ($\text{Debits} == \text{Credits}$).
+     - Bank Statements: Continuous running balance reconciliation, `opening + credits - debits == closing`, and failing row identification.
+   - **Hardware & Resource Sizing**:
+     - **CPU / RAM**: Minimum 4 vCPUs and 4–8 GB RAM recommended for multi-page PDF rendering and table parsing.
+     - **GPU**: Optional CUDA acceleration is automatically leveraged if an NVIDIA GPU is available (`torch.cuda.is_available()`). On CPU-only environments, operations execute via asynchronous worker thread pools with configurable timeout (`OCR_TIMEOUT_SECONDS=60.0`).
+     - **Offline Capable**: Pre-downloaded weights packaged inside the Docker container (`RUN python -c "from app.ai.ocr.engine import preload_ocr_models; preload_ocr_models()"`).
+3. **Tenant Custom Document Ingestion & RAG Knowledge Base**:
    - Supports **PDF**, **TXT**, **Markdown**, **CSV**, and **JSON** user document uploads (up to 10MB).
    - Semantic chunking with token estimation, heading preservation, and keyword extraction.
    - Dual-table PostgreSQL storage (`tenant_rag_documents`, `tenant_rag_chunks`) protected by Row-Level Security (`RLS`).

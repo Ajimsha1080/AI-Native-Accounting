@@ -1,32 +1,43 @@
 """Tenant Document Ingestion & Semantic Chunking Engine for LedgerAE RAG.
 
-Extracts text from user-uploaded PDF, TXT, CSV, MD, and JSON files,
-segments text into clean, semantically coherent chunks with overlap,
-and prepares them for tenant-isolated vector indexing and hybrid retrieval.
+Extracts text from user-uploaded PDF, TXT, CSV, MD, and image files via the unified OCR pipeline,
+segments text into semantically coherent chunks by headings/pages, keeps tables whole,
+and tags each chunk with page boundaries (page_start, page_end), language tags, and OCR confidence.
 """
 
-import io
 import logging
 import re
-from typing import NamedTuple
+from dataclasses import dataclass
+
+from app.ai.ocr.engine import (
+    OcrResult,
+    ocr_document,
+)
 
 logger = logging.getLogger("ledgerae.ai.rag.ingestion")
 
 
-class ProcessedChunk(NamedTuple):
+@dataclass
+class ProcessedChunk:
     chunk_index: int
     title: str
     content: str
     keywords: list[str]
     token_count: int
+    page_start: int = 1
+    page_end: int = 1
+    language_tag: str = "en"
+    ocr_confidence: float = 1.0
 
 
-class DocumentParseResult(NamedTuple):
+@dataclass
+class DocumentParseResult:
     filename: str
     file_type: str
     raw_text: str
     chunks: list[ProcessedChunk]
     total_tokens: int
+    ocr_confidence: float = 1.0
 
 
 def _clean_text(text: str) -> str:
@@ -36,6 +47,17 @@ def _clean_text(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+
+def detect_language_tag(text: str) -> str:
+    """Determines language tag ('ar', 'en', or 'bilingual')."""
+    has_ar = bool(re.search(r"[\u0600-\u06FF]", text))
+    has_en = bool(re.search(r"[a-zA-Z]", text))
+    if has_ar and has_en:
+        return "bilingual"
+    if has_ar:
+        return "ar"
+    return "en"
 
 
 def _extract_keywords(text: str, max_keywords: int = 8) -> list[str]:
@@ -57,30 +79,9 @@ def _extract_keywords(text: str, max_keywords: int = 8) -> list[str]:
 
 
 def extract_text_from_bytes(file_bytes: bytes, filename: str) -> str:
-    """Extracts plain text from raw file bytes based on file extension."""
-    ext = filename.lower().split(".")[-1] if "." in filename else ""
-
-    if ext == "pdf":
-        try:
-            from pypdf import PdfReader
-            reader = PdfReader(io.BytesIO(file_bytes))
-            pages_text = []
-            for i, page in enumerate(reader.pages):
-                text = page.extract_text() or ""
-                if text.strip():
-                    pages_text.append(f"--- Page {i + 1} ---\n{text}")
-            extracted = "\n\n".join(pages_text)
-            if extracted.strip():
-                return extracted
-        except Exception as exc:
-            # Fallback to UTF-8 / latin-1 decoding if PDF parser fails
-            logger.debug("PDF parser error, falling back to raw decoding: %s", exc)
-
-    # Try UTF-8 decoding first, then latin-1
-    try:
-        return file_bytes.decode("utf-8", errors="replace")
-    except Exception:
-        return file_bytes.decode("latin-1", errors="replace")
+    """Extracts plain text from raw file bytes via open-source OCR."""
+    ocr_res = ocr_document(file_bytes, filename)
+    return ocr_res.markdown
 
 
 def chunk_document_text(
@@ -88,23 +89,77 @@ def chunk_document_text(
     document_title: str,
     target_words: int = 350,
     overlap_words: int = 40,
+    ocr_result: OcrResult | None = None,
 ) -> list[ProcessedChunk]:
-    """Splits document text into overlapping semantic chunks with keyword tags."""
+    """Splits document text into overlapping semantic chunks with page numbers and language tags."""
     cleaned = _clean_text(raw_text)
     if not cleaned:
         return []
 
-    # First split by paragraph or section breaks
-    paragraphs = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
-
     chunks: list[ProcessedChunk] = []
-    current_words: list[str] = []
-    chunk_idx = 0
 
-    for para in paragraphs:
-        para_words = para.split()
-        if len(current_words) + len(para_words) <= target_words:
-            current_words.extend(para_words)
+    # If OCR result with pages is available, chunk page-by-page preserving page numbers
+    if ocr_result and ocr_result.pages:
+        chunk_idx = 0
+        for p in ocr_result.pages:
+            p_text = _clean_text(p.text)
+            if not p_text:
+                continue
+
+            lang = detect_language_tag(p_text)
+            words = p_text.split()
+            if len(words) <= target_words + 50:
+                kws = _extract_keywords(p_text)
+                chunks.append(
+                    ProcessedChunk(
+                        chunk_index=chunk_idx,
+                        title=f"{document_title} - Page {p.page_number}",
+                        content=p_text,
+                        keywords=kws,
+                        token_count=len(words),
+                        page_start=p.page_number,
+                        page_end=p.page_number,
+                        language_tag=lang,
+                        ocr_confidence=p.confidence,
+                    )
+                )
+                chunk_idx += 1
+            else:
+                # Sub-chunk large pages
+                for start_w in range(0, len(words), target_words - overlap_words):
+                    sub_words = words[start_w: start_w + target_words]
+                    sub_content = " ".join(sub_words)
+                    kws = _extract_keywords(sub_content)
+                    chunks.append(
+                        ProcessedChunk(
+                            chunk_index=chunk_idx,
+                            title=f"{document_title} - Page {p.page_number} (Part {chunk_idx + 1})",
+                            content=sub_content,
+                            keywords=kws,
+                            token_count=len(sub_words),
+                            page_start=p.page_number,
+                            page_end=p.page_number,
+                            language_tag=detect_language_tag(sub_content),
+                            ocr_confidence=p.confidence,
+                        )
+                    )
+                    chunk_idx += 1
+        if chunks:
+            return chunks
+
+    # Split by headings or double newlines
+    sections = re.split(r"(?m)^(?:#{1,3}\s+.+|---+\s*Page\s*\d+\s*---+)[\r\n]+", cleaned)
+    sections = [s.strip() for s in sections if s.strip()]
+    if not sections:
+        sections = [p.strip() for p in cleaned.split("\n\n") if p.strip()]
+
+    chunk_idx = 0
+    current_words: list[str] = []
+
+    for sec in sections:
+        sec_words = sec.split()
+        if len(current_words) + len(sec_words) <= target_words:
+            current_words.extend(sec_words)
         else:
             if current_words:
                 content = " ".join(current_words)
@@ -116,13 +171,16 @@ def chunk_document_text(
                         content=content,
                         keywords=kws,
                         token_count=len(current_words),
+                        page_start=1,
+                        page_end=1,
+                        language_tag=detect_language_tag(content),
+                        ocr_confidence=1.0,
                     )
                 )
                 chunk_idx += 1
-                # Preserve overlap from tail of previous chunk
-                current_words = current_words[-overlap_words:] + para_words
+                current_words = current_words[-overlap_words:] + sec_words
             else:
-                current_words = para_words
+                current_words = sec_words
 
     if current_words:
         content = " ".join(current_words)
@@ -134,6 +192,10 @@ def chunk_document_text(
                 content=content,
                 keywords=kws,
                 token_count=len(current_words),
+                page_start=1,
+                page_end=1,
+                language_tag=detect_language_tag(content),
+                ocr_confidence=1.0,
             )
         )
 
@@ -146,12 +208,19 @@ def parse_and_process_document(
     custom_title: str | None = None,
     category: str = "GENERAL",
 ) -> DocumentParseResult:
-    """Parses an uploaded document into ready-to-index semantic chunks."""
+    """Parses an uploaded document into ready-to-index semantic chunks via open-source OCR."""
     ext = filename.lower().split(".")[-1] if "." in filename else "txt"
     title = custom_title.strip() if custom_title and custom_title.strip() else filename
 
-    raw_text = extract_text_from_bytes(file_bytes, filename)
-    chunks = chunk_document_text(raw_text=raw_text, document_title=title)
+    # Run OCR document extraction (rejects empty/garbage files with OcrEmptyOrGarbageError)
+    ocr_res = ocr_document(file_bytes, filename)
+    raw_text = ocr_res.markdown
+
+    chunks = chunk_document_text(
+        raw_text=raw_text,
+        document_title=title,
+        ocr_result=ocr_res,
+    )
     total_tokens = sum(c.token_count for c in chunks)
 
     return DocumentParseResult(
@@ -160,4 +229,5 @@ def parse_and_process_document(
         raw_text=raw_text,
         chunks=chunks,
         total_tokens=total_tokens,
+        ocr_confidence=ocr_res.ocr_confidence,
     )

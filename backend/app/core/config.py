@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     LITELLM_MAX_RETRIES: int = Field(default=2)
     LITELLM_TIMEOUT: float = Field(default=30.0)
 
+    # Open Source OCR & Ingestion Pipeline Settings (Docling + EasyOCR)
+    OCR_TIMEOUT_SECONDS: float = Field(default=60.0)
+    OCR_MAX_WORKERS: int = Field(default=2)
+    OCR_LANGUAGES: list[str] = Field(default=["ar", "en"])
+    DEFAULT_HITL_THRESHOLD_FILS: int = Field(default=1000000)  # 10,000.00 AED statutory limit
+
     # LangSmith Enterprise Observability & Tracing
     LANGSMITH_TRACING: bool = Field(
         default=False,

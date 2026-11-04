@@ -12,10 +12,14 @@ from app.ai.guardrails.financial_guardrails import (
     VALID_UAE_VAT_PERCENTAGES,
 )
 from app.ai.guardrails.guardrail_orchestrator import GuardrailOrchestrator
+from app.ai.hitl_service import _APPROVAL_ITEMS, HitlWorkflowEngine
 from app.ai.langsmith_client import langsmith_manager
 from app.ai.llm_gateway import LiteLLMGateway
 from app.ai.memory import AgentMemoryEngine, MemoryType
-from app.ai.ocr_extractor import InvoiceOcrExtractor
+from app.ai.ocr.engine import OcrEmptyOrGarbageError, OcrServiceUnavailableError
+from app.ai.ocr_extractor import (
+    InvoiceOcrExtractor,
+)
 from app.ai.rag.document_ingestion import parse_and_process_document
 from app.ai.rag.retrieval import StatutoryRagEngine
 from app.ai.rag.tenant_knowledge import register_tenant_document_chunks, remove_tenant_document
@@ -47,6 +51,12 @@ class AssistantQueryRequest(BaseModel):
     question: str = Field(min_length=3, max_length=1000)
     category: str | None = None
     history: list[dict[str, str]] | None = None
+
+
+class ApprovalDecisionRequest(BaseModel):
+    decision: str = Field(default="APPROVE")  # "APPROVE" | "REJECT"
+    corrections: dict[str, Any] | None = None
+    reason: str | None = None
 
 
 class GuardrailCheckRequest(BaseModel):
@@ -402,7 +412,7 @@ async def dispatch_langsmith_test_trace(
 
 
 # -----------------------------------------------------------------------------
-# Document Intelligence & Invoice/Receipt OCR Endpoints
+# Document Intelligence & OCR Endpoints (Invoices & Bank Statements)
 # -----------------------------------------------------------------------------
 @router.post("/ocr/extract-invoice")
 async def extract_invoice_ocr(
@@ -411,18 +421,175 @@ async def extract_invoice_ocr(
 ):
     """Bilingual UAE Invoice & Receipt OCR Extraction Endpoint.
     Extracts vendor legal name, 15-digit TRN, dates, lines, and tax amounts into integer fils.
+    Validated by deterministic debit-credit checks and human-in-the-loop approval.
     """
     file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is empty (0 bytes).",
+        )
+
     doc_id = str(uuid.uuid4())
-    result = await InvoiceOcrExtractor.extract_invoice(
-        file_bytes=file_bytes,
-        filename=file.filename or "invoice.pdf",
-        document_id=doc_id,
-    )
+    t_id = (claims.get("tenant_id") if claims else None) or "tenant-default"
+    u_id = (claims.get("sub") if claims else None) or "user-default"
+
+    try:
+        result = await InvoiceOcrExtractor.extract_document(
+            file_bytes=file_bytes,
+            filename=file.filename or "invoice.pdf",
+            document_id=doc_id,
+            tenant_id=t_id,
+            user_id=u_id,
+            document_type_hint="INVOICE",
+        )
+    except OcrEmptyOrGarbageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"OCR Unprocessable Entity: {exc}",
+        ) from exc
+    except OcrServiceUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"OCR Service Unavailable: {exc}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Document extraction error: {exc}",
+        ) from exc
+
     return {
         "success": True,
         "documentId": doc_id,
         "data": result.model_dump(),
+    }
+
+
+@router.post("/ocr/extract-bank-statement")
+async def extract_bank_statement_ocr(
+    file: UploadFile = File(...),
+    claims: dict[str, Any] | None = Depends(get_optional_user_claims),
+):
+    """Bilingual Bank Statement OCR Extraction Endpoint.
+    Extracts account, opening/closing balance, rows, and running balances in integer fils.
+    Enforces deterministic row journal balance and continuous running balance reconciliation.
+    """
+    file_bytes = await file.read()
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Uploaded file is empty (0 bytes).",
+        )
+
+    doc_id = str(uuid.uuid4())
+    t_id = (claims.get("tenant_id") if claims else None) or "tenant-default"
+    u_id = (claims.get("sub") if claims else None) or "user-default"
+
+    try:
+        result = await InvoiceOcrExtractor.extract_document(
+            file_bytes=file_bytes,
+            filename=file.filename or "bank_statement.pdf",
+            document_id=doc_id,
+            tenant_id=t_id,
+            user_id=u_id,
+            document_type_hint="BANK_STATEMENT",
+        )
+    except OcrEmptyOrGarbageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"OCR Unprocessable Entity: {exc}",
+        ) from exc
+    except OcrServiceUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"OCR Service Unavailable: {exc}",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Bank statement extraction error: {exc}",
+        ) from exc
+
+    return {
+        "success": True,
+        "documentId": doc_id,
+        "data": result.model_dump(),
+    }
+
+
+# -----------------------------------------------------------------------------
+# Human-in-the-Loop (HITL) Review & Approval Endpoints
+# -----------------------------------------------------------------------------
+@router.get("/hitl/pending")
+async def list_pending_approvals(
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Lists all pending approval items requiring human review for the tenant."""
+    tenant_id = claims["tenant_id"]
+    pending = [
+        item for item in _APPROVAL_ITEMS.values()
+        if item.tenantId == tenant_id and item.status == "PENDING_APPROVAL"
+    ]
+    return {
+        "success": True,
+        "count": len(pending),
+        "items": [item.__dict__ for item in pending],
+    }
+
+
+@router.get("/hitl/items/{item_id}")
+async def get_approval_item_detail(
+    item_id: str,
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Retrieves full details of an approval item, including extracted data and validation checks."""
+    item = HitlWorkflowEngine.get_approval_item(item_id, claims["tenant_id"])
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Approval item not found or unauthorized.",
+        )
+    return {
+        "success": True,
+        "item": item.__dict__,
+    }
+
+
+@router.post("/hitl/items/{item_id}/review")
+async def review_approval_item(
+    item_id: str,
+    req: ApprovalDecisionRequest,
+    claims: dict[str, Any] = Depends(get_current_user_claims),
+):
+    """Reviews an approval item. Enforces segregation of duties (creator cannot approve their own item)
+
+    and re-runs deterministic checks if corrections are submitted.
+    """
+    tenant_id = claims["tenant_id"]
+    approver_id = claims.get("sub", "user-system")
+    approver_role = claims.get("role", "SENIOR_ACCOUNTANT")
+
+    ok, reason, item = HitlWorkflowEngine.process_approval(
+        item_id=item_id,
+        tenant_id=tenant_id,
+        approver_user_id=approver_id,
+        approver_role=approver_role,
+        decision=req.decision,
+        corrections=req.corrections,
+        rejection_reason=req.reason,
+    )
+
+    if not ok:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN if "Segregation of duties" in reason or "tier violation" in reason else status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=reason,
+        )
+
+    return {
+        "success": True,
+        "message": reason,
+        "item": item.__dict__,
     }
 
 
@@ -469,12 +636,23 @@ async def upload_document_for_rag(
     # 2. Parse and chunk document
     filename = file.filename or "uploaded_document.txt"
     doc_title = title.strip() if title and title.strip() else filename
-    parsed = parse_and_process_document(
-        file_bytes=content,
-        filename=filename,
-        custom_title=doc_title,
-        category=category,
-    )
+    try:
+        parsed = parse_and_process_document(
+            file_bytes=content,
+            filename=filename,
+            custom_title=doc_title,
+            category=category,
+        )
+    except OcrEmptyOrGarbageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Could not extract readable text or sections from the uploaded file: {exc}",
+        ) from exc
+    except OcrServiceUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"OCR service unavailable: {exc}",
+        ) from exc
 
     if not parsed.chunks:
         raise HTTPException(

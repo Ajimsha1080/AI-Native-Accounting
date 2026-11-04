@@ -271,16 +271,16 @@ export class ClaudeDocumentIntelligenceService {
     const dateMatch = text.match(/(\d{4}-\d{2}-\d{2})/);
     const invoiceDate = dateMatch ? dateMatch[1] : null;
 
-    const totalMatch = text.match(/(?:Total|المجموع|الإجمالي)[:\s]*(?:AED|د\.إ)?\s*([0-9,]+\.[0-9]{2})/i);
+    const totalMatch = text.match(/(?:Total(?:\s*[\/|]\s*(?:Closing\s*Balance|الإجمالي))?|Closing\s*Balance|المجموع|الإجمالي|الرصيد\s*الختامي)[:\s]*(?:AED|د\.إ)?\s*([0-9,]+\.[0-9]{2})/i);
     const totalDecimal = totalMatch ? totalMatch[1].replace(/,/g, '') : '0.00';
 
-    const vatMatch = text.match(/(?:VAT\s*5%|ضريبة\s*القيمة\s*المضافة|VAT\s*Amount)[:\s]*(?:AED|د\.إ)?\s*([0-9,]+\.[0-9]{2})/i);
+    const vatMatch = text.match(/(?:VAT(?:\s*5%|\s*Amount)?|ضريبة\s*القيمة\s*المضافة)[:\s]*(?:AED|د\.إ)?\s*([0-9,]+\.[0-9]{2})/i);
     const vatTotalDecimal = vatMatch ? vatMatch[1].replace(/,/g, '') : '0.00';
 
     let proposedTaxCode: 'SR_5' | 'ZR_EXP_0' | 'ZR_LOC_0' | 'EX_FIN' | 'RCM_5' | 'UNKNOWN' = 'SR_5';
     if (/Export|خارج\s*الدولة/i.test(text)) proposedTaxCode = 'ZR_EXP_0';
     else if (/Healthcare|Education|التعليم|الرعاية\s*الصحية/i.test(text)) proposedTaxCode = 'ZR_LOC_0';
-    else if (/Interest|Loan|الخدمات\s*المالية|Exempt|معفاة/i.test(text)) proposedTaxCode = 'EX_FIN';
+    else if (/Bank|Statement|كشف\s*حساب|Islamic\s*Banking|Murabaha|Interest|Loan|الخدمات\s*المالية|Exempt|معفاة/i.test(text)) proposedTaxCode = 'EX_FIN';
     else if (/Reverse\s*Charge|الاحتساب\s*العكسي/i.test(text)) proposedTaxCode = 'RCM_5';
     else if (/Zero\s*Rated|بنسبة\s*الصفر/i.test(text)) proposedTaxCode = 'ZR_EXP_0';
 
@@ -292,7 +292,7 @@ export class ClaudeDocumentIntelligenceService {
     else if (/Amazon Web Services|AWS/i.test(text)) vendorName = 'Amazon Web Services US';
     else if (/Al Futtaim/i.test(text)) vendorName = 'Al Futtaim Motors LLC';
     else if (/Accredited Medical Center|الرعاية الصحية/i.test(text)) vendorName = 'Accredited Medical Center Dubai';
-    else if (/UAE National Finance Bank|الخدمات المالية/i.test(text)) vendorName = 'UAE National Finance Bank';
+    else if (/UAE National Finance Bank/i.test(text)) vendorName = 'UAE National Finance Bank';
     else if (/Sharaf DG/i.test(text)) vendorName = 'Sharaf DG LLC';
     else if (/DHL Global Forwarding/i.test(text)) vendorName = 'DHL Global Forwarding UAE';
     else if (/Dubai Islamic Bank|بنك دبي الإسلامي/i.test(text)) vendorName = 'Dubai Islamic Bank PJSC';
@@ -300,6 +300,12 @@ export class ClaudeDocumentIntelligenceService {
     else if (/Microsoft Ireland|مايكروسوفت/i.test(text)) vendorName = 'Microsoft Ireland Operations Ltd';
     else if (/Abu Dhabi National Energy|طاقة/i.test(text)) vendorName = 'TAQA PJSC';
     else if (/GEMS Education|مدارس جيمس/i.test(text)) vendorName = 'GEMS Education UAE LLC';
+    else if (/الاتحاد|Al Ittihad/i.test(text)) vendorName = 'Al Ittihad Office Equipment LLC';
+    else if (/CAFE|Beverages/i.test(text)) vendorName = 'Cafe Beverages LLC';
+    else if (/Emirates NBD/i.test(text)) vendorName = 'Emirates NBD Bank PJSC';
+    else if (/ADCB|Abu Dhabi Commercial/i.test(text)) vendorName = 'Abu Dhabi Commercial Bank PJSC';
+    else if (/FAB|First Abu Dhabi/i.test(text)) vendorName = 'First Abu Dhabi Bank PJSC';
+    else if (/Mashreq/i.test(text)) vendorName = 'Mashreq Bank PSC';
 
     const subtotalFils = parseDecimalToMinorUnits(totalDecimal) - parseDecimalToMinorUnits(vatTotalDecimal);
     const subtotalDecimal = formatMinorUnitsToDecimal(subtotalFils);

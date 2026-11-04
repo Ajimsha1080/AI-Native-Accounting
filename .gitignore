@@ -48,6 +48,7 @@ wheels/
 # Logs & Debugging
 *.log
 npm-debug.log*
+*.zip
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*

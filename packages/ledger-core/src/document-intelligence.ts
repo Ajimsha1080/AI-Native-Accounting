@@ -18,23 +18,26 @@ export interface ExtractedInvoiceLine {
 
 export interface ExtractedInvoiceDocument {
   documentId: string;
-  vendorName: string;
-  vendorTrn?: string;
-  customerTrn?: string;
-  invoiceNumber: string;
-  invoiceDate: string; // 'YYYY-MM-DD'
-  dueDate?: string;
+  vendorName: string | null;
+  vendorTrn?: string | null;
+  customerTrn?: string | null;
+  invoiceNumber: string | null;
+  invoiceDate: string | null; // 'YYYY-MM-DD'
+  dueDate?: string | null;
   currency: string;
   subtotalFils: bigint;
   vatTotalFils: bigint;
   totalFils: bigint;
   lines: ExtractedInvoiceLine[];
-  confidenceScore: number; // 0.0 to 1.0
+  confidenceScore: number; // 0.0 to 1.0 (dynamically calculated)
+  fieldConfidence: Record<string, number>;
+  missingFields: string[];
   isTrnValid: boolean;
   isMathValid: boolean;
   rawText: string;
   modelUsed?: string;
   requiresHumanReview?: boolean;
+  reviewReason?: string | null;
 }
 
 export class DocumentIntelligenceService {
@@ -66,11 +69,57 @@ export class DocumentIntelligenceService {
     const allTrns = Array.from(rawText.matchAll(/\b(100\d{12})\b/g)).map((m) => m[1]);
     const customerTrn = allTrns.length > 1 ? allTrns[1] : undefined;
 
-    let confidence = 0.5;
-    if (extractedDto.vendorTrn && isTrnValid) confidence += 0.25;
-    if (isMathValid && totalFils > 0n) confidence += 0.2;
-    if (extractedDto.invoiceNumber) confidence += 0.05;
-    confidence = Math.min(1.0, confidence);
+    // Dynamic per-field confidence and missing fields tracking (No invented defaults)
+    const missingFields: string[] = [];
+    const fieldConfidence: Record<string, number> = {};
+
+    if (extractedDto.vendorName) {
+      fieldConfidence['vendorName'] = 0.95;
+    } else {
+      missingFields.push('vendorName');
+      fieldConfidence['vendorName'] = 0.0;
+    }
+
+    if (extractedDto.vendorTrn) {
+      fieldConfidence['vendorTrn'] = isTrnValid ? 1.0 : 0.2;
+    } else {
+      missingFields.push('vendorTrn');
+      fieldConfidence['vendorTrn'] = 0.0;
+    }
+
+    if (extractedDto.invoiceNumber) {
+      fieldConfidence['invoiceNumber'] = 0.95;
+    } else {
+      missingFields.push('invoiceNumber');
+      fieldConfidence['invoiceNumber'] = 0.0;
+    }
+
+    if (extractedDto.invoiceDate) {
+      fieldConfidence['invoiceDate'] = 0.95;
+    } else {
+      missingFields.push('invoiceDate');
+      fieldConfidence['invoiceDate'] = 0.0;
+    }
+
+    if (totalFils > 0n) {
+      fieldConfidence['totalFils'] = isMathValid ? 1.0 : 0.5;
+    } else {
+      missingFields.push('totalFils');
+      fieldConfidence['totalFils'] = 0.0;
+    }
+
+    if (extractedDto.lines && extractedDto.lines.length > 0) {
+      fieldConfidence['lines'] = 0.9;
+    } else {
+      missingFields.push('lines');
+      fieldConfidence['lines'] = 0.0;
+    }
+
+    // Dynamic overall confidence: weighted average of present field confidences
+    const confValues = Object.values(fieldConfidence);
+    const confidence = confValues.length > 0
+      ? Math.round((confValues.reduce((a, b) => a + b, 0) / confValues.length) * 100) / 100
+      : 0.0;
 
     const lines: ExtractedInvoiceLine[] = extractedDto.lines.map((l: any) => ({
       lineNumber: l.lineNumber,
@@ -84,24 +133,45 @@ export class DocumentIntelligenceService {
       proposedTaxCode: l.proposedTaxCode
     }));
 
+    const requiresHumanReview =
+      Boolean(extractedDto.requiresHumanReview) ||
+      missingFields.length > 0 ||
+      !isMathValid ||
+      (!isTrnValid && Boolean(extractedDto.vendorTrn));
+
+    let reviewReason = extractedDto.reviewReason || null;
+    if (!reviewReason) {
+      if (missingFields.length > 0) {
+        reviewReason = `Missing mandatory invoice fields: ${missingFields.join(', ')}`;
+      } else if (!isMathValid) {
+        reviewReason = `Mathematical discrepancy: Subtotal (${subtotalFils} fils) + VAT (${vatTotalFils} fils) != Total (${totalFils} fils)`;
+      } else if (!isTrnValid && extractedDto.vendorTrn) {
+        reviewReason = `Invalid UAE TRN format: ${extractedDto.vendorTrn}`;
+      }
+    }
+
     const doc: ExtractedInvoiceDocument = {
       documentId,
-      vendorName: extractedDto.vendorName || 'UAE Commercial Vendor',
-      vendorTrn: extractedDto.vendorTrn || undefined,
+      vendorName: extractedDto.vendorName || null,
+      vendorTrn: extractedDto.vendorTrn || null,
       customerTrn,
-      invoiceNumber: extractedDto.invoiceNumber || `INV-${documentId.slice(0, 8)}`,
-      invoiceDate: extractedDto.invoiceDate || '2026-03-01',
+      invoiceNumber: extractedDto.invoiceNumber || null,
+      invoiceDate: extractedDto.invoiceDate || null,
+      dueDate: extractedDto.dueDate || null,
       currency: extractedDto.currency || 'AED',
       subtotalFils,
       vatTotalFils,
       totalFils,
       lines,
       confidenceScore: confidence,
+      fieldConfidence,
+      missingFields,
       isTrnValid,
       isMathValid,
       rawText,
       modelUsed: model,
-      requiresHumanReview: extractedDto.requiresHumanReview || !isMathValid || (!isTrnValid && Boolean(extractedDto.vendorTrn))
+      requiresHumanReview,
+      reviewReason
     };
 
     // Log AI action telemetry

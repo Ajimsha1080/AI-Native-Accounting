@@ -24,20 +24,30 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PORT=8000
+    PORT=8000 \
+    EASYOCR_MODULE_PATH=/home/appuser/.EasyOCR \
+    TORCH_HOME=/home/appuser/.cache/torch
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Security: Non-root user
+# Security: Non-root user with home directory for offline model weights
 RUN groupadd -g 10001 appgroup && \
-    useradd -u 10001 -g appgroup -s /bin/bash -m appuser
+    useradd -u 10001 -g appgroup -s /bin/bash -m appuser && \
+    mkdir -p /home/appuser/.EasyOCR /home/appuser/.cache/torch && \
+    chown -R appuser:appgroup /home/appuser
 
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY app ./app
+
+# Preload EasyOCR and Docling models inside container for offline-capable deployments
+RUN python -c "import easyocr; easyocr.Reader(['ar', 'en'], gpu=False, model_storage_directory='/home/appuser/.EasyOCR')" && \
+    chown -R appuser:appgroup /home/appuser/.EasyOCR
 
 USER appuser
 
