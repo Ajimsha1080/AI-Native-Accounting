@@ -66,41 +66,41 @@ export function AppShell({ children, locale }: AppShellProps) {
     {
       group: locale === 'ar' ? 'الدفاتر المحاسبية والخزينة' : 'Core Treasury & Ledger',
       items: [
-        { href: `/${locale}/app/dashboard`, label: locale === 'ar' ? 'لوحة التحكم' : 'Dashboard', icon: LayoutDashboard },
-        { href: `/${locale}/app/ledger/accounts`, label: locale === 'ar' ? 'دليل الحسابات' : 'Chart of Accounts', icon: BookOpen },
-        { href: `/${locale}/app/ledger/journals`, label: locale === 'ar' ? 'القيود اليومية' : 'Journal Entries', icon: Layers },
-        { href: `/${locale}/app/invoicing/sales`, label: locale === 'ar' ? 'فواتير المبيعات' : 'Sales Invoices', icon: Receipt },
-        { href: `/${locale}/app/payables/bills`, label: locale === 'ar' ? 'فواتير الموردين (AI OCR)' : 'Vendor Bills & OCR', icon: CreditCard, badge: 'AI OCR', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-        { href: `/${locale}/app/receivables/payments`, label: locale === 'ar' ? 'سندات القبض' : 'Customer Receipts', icon: Receipt },
+        { href: `/${locale}/app/dashboard`, label: t('navDashboard'), icon: LayoutDashboard },
+        { href: `/${locale}/app/ledger/accounts`, label: t('navLedger'), icon: BookOpen },
+        { href: `/${locale}/app/ledger/journals`, label: t('navJournals'), icon: Layers },
+        { href: `/${locale}/app/invoicing/sales`, label: t('navInvoices'), icon: Receipt },
+        { href: `/${locale}/app/payables/bills`, label: t('navBills'), icon: CreditCard, badge: 'AI OCR', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+        { href: `/${locale}/app/receivables/payments`, label: t('navReceivables'), icon: Receipt },
       ]
     },
     {
       group: locale === 'ar' ? 'الامتثال الضريبي الإماراتي' : 'UAE Tax & Compliance',
       items: [
-        { href: `/${locale}/app/tax/vat201`, label: locale === 'ar' ? 'إقرار ضريبة القيمة المضافة' : 'VAT 201 Return', icon: FileSpreadsheet, badge: 'FTA 201', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-        { href: `/${locale}/app/banking/reconciliation`, label: locale === 'ar' ? 'التسوية البنكية' : 'Bank Reconciliation', icon: Landmark },
-        { href: `/${locale}/app/einvoicing`, label: locale === 'ar' ? 'الفوترة الإلكترونية Peppol' : 'Peppol E-Invoicing', icon: FileCheck, badge: 'PINT-AE', badgeColor: 'bg-sky-50 text-sky-800 border-sky-200' },
-        { href: `/${locale}/app/payroll`, label: locale === 'ar' ? 'نظام حماية الأجور WPS' : 'WPS Payroll SIF', icon: Users, badge: 'CBUAE', badgeColor: 'bg-amber-50 text-amber-800 border-amber-200' },
-        { href: `/${locale}/app/assets`, label: locale === 'ar' ? 'الأصول الثابتة والإيجارات' : 'Fixed Assets & Leases', icon: Boxes, badge: 'IFRS 16', badgeColor: 'bg-stone-100 text-stone-700 border-stone-200' },
+        { href: `/${locale}/app/tax/vat201`, label: t('navTax'), icon: FileSpreadsheet, badge: 'FTA 201', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+        { href: `/${locale}/app/banking/reconciliation`, label: t('navBankRecon'), icon: Landmark },
+        { href: `/${locale}/app/einvoicing`, label: t('navEinvoicing'), icon: FileCheck, badge: 'PINT-AE', badgeColor: 'bg-sky-50 text-sky-800 border-sky-200' },
+        { href: `/${locale}/app/payroll`, label: t('navPayroll'), icon: Users, badge: 'CBUAE', badgeColor: 'bg-amber-50 text-amber-800 border-amber-200' },
+        { href: `/${locale}/app/assets`, label: t('navAssets'), icon: Boxes, badge: 'IFRS 16', badgeColor: 'bg-stone-100 text-stone-700 border-stone-200' },
       ]
     },
     {
       group: locale === 'ar' ? 'الذكاء الاصطناعي والإقفال' : 'AI Agents & Period Close',
       items: [
-        { href: `/${locale}/app/ai/proposals`, label: locale === 'ar' ? 'مقترحات الذكاء الاصطناعي' : 'AI Proposals', icon: Bot, badge: 'Autonomous', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-        { href: `/${locale}/app/ai/guardrails-memory`, label: locale === 'ar' ? 'حواجز الأمان والذاكرة' : 'Guardrails & Memory', icon: Sparkles, badge: 'LiteLLM', badgeColor: 'bg-amber-50 text-amber-800 border-amber-200' },
-        { href: `/${locale}/app/close`, label: locale === 'ar' ? 'إقفال الفترة المحاسبية' : 'Period Close', icon: CalendarCheck2 },
-        { href: `/${locale}/app/reports`, label: locale === 'ar' ? 'التقارير المالية' : 'Financial Reports', icon: FileSpreadsheet },
-        { href: `/${locale}/app/reports/builder`, label: locale === 'ar' ? 'مخصص التقارير' : 'Report Builder', icon: Sliders },
+        { href: `/${locale}/app/ai/proposals`, label: t('navAiProposals'), icon: Bot, badge: 'Autonomous', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+        { href: `/${locale}/app/ai/guardrails-memory`, label: t('navGuardrailsMemory'), icon: Sparkles, badge: 'LiteLLM', badgeColor: 'bg-amber-50 text-amber-800 border-amber-200' },
+        { href: `/${locale}/app/close`, label: t('navClose'), icon: CalendarCheck2 },
+        { href: `/${locale}/app/reports`, label: t('navReports'), icon: FileSpreadsheet },
+        { href: `/${locale}/app/reports/builder`, label: t('navReportBuilder'), icon: Sliders },
       ]
     },
     {
       group: locale === 'ar' ? 'البيانات والرقابة والتدقيق' : 'Audit & Administration',
       items: [
-        { href: `/${locale}/app/onboarding`, label: locale === 'ar' ? 'ترحيل واستيراد البيانات' : 'Data Onboarding', icon: ArrowUpRight },
-        { href: `/${locale}/app/auditor`, label: locale === 'ar' ? 'منصة المدقق الخارجي' : 'Auditor Workspace', icon: ShieldCheck, badge: 'FAF v1', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-        { href: `/${locale}/app/ops`, label: locale === 'ar' ? 'لوحة التحكم التشغيلية' : 'Platform Operations', icon: Sliders },
-        { href: `/${locale}/app/audit`, label: locale === 'ar' ? 'سجل التدقيق الرقابي' : 'Audit Trail', icon: ShieldAlert },
+        { href: `/${locale}/app/onboarding`, label: t('navOnboarding'), icon: ArrowUpRight },
+        { href: `/${locale}/app/auditor`, label: t('navAuditor'), icon: ShieldCheck, badge: 'FAF v1', badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+        { href: `/${locale}/app/ops`, label: t('navOps'), icon: Sliders },
+        { href: `/${locale}/app/audit`, label: t('navAuditRoles'), icon: ShieldAlert },
       ]
     }
   ];
