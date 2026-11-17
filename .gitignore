@@ -23,6 +23,7 @@ venv/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
 ENV/
 develop-eggs/
 downloads/

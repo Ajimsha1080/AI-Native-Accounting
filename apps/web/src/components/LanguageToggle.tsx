@@ -15,10 +15,10 @@ export function LanguageToggle({ locale }: { locale: string }) {
   return (
     <Link
       href={targetPath}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-200 transition focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border border-[#E8E4DC] bg-white hover:bg-[#F6F3EB] text-stone-700 shadow-xs transition focus:outline-none focus:ring-2 focus:ring-stone-900"
       aria-label={locale === 'ar' ? 'Switch to English' : 'التحويل إلى العربية'}
     >
-      <Globe className="w-3.5 h-3.5 text-emerald-400" />
+      <Globe className="w-3.5 h-3.5 text-stone-500" />
       <span>{locale === 'ar' ? 'English' : 'العربية'}</span>
     </Link>
   );

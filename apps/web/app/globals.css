@@ -2,23 +2,24 @@
 
 @layer base {
   :root {
-    --color-bg-primary: #020617;
-    --color-bg-secondary: #0b1120;
-    --color-border: rgba(255, 255, 255, 0.08);
-    --color-text-main: #f8fafc;
-    --color-text-muted: #94a3b8;
+    --color-bg-primary: #FAF8F5;
+    --color-bg-secondary: #FFFFFF;
+    --color-bg-cream: #F5F2EB;
+    --color-border: #E8E4DC;
+    --color-text-main: #1C1917;
+    --color-text-muted: #78716C;
   }
 }
 
 body {
-  background-color: #020617;
-  color: #f8fafc;
+  background-color: #FAF8F5;
+  color: #1C1917;
   min-height: 100vh;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
   background-image: 
-    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(16, 185, 129, 0.09), transparent),
-    radial-gradient(ellipse 50% 30% at 85% 15%, rgba(6, 182, 212, 0.05), transparent),
-    radial-gradient(ellipse 40% 40% at 15% 85%, rgba(99, 102, 241, 0.04), transparent);
+    radial-gradient(ellipse 90% 60% at 50% -10%, rgba(245, 238, 226, 0.7), transparent),
+    radial-gradient(ellipse 50% 30% at 85% 15%, rgba(236, 253, 245, 0.4), transparent),
+    radial-gradient(ellipse 40% 40% at 15% 85%, rgba(254, 243, 199, 0.3), transparent);
   background-attachment: fixed;
 }
 
@@ -31,36 +32,37 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(120, 113, 108, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(16, 185, 129, 0.4);
+  background: rgba(5, 150, 105, 0.4);
 }
 
-/* YC Level Glassmorphism & Micro-Interactions */
+/* YC Level Warm Cream & White Surfaces */
 .glass-panel {
-  background: rgba(11, 17, 32, 0.72);
+  background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(232, 228, 220, 0.85);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
 }
 
 .glass-panel-elevated {
-  background: rgba(15, 23, 42, 0.85);
+  background: #FFFFFF;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(232, 228, 220, 0.9);
+  box-shadow: 0 12px 32px -10px rgba(28, 25, 23, 0.06), 0 0 1px 1px rgba(28, 25, 23, 0.02);
 }
 
 .yc-card-hover {
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .yc-card-hover:hover {
-  border-color: rgba(16, 185, 129, 0.35);
-  box-shadow: 0 12px 30px -10px rgba(16, 185, 129, 0.15), 0 0 0 1px rgba(16, 185, 129, 0.2);
-  transform: translateY(-2px);
+  border-color: rgba(5, 150, 105, 0.4);
+  box-shadow: 0 12px 28px -10px rgba(28, 25, 23, 0.08), 0 0 0 1px rgba(5, 150, 105, 0.2);
+  transform: translateY(-1.5px);
 }
 
 /* Arabic RTL Mirroring */
@@ -75,7 +77,110 @@ body {
 }
 
 .badge-shimmer {
-  background: linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.3) 50%, rgba(16, 185, 129, 0.1) 100%);
+  background: linear-gradient(90deg, rgba(5, 150, 105, 0.08) 0%, rgba(5, 150, 105, 0.2) 50%, rgba(5, 150, 105, 0.08) 100%);
   background-size: 200% 100%;
   animation: shimmer 4s infinite linear;
+}
+
+/* ==============================================================================
+   YC Premium White & Warm Cream Theme System
+   Transforms dark containers into pristine white surfaces and warm cream canvases
+   ============================================================================== */
+
+/* Base Canvas & Backgrounds */
+.bg-slate-950,
+.bg-slate-950\/80,
+.bg-slate-950\/70,
+.bg-slate-950\/60,
+.bg-slate-950\/40,
+.bg-slate-950\/30 {
+  background-color: #FAF8F5 !important;
+}
+
+/* Card Surfaces & Elevated Modals */
+.bg-slate-900,
+.bg-slate-900\/90,
+.bg-slate-900\/80,
+.bg-slate-900\/70,
+.bg-slate-900\/60 {
+  background-color: #FFFFFF !important;
+  border-color: #E8E4DC !important;
+}
+
+/* Inset Panels, Table Headers & Secondary Buttons */
+.bg-slate-800,
+.bg-slate-800\/90,
+.bg-slate-800\/80,
+.bg-slate-800\/60,
+.bg-slate-800\/50,
+.bg-slate-800\/40 {
+  background-color: #F5F2EB !important;
+  border-color: #E2DDD3 !important;
+}
+
+/* Delicate Micro-Borders */
+.border-white\/\[0\.06\],
+.border-white\/\[0\.07\],
+.border-white\/\[0\.08\],
+.border-white\/\[0\.09\],
+.border-white\/\[0\.1\],
+.border-white\/\[0\.15\],
+.border-slate-800,
+.border-slate-700 {
+  border-color: #E8E4DC !important;
+}
+
+/* High-Contrast Crisp Typography */
+h1.text-white,
+h2.text-white,
+h3.text-white,
+h4.text-white,
+span.text-white,
+p.text-white,
+div.text-white:not([class*="bg-emerald"]):not([class*="bg-stone-9"]):not([class*="bg-black"]) {
+  color: #1C1917 !important;
+}
+
+.text-slate-100,
+.text-slate-200 {
+  color: #1C1917 !important;
+}
+
+.text-slate-300,
+.text-slate-400 {
+  color: #57534E !important;
+}
+
+.text-slate-500 {
+  color: #78716C !important;
+}
+
+/* Input Fields */
+input.bg-slate-950,
+input.bg-slate-950\/80,
+select.bg-slate-900,
+select.bg-slate-900\/90 {
+  background-color: #FFFFFF !important;
+  color: #1C1917 !important;
+  border-color: #E2DDD3 !important;
+}
+input::placeholder {
+  color: #A8A29E !important;
+}
+
+/* Retain Pure White on Primary Action Buttons and Badges */
+button.bg-emerald-600,
+button.bg-emerald-500,
+a.bg-emerald-600,
+a.bg-emerald-500,
+.bg-stone-900,
+.bg-emerald-600,
+.bg-emerald-500 {
+  color: #FFFFFF !important;
+}
+button.bg-emerald-600 *,
+button.bg-emerald-500 *,
+a.bg-emerald-600 *,
+a.bg-emerald-500 * {
+  color: #FFFFFF !important;
 }
