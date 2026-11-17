@@ -118,12 +118,12 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
       const res = await fetch('/api/banking/reconciliation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'AUTO_CREATE_FEE_ENTRY', statementLineId: stmtId })
+        body: JSON.stringify({ action: 'FEE_ENTRY', statementLineId: stmtId })
       });
       if (!res.ok) throw new Error('Fee posting failed');
       fetchRecon();
     } catch (err: any) {
-      alert('Error: ' + err.message);
+      alert('Error auto-posting fee: ' + err.message);
     } finally {
       setIsMatching(false);
     }
@@ -132,17 +132,19 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
   return (
     <div className="space-y-6">
       {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-slate-900 border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-3xl bg-white border border-[#E8E4DC] shadow-[0_4px_24px_-4px_rgba(28,25,23,0.06)]">
         <div>
-          <h1 className="text-xl font-black text-white flex items-center gap-2">
-            <Landmark className="w-5 h-5 text-emerald-400" />
+          <h1 className="text-xl sm:text-2xl font-black text-stone-900 flex items-center gap-2">
+            <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700">
+              <Landmark className="w-5 h-5" />
+            </div>
             <span>
               {locale === 'ar'
                 ? 'التسوية المصرفية الذكية (Bank Reconciliation)'
                 : 'AI-Powered Bank Reconciliation'}
             </span>
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-stone-500 mt-1.5 leading-relaxed">
             {locale === 'ar'
               ? 'مطابقة كشوف الحسابات المصرفية (MT940/CAMT.053) مع قيود دفتر الأستاذ العام وتفسير الفروقات بالذكاء الاصطناعي'
               : 'Continuous matching of bank feeds against general ledger with explainable confidence'}
@@ -151,7 +153,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
 
         <button
           onClick={fetchRecon}
-          className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto"
+          className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold transition duration-200 shadow-sm flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           <span>Refresh Feed</span>
@@ -163,28 +165,28 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
           <div className="space-y-6">
             {/* Account Status Header Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
-                <span className="text-[11px] text-slate-400 font-semibold block">BANK STATEMENT BALANCE</span>
-                <div className="text-lg font-black text-white mt-1">
+              <div className="p-5 rounded-2xl bg-white border border-[#E8E4DC] shadow-sm">
+                <span className="text-[11px] text-stone-500 font-bold uppercase tracking-wider block">BANK STATEMENT BALANCE</span>
+                <div className="text-2xl font-black text-stone-900 mt-1">
                   {formatMinorUnits(data.bankBalanceMinorUnits, { locale })}
                 </div>
-                <span className="text-[10px] text-slate-500 font-mono">IBAN: {data.iban}</span>
+                <span className="text-[10px] text-stone-400 font-mono mt-1 block">IBAN: {data.iban}</span>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
-                <span className="text-[11px] text-slate-400 font-semibold block">GENERAL LEDGER BALANCE</span>
-                <div className="text-lg font-black text-white mt-1">
+              <div className="p-5 rounded-2xl bg-white border border-[#E8E4DC] shadow-sm">
+                <span className="text-[11px] text-stone-500 font-bold uppercase tracking-wider block">GENERAL LEDGER BALANCE</span>
+                <div className="text-2xl font-black text-stone-900 mt-1">
                   {formatMinorUnits(data.ledgerBalanceMinorUnits, { locale })}
                 </div>
-                <span className="text-[10px] text-slate-500 font-medium">{data.accountName}</span>
+                <span className="text-[10px] text-stone-600 font-medium mt-1 block">{data.accountName}</span>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-800">
-                <span className="text-[11px] text-slate-400 font-semibold block">RECONCILIATION VARIANCE</span>
-                <div className={`text-lg font-black mt-1 ${data.differenceMinorUnits === '0' ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <div className="p-5 rounded-2xl bg-white border border-[#E8E4DC] shadow-sm">
+                <span className="text-[11px] text-stone-500 font-bold uppercase tracking-wider block">RECONCILIATION VARIANCE</span>
+                <div className={`text-2xl font-black mt-1 ${data.differenceMinorUnits === '0' ? 'text-emerald-700' : 'text-amber-700'}`}>
                   {formatMinorUnits(data.differenceMinorUnits, { locale })}
                 </div>
-                <span className="text-[10px] text-slate-500">
+                <span className="text-[10px] text-stone-500 mt-1 block">
                   {data.differenceMinorUnits === '0' ? 'Zero Variance - Fully Reconciled' : 'Pending Unmatched Items'}
                 </span>
               </div>
@@ -192,15 +194,15 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
 
             {/* AI Smart Match Assistant Banner */}
             {data.suggestions.length > 0 && (
-              <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-800/80 space-y-3">
+              <div className="p-5 rounded-2xl bg-white border border-emerald-300 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-400" />
-                    <h3 className="text-xs font-black text-white tracking-wide uppercase">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <h3 className="text-xs font-black text-stone-900 tracking-wide uppercase">
                       AI Reconciliation Agent: {data.suggestions.length} High-Confidence Explanations
                     </h3>
                   </div>
-                  <span className="text-[10px] bg-emerald-950 border border-emerald-800 text-emerald-300 font-bold px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full">
                     Audited Suggestions
                   </span>
                 </div>
@@ -209,18 +211,18 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                   {data.suggestions.map((sugg) => (
                     <div
                       key={sugg.id}
-                      className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 flex flex-col justify-between gap-2.5"
+                      className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E8E4DC] flex flex-col justify-between gap-3"
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-mono font-bold text-cyan-400">
+                          <span className="text-[10px] font-mono font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
                             {sugg.matchType}
                           </span>
-                          <span className="text-[11px] font-black text-emerald-400">
+                          <span className="text-[11px] font-black text-emerald-700">
                             {Math.round(sugg.confidence * 100)}% Match
                           </span>
                         </div>
-                        <p className="text-xs text-slate-300">
+                        <p className="text-xs text-stone-700 font-medium">
                           {locale === 'ar' ? sugg.explanationAr : sugg.explanationEn}
                         </p>
                       </div>
@@ -230,7 +232,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                           <button
                             onClick={() => handleCreateFeeEntry(sugg.statementLineId)}
                             disabled={isMatching}
-                            className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] transition shadow"
+                            className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs transition shadow-sm cursor-pointer"
                           >
                             Auto-Post Bank Fee Journal
                           </button>
@@ -238,7 +240,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                           <button
                             onClick={() => handleManualMatch(sugg.statementLineId, sugg.ledgerLineId)}
                             disabled={isMatching}
-                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold text-[11px] transition shadow"
+                            className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-sm cursor-pointer"
                           >
                             Accept & Match Entry
                           </button>
@@ -253,12 +255,12 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
             {/* Split Screen: Bank Statement vs General Ledger */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Column: Bank Statement Lines */}
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+              <div className="p-5 rounded-2xl bg-white border border-[#E8E4DC] shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
                     Bank Statement Feed (MT940 / CAMT.053)
                   </h3>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-stone-500 font-medium">
                     {data.statements.filter((s) => s.matchedStatus === 'UNMATCHED').length} Unmatched
                   </span>
                 </div>
@@ -268,24 +270,24 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                     <div
                       key={stmt.id}
                       onClick={() => stmt.matchedStatus !== 'MATCHED' && setSelectedStmtId(stmt.id)}
-                      className={`p-3 rounded-xl border text-xs transition cursor-pointer ${
+                      className={`p-3.5 rounded-xl border text-xs transition cursor-pointer ${
                         stmt.matchedStatus === 'MATCHED'
-                          ? 'bg-slate-950/40 border-slate-800/60 opacity-60'
+                          ? 'bg-[#FAF8F5]/50 border-[#E8E4DC] opacity-60'
                           : selectedStmtId === stmt.id
-                          ? 'bg-slate-800 border-emerald-500 ring-1 ring-emerald-500'
-                          : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                          ? 'bg-emerald-50/60 border-emerald-500 ring-1 ring-emerald-500'
+                          : 'bg-[#FAF8F5] border-[#E8E4DC] hover:border-emerald-500'
                       }`}
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="font-semibold text-white">{stmt.description}</div>
-                          <span className="text-[10px] text-slate-500 font-mono">Ref: {stmt.reference} · {stmt.date}</span>
+                          <div className="font-semibold text-stone-900">{stmt.description}</div>
+                          <span className="text-[10px] text-stone-400 font-mono">Ref: {stmt.reference} · {stmt.date}</span>
                         </div>
                         <div className="text-end">
-                          <div className={`font-mono font-bold ${toSafeBigInt(stmt.amountMinorUnits) > 0n ? 'text-emerald-400' : 'text-slate-300'}`}>
+                          <div className={`font-mono font-bold ${toSafeBigInt(stmt.amountMinorUnits) > 0n ? 'text-emerald-700' : 'text-stone-800'}`}>
                             {formatMinorUnits(stmt.amountMinorUnits, { locale })}
                           </div>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${stmt.matchedStatus === 'MATCHED' ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-amber-950 border-amber-800 text-amber-300'}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${stmt.matchedStatus === 'MATCHED' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                             {stmt.matchedStatus}
                           </span>
                         </div>
@@ -296,12 +298,12 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
               </div>
 
               {/* Right Column: General Ledger Transactions */}
-              <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
+              <div className="p-5 rounded-2xl bg-white border border-[#E8E4DC] shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-white uppercase tracking-wider">
+                  <h3 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
                     Ledger Account 1020 Transactions
                   </h3>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-stone-500 font-medium">
                     {data.ledgerTransactions.filter((l) => !l.isReconciled).length} Unreconciled
                   </span>
                 </div>
@@ -311,24 +313,24 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
                     <div
                       key={ledg.id}
                       onClick={() => !ledg.isReconciled && setSelectedLedgId(ledg.id)}
-                      className={`p-3 rounded-xl border text-xs transition cursor-pointer ${
+                      className={`p-3.5 rounded-xl border text-xs transition cursor-pointer ${
                         ledg.isReconciled
-                          ? 'bg-slate-950/40 border-slate-800/60 opacity-60'
+                          ? 'bg-[#FAF8F5]/50 border-[#E8E4DC] opacity-60'
                           : selectedLedgId === ledg.id
-                          ? 'bg-slate-800 border-emerald-500 ring-1 ring-emerald-500'
-                          : 'bg-slate-950 border-slate-800 hover:border-slate-700'
+                          ? 'bg-emerald-50/60 border-emerald-500 ring-1 ring-emerald-500'
+                          : 'bg-[#FAF8F5] border-[#E8E4DC] hover:border-emerald-500'
                       }`}
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="font-semibold text-white">{ledg.description}</div>
-                          <span className="text-[10px] text-slate-500 font-mono">Voucher: {ledg.voucherNumber} · {ledg.date}</span>
+                          <div className="font-semibold text-stone-900">{ledg.description}</div>
+                          <span className="text-[10px] text-stone-400 font-mono">Voucher: {ledg.voucherNumber} · {ledg.date}</span>
                         </div>
                         <div className="text-end">
-                          <div className={`font-mono font-bold ${toSafeBigInt(ledg.amountMinorUnits) > 0n ? 'text-emerald-400' : 'text-slate-300'}`}>
+                          <div className={`font-mono font-bold ${toSafeBigInt(ledg.amountMinorUnits) > 0n ? 'text-emerald-700' : 'text-stone-800'}`}>
                             {formatMinorUnits(ledg.amountMinorUnits, { locale })}
                           </div>
-                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${ledg.isReconciled ? 'bg-emerald-950 border-emerald-800 text-emerald-300' : 'bg-amber-950 border-amber-800 text-amber-300'}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${ledg.isReconciled ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
                             {ledg.isReconciled ? 'RECONCILED' : 'UNRECONCILED'}
                           </span>
                         </div>
@@ -341,14 +343,14 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
 
             {/* Manual Match Trigger Bar */}
             {selectedStmtId && selectedLedgId && (
-              <div className="p-4 rounded-xl bg-emerald-950/80 border border-emerald-800 flex items-center justify-between animate-fade-in">
-                <span className="text-xs text-emerald-300 font-semibold">
-                  Statement line <code className="font-mono text-white">{selectedStmtId}</code> selected with Ledger entry <code className="font-mono text-white">{selectedLedgId}</code>
+              <div className="p-4 rounded-2xl bg-stone-900 border border-stone-800 text-white flex items-center justify-between shadow-xl animate-fade-in">
+                <span className="text-xs text-stone-200 font-medium">
+                  Statement line <code className="font-mono text-emerald-400 font-bold">{selectedStmtId}</code> selected with Ledger entry <code className="font-mono text-emerald-400 font-bold">{selectedLedgId}</code>
                 </span>
                 <button
                   onClick={() => handleManualMatch(selectedStmtId, selectedLedgId)}
                   disabled={isMatching}
-                  className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs transition"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-sm cursor-pointer"
                 >
                   Confirm Manual Match
                 </button>
@@ -363,7 +365,7 @@ function ReconciliationView({ params }: { params: Promise<{ locale: string }> })
 
 export default function BankReconPage({ params }: { params: Promise<{ locale: string }> }) {
   return (
-    <Suspense fallback={<div className="p-8 text-slate-400">Loading bank reconciliation workspace...</div>}>
+    <Suspense fallback={<div className="p-8 text-stone-500">Loading bank reconciliation workspace...</div>}>
       <ReconciliationView params={params} />
     </Suspense>
   );
