@@ -5,6 +5,9 @@ const withNextIntl = createNextIntlPlugin('./src/i18n.ts');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    agentUpgrade: 'security'
+  },
   transpilePackages: [
     '@ledger-ae/shared-types',
     '@ledger-ae/ledger-core',
