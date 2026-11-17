@@ -226,18 +226,18 @@ export default function VendorBillsPage() {
 
       {/* AI OCR Bill Scanner Modal */}
       {isOcrOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
+        <div className="fixed inset-0 z-50 bg-stone-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E8E4DC] rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-[#E8E4DC] flex items-center justify-between bg-[#FDFBF7]">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg text-purple-400">
+                <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-white text-base">
+                  <h3 className="font-bold text-stone-900 text-base">
                     {isAr ? 'المسح الذكي لفواتير الموردين (AI OCR)' : 'Vendor Invoice & Receipt OCR Scanner'}
                   </h3>
-                  <p className="text-xs text-slate-400">
+                  <p className="text-xs text-stone-500">
                     {isAr
                       ? 'استخراج آلي للرقم الضريبي، التواريخ، البنود وضريبة القيمة المضافة 5%'
                       : 'Automatic extraction of 15-digit UAE TRN, line items, and statutory 5% VAT'}
@@ -250,7 +250,7 @@ export default function VendorBillsPage() {
                   setOcrResult(null);
                   setOcrError(null);
                 }}
-                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                className="p-1.5 text-stone-400 hover:text-stone-900 rounded-lg hover:bg-stone-100 transition"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -259,7 +259,7 @@ export default function VendorBillsPage() {
             <div className="p-6 space-y-5">
               {!ocrResult ? (
                 <form onSubmit={handleExtractOcr} className="space-y-4">
-                  <div className="border-2 border-dashed border-slate-700 hover:border-purple-500/60 rounded-xl p-8 text-center transition bg-slate-950/40">
+                  <div className="border-2 border-dashed border-[#E8E4DC] hover:border-emerald-500 rounded-xl p-8 text-center transition bg-[#FAF8F5]">
                     <input
                       type="file"
                       id="invoice-ocr-file"
@@ -268,20 +268,20 @@ export default function VendorBillsPage() {
                       onChange={(e) => setOcrFile(e.target.files?.[0] || null)}
                     />
                     <label htmlFor="invoice-ocr-file" className="cursor-pointer flex flex-col items-center gap-2">
-                      <div className="p-3 bg-purple-500/10 rounded-full text-purple-400 border border-purple-500/20">
+                      <div className="p-3 bg-emerald-50 rounded-full text-emerald-700 border border-emerald-200">
                         <Upload className="w-6 h-6" />
                       </div>
-                      <span className="text-sm font-semibold text-slate-200">
+                      <span className="text-sm font-semibold text-stone-900">
                         {ocrFile ? ocrFile.name : (isAr ? 'اختر ملف الفاتورة أو الإيصال (PDF، صورة)' : 'Click to select invoice (PDF, Image, PNG, JPG)')}
                       </span>
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-stone-500">
                         {isAr ? 'يدعم الفواتير الضريبية ثنائية اللغة (عربي / إنجليزي)' : 'Supports bilingual UAE tax invoices (Arabic & English)'}
                       </span>
                     </label>
                   </div>
 
                   {ocrError && (
-                    <div className="p-3 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs rounded-lg flex items-center gap-2">
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       <span>{ocrError}</span>
                     </div>
@@ -291,14 +291,14 @@ export default function VendorBillsPage() {
                     <button
                       type="button"
                       onClick={() => setIsOcrOpen(false)}
-                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
+                      className="px-4 py-2 text-xs font-semibold text-stone-500 hover:text-stone-900 transition rounded-xl"
                     >
                       {isAr ? 'إلغاء' : 'Cancel'}
                     </button>
                     <button
                       type="submit"
                       disabled={!ocrFile || isExtracting}
-                      className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow transition flex items-center gap-2"
+                      className="px-5 py-2.5 bg-stone-900 hover:bg-stone-800 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
                     >
                       {isExtracting ? (
                         <>
@@ -307,7 +307,7 @@ export default function VendorBillsPage() {
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                          <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                           <span>{isAr ? 'بدء استخراج البيانات' : 'Extract Invoice Data'}</span>
                         </>
                       )}
@@ -316,21 +316,21 @@ export default function VendorBillsPage() {
                 </form>
               ) : (
                 <div className="space-y-4">
-                  <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
+                  <div className="p-4 bg-[#FAF8F5] rounded-xl border border-[#E8E4DC] space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="font-bold text-white text-sm">{ocrResult.vendorName || 'Vendor'}</div>
+                      <div className="font-bold text-stone-900 text-sm">{ocrResult.vendorName || 'Vendor'}</div>
                       <div className="flex items-center gap-1.5">
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
                           ocrResult.isTrnValid
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
                           {ocrResult.isTrnValid ? 'TRN Valid' : 'TRN Invalid'}
                         </span>
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
                           ocrResult.isMathValid
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-rose-500/10 text-rose-400 border border-rose-500/30'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
                           {ocrResult.isMathValid ? 'Math Reconciled' : 'Math Variance'}
                         </span>
@@ -339,26 +339,26 @@ export default function VendorBillsPage() {
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-1">
                       <div>
-                        <div className="text-slate-500 text-[10px] uppercase font-mono">{isAr ? 'الرقم الضريبي' : 'TRN'}</div>
-                        <div className="font-mono text-slate-300 font-medium">{ocrResult.vendorTrn || '—'}</div>
+                        <div className="text-stone-400 text-[10px] uppercase font-mono">{isAr ? 'الرقم الضريبي' : 'TRN'}</div>
+                        <div className="font-mono text-stone-800 font-medium">{ocrResult.vendorTrn || '—'}</div>
                       </div>
                       <div>
-                        <div className="text-slate-500 text-[10px] uppercase font-mono">{isAr ? 'رقم الفاتورة' : 'Invoice #'}</div>
-                        <div className="font-mono text-emerald-400 font-semibold">{ocrResult.invoiceNumber}</div>
+                        <div className="text-stone-400 text-[10px] uppercase font-mono">{isAr ? 'رقم الفاتورة' : 'Invoice #'}</div>
+                        <div className="font-mono text-emerald-600 font-semibold">{ocrResult.invoiceNumber}</div>
                       </div>
                       <div>
-                        <div className="text-slate-500 text-[10px] uppercase font-mono">{isAr ? 'التاريخ' : 'Date'}</div>
-                        <div className="font-mono text-slate-300">{ocrResult.invoiceDate}</div>
+                        <div className="text-stone-400 text-[10px] uppercase font-mono">{isAr ? 'التاريخ' : 'Date'}</div>
+                        <div className="font-mono text-stone-700">{ocrResult.invoiceDate}</div>
                       </div>
                       <div>
-                        <div className="text-slate-500 text-[10px] uppercase font-mono">{isAr ? 'المجموع الكلي' : 'Total'}</div>
-                        <div className="font-mono text-white font-bold">{formatZeroFloatMoney(ocrResult.totalFils, locale)}</div>
+                        <div className="text-stone-400 text-[10px] uppercase font-mono">{isAr ? 'المجموع الكلي' : 'Total'}</div>
+                        <div className="font-mono text-stone-900 font-bold">{formatZeroFloatMoney(ocrResult.totalFils, locale)}</div>
                       </div>
                     </div>
 
-                    <div className="text-[11px] text-slate-400 border-t border-slate-800/80 pt-2 flex items-center justify-between">
-                      <span>Model: <span className="font-mono text-purple-400">{ocrResult.modelUsed}</span></span>
-                      <span>Confidence: <span className="font-mono font-bold text-emerald-400">{Math.round(ocrResult.confidenceScore * 100)}%</span></span>
+                    <div className="text-[11px] text-stone-500 border-t border-[#E8E4DC] pt-2 flex items-center justify-between">
+                      <span>Model: <span className="font-mono text-stone-800">{ocrResult.modelUsed}</span></span>
+                      <span>Confidence: <span className="font-mono font-bold text-emerald-600">{Math.round(ocrResult.confidenceScore * 100)}%</span></span>
                     </div>
                   </div>
 
@@ -366,14 +366,14 @@ export default function VendorBillsPage() {
                     <button
                       type="button"
                       onClick={() => setOcrResult(null)}
-                      className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-white transition"
+                      className="px-4 py-2 text-xs font-semibold text-stone-600 hover:text-stone-900 transition rounded-xl hover:bg-stone-100"
                     >
                       {isAr ? 'مسح ملف آخر' : 'Scan Another File'}
                     </button>
                     <button
                       type="button"
                       onClick={handleCreateDraftFromOcr}
-                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg shadow-lg shadow-emerald-900/30 transition flex items-center gap-2"
+                      className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition flex items-center gap-2"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>{isAr ? 'اعتماد واستيراد كمسودة فاتورة' : 'Import as Draft Vendor Bill'}</span>

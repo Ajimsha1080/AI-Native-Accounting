@@ -163,6 +163,13 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
               {/* Quick Actions Toolbar */}
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                 <Link
+                  href={`/${locale}/app/payables/bills`}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition duration-200 shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white">{locale === 'ar' ? 'مسح الفواتير (AI OCR)' : 'Scan Bill (AI OCR)'}</span>
+                </Link>
+                <Link
                   href={`/${locale}/app/ledger/journals`}
                   className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs transition duration-200 shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
