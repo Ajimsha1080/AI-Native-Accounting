@@ -135,25 +135,25 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
       {data && (
         <div className="space-y-6">
           {/* YC Executive Hero Header with Quick Action Bar */}
-          <div className="p-6 sm:p-7 rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-900/70 to-slate-950 border border-white/[0.09] shadow-2xl relative overflow-hidden">
+          <div className="p-6 sm:p-7 rounded-3xl bg-white border border-[#E8E4DC] shadow-[0_4px_24px_-4px_rgba(28,25,23,0.06)] relative overflow-hidden">
             {/* Ambient Lighting Accent */}
-            <div className="absolute top-0 end-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute top-0 end-0 w-96 h-96 bg-amber-100/30 rounded-full blur-3xl pointer-events-none" />
             
             <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 tracking-wider">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200/90 tracking-wider">
                     UAE STATUTORY COMPLIANT
                   </span>
-                  <span className="text-slate-500">•</span>
-                  <span className="text-xs font-mono text-slate-400">
-                    TRN: <strong className="text-slate-200">{entity.trn}</strong>
+                  <span className="text-stone-300">•</span>
+                  <span className="text-xs font-mono text-stone-500">
+                    TRN: <strong className="text-stone-800">{entity.trn}</strong>
                   </span>
                 </div>
-                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-stone-900">
                   {locale === 'ar' ? entity.nameAr : entity.name}
                 </h1>
-                <p className="text-xs text-slate-400 max-w-2xl leading-relaxed">
+                <p className="text-xs text-stone-600 max-w-2xl leading-relaxed">
                   {locale === 'ar'
                     ? 'مركز التحكم والقيادة المالية الموحدة للمجموعة: نظام دفتر الأستاذ الفيدرالي بدقة الفلس الصفرية، ضريبة الشركات بنسبة 9%، وامتثال الفوترة الإلكترونية Peppol PINT.'
                     : 'Group Treasury & General Ledger Command: Zero-Float integer fils accuracy, UAE 9% Corporate Tax readiness, and real-time Peppol PINT statutory compliance.'}
@@ -164,23 +164,23 @@ export default function DashboardPage({ params }: { params: Promise<{ locale: st
               <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                 <Link
                   href={`/${locale}/app/ledger/journals`}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition duration-200 shadow-lg shadow-emerald-950 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-stone-900 hover:bg-stone-800 text-white font-bold text-xs transition duration-200 shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{locale === 'ar' ? 'قيد محاسبي جديد' : 'New Journal'}</span>
+                  <Plus className="w-3.5 h-3.5 text-white" />
+                  <span className="text-white">{locale === 'ar' ? 'قيد محاسبي جديد' : 'New Journal'}</span>
                 </Link>
                 <Link
                   href={`/${locale}/app/invoicing/sales`}
-                  className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/[0.08] text-slate-200 font-semibold text-xs transition duration-200 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-[#F6F3EB] hover:bg-[#EFEAE0] border border-[#E8E4DC] text-stone-800 font-semibold text-xs transition duration-200 shadow-xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  <Receipt className="w-3.5 h-3.5 text-cyan-400" />
+                  <Receipt className="w-3.5 h-3.5 text-sky-700" />
                   <span>{locale === 'ar' ? 'إصدار فاتورة' : 'Sales Invoice'}</span>
                 </Link>
                 <Link
                   href={`/${locale}/app/tax/vat201`}
-                  className="px-3.5 py-2 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 border border-white/[0.08] text-slate-200 font-semibold text-xs transition duration-200 flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-[#F6F3EB] hover:bg-[#EFEAE0] border border-[#E8E4DC] text-stone-800 font-semibold text-xs transition duration-200 shadow-xs flex items-center gap-1.5 cursor-pointer"
                 >
-                  <FileText className="w-3.5 h-3.5 text-amber-400" />
+                  <FileText className="w-3.5 h-3.5 text-amber-700" />
                   <span>{locale === 'ar' ? 'إقرار ضريبة 201' : 'VAT 201'}</span>
                 </Link>
               </div>

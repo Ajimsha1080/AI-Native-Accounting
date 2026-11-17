@@ -41,7 +41,7 @@ body {
 
 /* YC Level Warm Cream & White Surfaces */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(232, 228, 220, 0.85);
@@ -70,22 +70,19 @@ body {
   transform: scaleX(-1);
 }
 
-/* Shimmer animation for badges and highlights */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.badge-shimmer {
-  background: linear-gradient(90deg, rgba(5, 150, 105, 0.08) 0%, rgba(5, 150, 105, 0.2) 50%, rgba(5, 150, 105, 0.08) 100%);
-  background-size: 200% 100%;
-  animation: shimmer 4s infinite linear;
-}
-
 /* ==============================================================================
    YC Premium White & Warm Cream Theme System
    Transforms dark containers into pristine white surfaces and warm cream canvases
    ============================================================================== */
+
+/* Neutralize all dark slate background gradients */
+[class*="from-slate-9"],
+[class*="via-slate-9"],
+[class*="to-slate-9"],
+[class*="from-slate-8"],
+[class*="to-slate-950"] {
+  background-image: none !important;
+}
 
 /* Base Canvas & Backgrounds */
 .bg-slate-950,
@@ -95,6 +92,7 @@ body {
 .bg-slate-950\/40,
 .bg-slate-950\/30 {
   background-color: #FAF8F5 !important;
+  background-image: none !important;
 }
 
 /* Card Surfaces & Elevated Modals */
@@ -104,7 +102,9 @@ body {
 .bg-slate-900\/70,
 .bg-slate-900\/60 {
   background-color: #FFFFFF !important;
+  background-image: none !important;
   border-color: #E8E4DC !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04) !important;
 }
 
 /* Inset Panels, Table Headers & Secondary Buttons */
@@ -115,6 +115,7 @@ body {
 .bg-slate-800\/50,
 .bg-slate-800\/40 {
   background-color: #F5F2EB !important;
+  background-image: none !important;
   border-color: #E2DDD3 !important;
 }
 
@@ -124,20 +125,24 @@ body {
 .border-white\/\[0\.08\],
 .border-white\/\[0\.09\],
 .border-white\/\[0\.1\],
+.border-white\/\[0\.12\],
 .border-white\/\[0\.15\],
 .border-slate-800,
+.border-slate-800\/80,
+.border-slate-800\/60,
 .border-slate-700 {
   border-color: #E8E4DC !important;
 }
 
-/* High-Contrast Crisp Typography */
-h1.text-white,
-h2.text-white,
-h3.text-white,
-h4.text-white,
-span.text-white,
-p.text-white,
-div.text-white:not([class*="bg-emerald"]):not([class*="bg-stone-9"]):not([class*="bg-black"]) {
+/* High-Contrast Crisp Typography on White & Cream Surfaces */
+.bg-slate-900 h1,
+.bg-slate-900 h2,
+.bg-slate-900 h3,
+.bg-slate-900 h4,
+.bg-slate-900 .text-white,
+.bg-white .text-white,
+div:not([class*="bg-stone-9"]):not([class*="bg-emerald-6"]):not([class*="bg-emerald-5"]):not([class*="bg-black"]) > h1.text-white,
+div:not([class*="bg-stone-9"]):not([class*="bg-emerald-6"]):not([class*="bg-emerald-5"]):not([class*="bg-black"]) > h2.text-white {
   color: #1C1917 !important;
 }
 
@@ -168,19 +173,12 @@ input::placeholder {
   color: #A8A29E !important;
 }
 
-/* Retain Pure White on Primary Action Buttons and Badges */
-button.bg-emerald-600,
-button.bg-emerald-500,
-a.bg-emerald-600,
-a.bg-emerald-500,
+/* Retain Crisp White Text on Solid Buttons & Badges */
 .bg-stone-900,
+.bg-stone-900 *,
 .bg-emerald-600,
-.bg-emerald-500 {
-  color: #FFFFFF !important;
-}
-button.bg-emerald-600 *,
-button.bg-emerald-500 *,
-a.bg-emerald-600 *,
-a.bg-emerald-500 * {
+.bg-emerald-600 *,
+.bg-emerald-500,
+.bg-emerald-500 * {
   color: #FFFFFF !important;
 }
