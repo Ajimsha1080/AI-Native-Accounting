@@ -33,7 +33,8 @@ import {
   CheckCircle2,
   X,
   Building,
-  KeyRound
+  KeyRound,
+  Menu
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -58,8 +59,14 @@ export function AppShell({ children, locale }: AppShellProps) {
   } = useApp();
 
   const [isCommandOpen, setIsCommandOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const commandInputRef = useRef<HTMLInputElement>(null);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   // Grouped Navigation for YC-Level Structure
   const navGroups = [
@@ -171,9 +178,19 @@ export function AppShell({ children, locale }: AppShellProps) {
 
       {/* Top Universal Header */}
       <header className="border-b border-[#E8E4DC] bg-[#FAF8F5]/90 backdrop-blur-xl px-4 sm:px-6 py-2.5 flex items-center justify-between sticky top-0 z-40 shadow-xs">
-        <div className="flex items-center gap-4 sm:gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
+          {/* Mobile Menu Hamburger Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen(prev => !prev)}
+            className="p-1.5 -ms-1 rounded-xl text-stone-600 hover:text-stone-900 hover:bg-stone-200/50 md:hidden transition cursor-pointer"
+            aria-label={isMobileMenuOpen ? 'Close Menu' : 'Open Menu'}
+          >
+            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+
           {/* Logo & Brand Emblem */}
-          <Link href={`/${locale}/app/dashboard`} className="flex items-center gap-3 group">
+          <Link href={`/${locale}/app/dashboard`} className="flex items-center gap-2.5 sm:gap-3 group">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-600 via-teal-700 to-emerald-800 flex items-center justify-center font-black text-white text-sm shadow-xs group-hover:shadow-sm transition duration-300">
               AE
             </div>
@@ -358,12 +375,163 @@ export function AppShell({ children, locale }: AppShellProps) {
         </aside>
 
         {/* Dynamic Outlet Main Area */}
-        <main id="main-content" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#FAF8F5]">
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#FAF8F5] pb-20 md:pb-8">
           <div className="max-w-7xl mx-auto space-y-6">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Mobile Drawer Navigation (Slide-in Sheet) */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-stone-900/40 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          
+          {/* Slide-out Panel */}
+          <div className="relative w-4/5 max-w-xs bg-[#FAF8F5] border-e border-[#E8E4DC] h-full flex flex-col justify-between p-4 shadow-2xl z-10 overflow-y-auto animate-in slide-in-from-start duration-200">
+            <div className="space-y-6">
+              {/* Mobile Header with Entity */}
+              <div className="flex items-center justify-between pb-3 border-b border-[#E8E4DC]">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center font-black text-white text-xs">
+                    AE
+                  </div>
+                  <span className="font-bold text-stone-900 text-sm">{t('brandName')}</span>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Mobile Entity Switcher */}
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-bold uppercase text-stone-400">{t('entity')}</div>
+                <select
+                  value={entity.id}
+                  onChange={(e) => {
+                    const found = availableEntities.find((ent) => ent.id === e.target.value);
+                    if (found) setEntity(found);
+                  }}
+                  className="w-full bg-white border border-emerald-300 rounded-xl px-3 py-2 text-xs font-bold text-stone-900 shadow-xs focus:outline-none"
+                >
+                  {availableEntities.map((ent) => (
+                    <option key={ent.id} value={ent.id}>
+                      {locale === 'ar' ? ent.nameAr : ent.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Nav Groups */}
+              <nav className="space-y-5">
+                {navGroups.map((group, gIdx) => (
+                  <div key={gIdx} className="space-y-1">
+                    <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                      {group.group}
+                    </div>
+                    <div className="space-y-1">
+                      {group.items.map((item) => {
+                        const isActive = pathname.startsWith(item.href);
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                              isActive
+                                ? 'bg-white text-stone-900 border border-[#E8E4DC] shadow-xs'
+                                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-200/50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <Icon className={`w-4 h-4 ${isActive ? 'text-emerald-700' : 'text-stone-400'}`} />
+                              <span>{item.label}</span>
+                            </div>
+                            {item.badge && (
+                              <span className={`text-[10px] px-1.5 py-0.2 rounded-full border ${item.badgeColor || 'bg-stone-100 text-stone-700 border-stone-200'}`}>
+                                {item.badge}
+                              </span>
+                            )}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </nav>
+            </div>
+
+            {/* Mobile Footer */}
+            <div className="pt-4 border-t border-[#E8E4DC] space-y-3">
+              <div className="text-[11px] font-mono text-stone-500">
+                TRN: <strong className="text-emerald-700">{entity.trn}</strong>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold transition hover:bg-rose-100"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>{t('signOut')}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Bottom Quick Navigation Bar */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-[#FAF8F5]/95 backdrop-blur-md border-t border-[#E8E4DC] z-30 px-3 py-2 flex items-center justify-around shadow-lg">
+        <Link
+          href={`/${locale}/app/dashboard`}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold ${
+            pathname.includes('/app/dashboard') ? 'text-emerald-700 font-bold' : 'text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <LayoutDashboard className="w-5 h-5" />
+          <span>{locale === 'ar' ? 'الرئيسية' : 'Home'}</span>
+        </Link>
+        <Link
+          href={`/${locale}/app/payables/bills`}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold ${
+            pathname.includes('/app/payables/bills') ? 'text-emerald-700 font-bold' : 'text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <CreditCard className="w-5 h-5" />
+          <span>{locale === 'ar' ? 'المسح OCR' : 'Scan OCR'}</span>
+        </Link>
+        <Link
+          href={`/${locale}/app/invoicing/sales`}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold ${
+            pathname.includes('/app/invoicing') ? 'text-emerald-700 font-bold' : 'text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <Receipt className="w-5 h-5" />
+          <span>{locale === 'ar' ? 'الفواتير' : 'Invoices'}</span>
+        </Link>
+        <Link
+          href={`/${locale}/app/tax/vat201`}
+          className={`flex flex-col items-center gap-1 text-[10px] font-semibold ${
+            pathname.includes('/app/tax') ? 'text-emerald-700 font-bold' : 'text-stone-500 hover:text-stone-900'
+          }`}
+        >
+          <FileSpreadsheet className="w-5 h-5" />
+          <span>{locale === 'ar' ? 'الضريبة' : 'Tax 201'}</span>
+        </Link>
+        <button
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="flex flex-col items-center gap-1 text-[10px] font-semibold text-stone-500 hover:text-stone-900 cursor-pointer"
+        >
+          <Menu className="w-5 h-5" />
+          <span>{locale === 'ar' ? 'القائمة' : 'Menu'}</span>
+        </button>
+      </nav>
 
       {/* YC Command Palette Spotlight (Cmd+K / Ctrl+K) */}
       {isCommandOpen && (
